@@ -4,7 +4,7 @@ Tags: ai, agents, markdown, llms.txt, robots.txt
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -111,6 +111,12 @@ Yes. Settings and generated files are per site.
 
 == Changelog ==
 
+= 1.0.1 =
+* Crawler catalog: official documentation link for cohere-ai and new `cohere-training-data-crawler` token.
+* Crawlers tab shows "No public documentation" for crawlers without a vendor page (Bytespider).
+* Diagnostics checklist notes that crawlers ignoring robots.txt must be blocked at the firewall or CDN.
+* Bundled translations keep loading on installs without a WordPress.org language pack.
+
 = 1.0.0 =
 * Markdown delivery with content negotiation, `.md` URLs, front matter and discovery links.
 * Scheduled batch generation with WP-Cron, lazy fill, immediate cleanup on unpublish, WP-CLI commands.
@@ -122,6 +128,9 @@ Yes. Settings and generated files are per site.
 * English interface with Spanish (es_ES) translation.
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+Catalog and documentation refinements; no behaviour change.
 
 = 1.0.0 =
 First public release.

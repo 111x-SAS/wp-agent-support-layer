@@ -186,7 +186,9 @@ final class Plugin {
 	 * @return void
 	 */
 	public function load_textdomain() {
-		// Bundled translations in /languages (WordPress.org language packs take precedence when present).
+		// Bundled translations in /languages for installs without a WordPress.org language pack (GitHub
+		// releases, pre-approval). Language packs, when present, take precedence over the bundled files.
+		// phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound
 		load_plugin_textdomain( 'wp-agent-support-layer', false, dirname( plugin_basename( WPASL_FILE ) ) . '/languages' );
 	}
 }

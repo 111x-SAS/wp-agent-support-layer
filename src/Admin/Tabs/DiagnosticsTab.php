@@ -195,6 +195,7 @@ final class DiagnosticsTab implements Tab {
 		$items = array(
 			__( 'List which AI crawlers you want to allow (see the Crawlers tab) and check that your WAF, bot-fight or "AI scrapers" rules do not block them by user-agent or by ASN.', 'wp-agent-support-layer' ),
 			__( 'Verify crawlers by IP range or reverse DNS as published by each vendor, rather than trusting the user-agent string alone.', 'wp-agent-support-layer' ),
+			__( 'Crawlers that ignore robots.txt (Bytespider has been reported to) can only be stopped at the firewall or CDN; block them there if you do not want them.', 'wp-agent-support-layer' ),
 			__( 'Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide.', 'wp-agent-support-layer' ),
 			__( 'Ensure the CDN or page cache honours "Vary: Accept" for HTML URLs, or rely on the .md URLs which are cached independently.', 'wp-agent-support-layer' ),
 			__( 'Do not cache or transform robots.txt, llms.txt, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime.', 'wp-agent-support-layer' ),

@@ -19,3 +19,5 @@
 /.phpunit.result.cache
 /*.log
 .DS_Store
+*.zip
+/build

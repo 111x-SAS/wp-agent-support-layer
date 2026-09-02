@@ -110,6 +110,8 @@ final class CrawlersTab implements Tab {
 								<code><?php echo esc_html( $agent ); ?></code>
 								<?php if ( '' !== $crawler['docs'] ) : ?>
 									<a href="<?php echo esc_url( $crawler['docs'] ); ?>" target="_blank" rel="noopener noreferrer" aria-label="<?php esc_attr_e( 'Documentation', 'wp-agent-support-layer' ); ?>">&#9432;</a>
+								<?php else : ?>
+									<span class="description"><?php esc_html_e( 'No public documentation', 'wp-agent-support-layer' ); ?></span>
 								<?php endif; ?>
 							</td>
 							<td><?php echo esc_html( $crawler['vendor'] ); ?></td>

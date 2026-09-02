@@ -38,22 +38,22 @@ msgstr "Mao Rodriguez"
 msgid "https://111x.co"
 msgstr "https://111x.co"
 
-#: src/Admin/ExcludeMetaBox.php:69
+#: src/Admin/ExcludeMetaBox.php:86
 msgid "Exclude from the agent layer (Markdown, llms.txt, manifests)."
 msgstr "Excluir de la capa de agentes (Markdown, llms.txt, manifiestos)."
 
-#: src/Admin/ExcludeMetaBox.php:104
+#: src/Admin/ExcludeMetaBox.php:121
 #: src/Admin/Page.php:92
 #: src/Admin/Page.php:93
 #: src/Admin/Page.php:175
 msgid "Agent Support Layer"
 msgstr "Agent Support Layer"
 
-#: src/Admin/ExcludeMetaBox.php:123
+#: src/Admin/ExcludeMetaBox.php:140
 msgid "Exclude from the agent layer"
 msgstr "Excluir de la capa de agentes"
 
-#: src/Admin/ExcludeMetaBox.php:125
+#: src/Admin/ExcludeMetaBox.php:142
 msgid "Hides this item from the Markdown version, llms.txt and the agent manifest."
 msgstr "Oculta este elemento de la versión Markdown, de llms.txt y del manifiesto de agente."
 
@@ -294,27 +294,27 @@ msgstr "Efectiva"
 msgid "Documentation"
 msgstr "Documentación"
 
-#: src/Admin/Tabs/CrawlersTab.php:117
+#: src/Admin/Tabs/CrawlersTab.php:119
 msgid "Default"
 msgstr "Por defecto"
 
-#: src/Admin/Tabs/CrawlersTab.php:118
-#: src/Admin/Tabs/CrawlersTab.php:121
+#: src/Admin/Tabs/CrawlersTab.php:120
+#: src/Admin/Tabs/CrawlersTab.php:123
 #: src/Admin/Tabs/DiagnosticsTab.php:155
 msgid "Allow"
 msgstr "Permitir"
 
-#: src/Admin/Tabs/CrawlersTab.php:119
 #: src/Admin/Tabs/CrawlersTab.php:121
+#: src/Admin/Tabs/CrawlersTab.php:123
 #: src/Admin/Tabs/DiagnosticsTab.php:155
 msgid "Block"
 msgstr "Bloquear"
 
-#: src/Admin/Tabs/CrawlersTab.php:127
+#: src/Admin/Tabs/CrawlersTab.php:129
 msgid "Generated robots.txt"
 msgstr "robots.txt generado"
 
-#: src/Admin/Tabs/CrawlersTab.php:128
+#: src/Admin/Tabs/CrawlersTab.php:130
 msgid "Read-only preview of what WordPress serves at /robots.txt with the saved settings."
 msgstr "Vista previa de solo lectura de lo que WordPress sirve en /robots.txt con los ajustes guardados."
 
@@ -677,43 +677,43 @@ msgstr "Define qué crawlers de IA quieres permitir (pestaña Crawlers) y compru
 msgid "Verify crawlers by IP range or reverse DNS as published by each vendor, rather than trusting the user-agent string alone."
 msgstr "Verifica los crawlers por rango de IP o DNS inverso según publica cada proveedor, en lugar de confiar solo en la cadena user-agent."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:198
+#: src/Admin/Tabs/DiagnosticsTab.php:199
 msgid "Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide."
 msgstr "Mantén el rate limiting activo; sube los umbrales para crawlers verificados en lugar de desactivar los límites en todo el sitio."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:199
+#: src/Admin/Tabs/DiagnosticsTab.php:200
 msgid "Ensure the CDN or page cache honours \"Vary: Accept\" for HTML URLs, or rely on the .md URLs which are cached independently."
 msgstr "Asegúrate de que el CDN o la caché de página respetan \"Vary: Accept\" en las URLs HTML, o apóyate en las URLs .md, que se cachean por separado."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:200
+#: src/Admin/Tabs/DiagnosticsTab.php:201
 msgid "Do not cache or transform robots.txt, llms.txt, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime."
 msgstr "No caches ni transformes robots.txt, llms.txt, agent-skills.json y /.well-known/api-catalog más allá de su Cache-Control."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:201
+#: src/Admin/Tabs/DiagnosticsTab.php:202
 msgid "If Cloudflare \"Markdown for Agents\" is enabled, decide whether Cloudflare or this plugin converts pages, not both."
 msgstr "Si \"Markdown for Agents\" de Cloudflare está activo, decide si convierte Cloudflare o este plugin, no ambos."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:202
+#: src/Admin/Tabs/DiagnosticsTab.php:203
 msgid "Confirm that the uploads/wp-agent-support-layer directory is not directly accessible (Apache .htaccess or an nginx deny rule)."
 msgstr "Confirma que el directorio uploads/wp-agent-support-layer no es accesible directamente (.htaccess en Apache o una regla deny en nginx)."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:203
+#: src/Admin/Tabs/DiagnosticsTab.php:204
 msgid "After changing security rules, run this simulation again and compare the per-crawler results."
 msgstr "Tras cambiar reglas de seguridad, vuelve a ejecutar esta simulación y compara los resultados por crawler."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:206
+#: src/Admin/Tabs/DiagnosticsTab.php:207
 msgid "Infrastructure checklist (WAF, rate limiting, IP filtering)"
 msgstr "Lista de verificación de infraestructura (WAF, rate limiting, filtrado de IP)"
 
-#: src/Admin/Tabs/DiagnosticsTab.php:207
+#: src/Admin/Tabs/DiagnosticsTab.php:208
 msgid "This plugin cannot change your CDN or firewall. Review these points with your provider."
 msgstr "Este plugin no puede cambiar tu CDN ni tu firewall. Revisa estos puntos con tu proveedor."
 
-#: src/Admin/Tabs/DiagnosticsTab.php:225
+#: src/Admin/Tabs/DiagnosticsTab.php:226
 msgid "Repeat the checks from outside"
 msgstr "Repite las comprobaciones desde fuera"
 
-#: src/Admin/Tabs/DiagnosticsTab.php:226
+#: src/Admin/Tabs/DiagnosticsTab.php:227
 msgid "Run these from your computer to see exactly what each crawler receives through your CDN and firewall."
 msgstr "Ejecútalos desde tu equipo para ver exactamente qué recibe cada crawler a través de tu CDN y firewall."
 
@@ -784,3 +784,11 @@ msgstr "Parece convertido por \"Markdown for Agents\" de Cloudflare en lugar de 
 #: src/Diagnostics/Report.php:248
 msgid "HTML returned for Accept: text/markdown. A page cache or CDN that ignores \"Vary: Accept\" is probably interfering; agents can still use the .md URL."
 msgstr "Se devolvió HTML para Accept: text/markdown. Probablemente interfiere una caché de página o CDN que ignora \"Vary: Accept\"; los agentes pueden usar la URL .md."
+
+#: src/Admin/Tabs/CrawlersTab.php:114
+msgid "No public documentation"
+msgstr "Sin documentación pública"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:198
+msgid "Crawlers that ignore robots.txt (Bytespider has been reported to) can only be stopped at the firewall or CDN; block them there if you do not want them."
+msgstr "Los crawlers que ignoran robots.txt (se ha reportado que Bytespider lo hace) solo pueden detenerse en el firewall o el CDN; bloquéalos ahí si no los quieres."

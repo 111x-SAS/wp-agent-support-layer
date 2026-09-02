@@ -41,7 +41,7 @@ class Test_Crawler_Robots extends WP_UnitTestCase {
 
 	public function test_catalog_contains_the_required_agents_with_groups() {
 		$all = Catalog::all();
-		foreach ( array( 'GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'anthropic-ai', 'PerplexityBot', 'Perplexity-User', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'Bytespider', 'meta-externalagent', 'meta-externalfetcher', 'Amazonbot', 'cohere-ai', 'Diffbot', 'DuckAssistBot', 'YouBot', 'MistralAI-User' ) as $agent ) {
+		foreach ( array( 'GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'anthropic-ai', 'PerplexityBot', 'Perplexity-User', 'Google-Extended', 'Applebot-Extended', 'CCBot', 'Bytespider', 'meta-externalagent', 'meta-externalfetcher', 'Amazonbot', 'cohere-ai', 'Diffbot', 'DuckAssistBot', 'YouBot', 'MistralAI-User', 'cohere-training-data-crawler' ) as $agent ) {
 			$this->assertArrayHasKey( $agent, $all, $agent );
 		}
 		$this->assertSame( Catalog::GROUP_TRAINING, $all['GPTBot']['group'] );
@@ -49,6 +49,8 @@ class Test_Crawler_Robots extends WP_UnitTestCase {
 		$this->assertSame( Catalog::GROUP_AGENT, $all['ChatGPT-User']['group'] );
 		$this->assertSame( 'OpenAI', $all['GPTBot']['vendor'] );
 		$this->assertStringStartsWith( 'https://', $all['GPTBot']['docs'] );
+		$this->assertSame( 'https://docs.cohere.com/docs/cohere-web-crawlers', $all['cohere-ai']['docs'] );
+		$this->assertSame( '', $all['Bytespider']['docs'], 'ByteDance publishes no reachable documentation.' );
 	}
 
 	public function test_catalog_filter_adds_an_agent() {
@@ -181,5 +183,7 @@ class Test_Crawler_Robots extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'On-demand agents', $html );
 		$this->assertMatchesRegularExpression( '/name="wpasl_settings\[crawler_overrides\]\[GPTBot\]" value="default"\s+checked/', $html );
 		$this->assertStringNotContainsString( 'A physical robots.txt file exists', $html );
+		$this->assertStringContainsString( 'No public documentation', $html );
+		$this->assertStringContainsString( 'https://docs.cohere.com/docs/cohere-web-crawlers', $html );
 	}
 }

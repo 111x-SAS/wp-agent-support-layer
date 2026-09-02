@@ -2,14 +2,14 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: WP Agent Support Layer 0.1.0\n"
+"Project-Id-Version: WP Agent Support Layer 1.0.1\n"
 "Report-Msgid-Bugs-To: https://github.com/111x-SAS/wp-agent-support-layer/issues\n"
 "Last-Translator: Mao Rodriguez <mao@111x.co>\n"
 "Language-Team: 111X S.A.S <contacto@111x.co>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-02T02:46:02+00:00\n"
+"POT-Creation-Date: 2026-09-02T03:36:20+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
@@ -39,22 +39,22 @@ msgstr ""
 msgid "https://111x.co"
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:69
+#: src/Admin/ExcludeMetaBox.php:86
 msgid "Exclude from the agent layer (Markdown, llms.txt, manifests)."
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:104
+#: src/Admin/ExcludeMetaBox.php:121
 #: src/Admin/Page.php:92
 #: src/Admin/Page.php:93
 #: src/Admin/Page.php:175
 msgid "Agent Support Layer"
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:123
+#: src/Admin/ExcludeMetaBox.php:140
 msgid "Exclude from the agent layer"
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:125
+#: src/Admin/ExcludeMetaBox.php:142
 msgid "Hides this item from the Markdown version, llms.txt and the agent manifest."
 msgstr ""
 
@@ -179,27 +179,31 @@ msgstr ""
 msgid "Documentation"
 msgstr ""
 
-#: src/Admin/Tabs/CrawlersTab.php:117
+#: src/Admin/Tabs/CrawlersTab.php:114
+msgid "No public documentation"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:119
 msgid "Default"
 msgstr ""
 
-#: src/Admin/Tabs/CrawlersTab.php:118
-#: src/Admin/Tabs/CrawlersTab.php:121
+#: src/Admin/Tabs/CrawlersTab.php:120
+#: src/Admin/Tabs/CrawlersTab.php:123
 #: src/Admin/Tabs/DiagnosticsTab.php:155
 msgid "Allow"
 msgstr ""
 
-#: src/Admin/Tabs/CrawlersTab.php:119
 #: src/Admin/Tabs/CrawlersTab.php:121
+#: src/Admin/Tabs/CrawlersTab.php:123
 #: src/Admin/Tabs/DiagnosticsTab.php:155
 msgid "Block"
 msgstr ""
 
-#: src/Admin/Tabs/CrawlersTab.php:127
+#: src/Admin/Tabs/CrawlersTab.php:129
 msgid "Generated robots.txt"
 msgstr ""
 
-#: src/Admin/Tabs/CrawlersTab.php:128
+#: src/Admin/Tabs/CrawlersTab.php:130
 msgid "Read-only preview of what WordPress serves at /robots.txt with the saved settings."
 msgstr ""
 
@@ -297,42 +301,46 @@ msgid "Verify crawlers by IP range or reverse DNS as published by each vendor, r
 msgstr ""
 
 #: src/Admin/Tabs/DiagnosticsTab.php:198
-msgid "Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide."
+msgid "Crawlers that ignore robots.txt (Bytespider has been reported to) can only be stopped at the firewall or CDN; block them there if you do not want them."
 msgstr ""
 
 #: src/Admin/Tabs/DiagnosticsTab.php:199
-msgid "Ensure the CDN or page cache honours \"Vary: Accept\" for HTML URLs, or rely on the .md URLs which are cached independently."
+msgid "Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide."
 msgstr ""
 
 #: src/Admin/Tabs/DiagnosticsTab.php:200
-msgid "Do not cache or transform robots.txt, llms.txt, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime."
+msgid "Ensure the CDN or page cache honours \"Vary: Accept\" for HTML URLs, or rely on the .md URLs which are cached independently."
 msgstr ""
 
 #: src/Admin/Tabs/DiagnosticsTab.php:201
-msgid "If Cloudflare \"Markdown for Agents\" is enabled, decide whether Cloudflare or this plugin converts pages, not both."
+msgid "Do not cache or transform robots.txt, llms.txt, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime."
 msgstr ""
 
 #: src/Admin/Tabs/DiagnosticsTab.php:202
-msgid "Confirm that the uploads/wp-agent-support-layer directory is not directly accessible (Apache .htaccess or an nginx deny rule)."
+msgid "If Cloudflare \"Markdown for Agents\" is enabled, decide whether Cloudflare or this plugin converts pages, not both."
 msgstr ""
 
 #: src/Admin/Tabs/DiagnosticsTab.php:203
+msgid "Confirm that the uploads/wp-agent-support-layer directory is not directly accessible (Apache .htaccess or an nginx deny rule)."
+msgstr ""
+
+#: src/Admin/Tabs/DiagnosticsTab.php:204
 msgid "After changing security rules, run this simulation again and compare the per-crawler results."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:206
+#: src/Admin/Tabs/DiagnosticsTab.php:207
 msgid "Infrastructure checklist (WAF, rate limiting, IP filtering)"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:207
+#: src/Admin/Tabs/DiagnosticsTab.php:208
 msgid "This plugin cannot change your CDN or firewall. Review these points with your provider."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:225
+#: src/Admin/Tabs/DiagnosticsTab.php:226
 msgid "Repeat the checks from outside"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:226
+#: src/Admin/Tabs/DiagnosticsTab.php:227
 msgid "Run these from your computer to see exactly what each crawler receives through your CDN and firewall."
 msgstr ""
 

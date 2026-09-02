@@ -21,6 +21,7 @@ cleanup
 docker network create "$NET" >/dev/null
 docker run -d --name "$DB" --network "$NET" -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=wordpress mysql:8.0 --default-authentication-plugin=mysql_native_password >/dev/null
 
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
 docker build -q -t "$IMAGE" - <<DOCKERFILE >/dev/null
 FROM php:${PHP_VERSION}-apache
 RUN docker-php-ext-install mysqli >/dev/null && a2enmod rewrite >/dev/null \
@@ -29,6 +30,7 @@ RUN docker-php-ext-install mysqli >/dev/null && a2enmod rewrite >/dev/null \
  && sed -i 's/<VirtualHost \*:80>/<VirtualHost *:${PORT}>/' /etc/apache2/sites-available/000-default.conf \
  && curl -sSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /usr/local/bin/wp && chmod +x /usr/local/bin/wp
 DOCKERFILE
+fi
 
 docker run -d --name "$WEB" --network "$NET" -p "$PORT:$PORT" -v "$ZIP:/tmp/plugin.zip:ro" "$IMAGE" >/dev/null
 W() { docker exec -u www-data "$WEB" php -d memory_limit=512M /usr/local/bin/wp --path=/var/www/html "$@"; }
@@ -52,6 +54,7 @@ echo "== generate"; W wpasl generate; W wpasl status --format=csv | tr '\n' ' ';
 SLUG="$(W post list --post_type=post --field=post_name | head -1)"
 B="http://localhost:$PORT"
 echo "== html headers"; curl -s -o /dev/null -D - "$B/$SLUG/" | grep -iE '^(HTTP|vary|link: <[^>]*\.md|content-signal|content-usage|x-robots-tag)'
+echo "== markdown headers (no X-Robots-Tag, nosniff)"; curl -s -o /dev/null -D - -H 'Accept: text/markdown' "$B/$SLUG/" | grep -iE '^(x-robots-tag|x-content-type-options|content-signal)'
 echo "== accept markdown"; curl -s -D - -H 'Accept: text/markdown' "$B/$SLUG/" | grep -iE '^(HTTP|content-type|x-markdown-tokens|cache-control)|^---$|^title:' | head -6
 echo "== .md url"; curl -s -o /dev/null -w '%{http_code} %{content_type}\n' "$B/$SLUG.md"
 echo "== .md 404"; curl -s -o /dev/null -w '%{http_code}\n' "$B/no-such-page.md"
@@ -64,6 +67,15 @@ TOKEN="$(W option get wpasl_storage_token)"
 FILE="$(R sh -c "ls /var/www/html/wp-content/uploads/wp-agent-support-layer/$TOKEN/md/post | head -1")"
 echo "== direct storage access (expect 403)"; curl -s -o /dev/null -w '%{http_code}\n' "$B/wp-content/uploads/wp-agent-support-layer/$TOKEN/md/post/$FILE"
 echo "== diagnostics (loopback inside the container)"; W eval 'add_filter("wpasl_diagnostics_crawlers", function($c){ return array_intersect_key($c, array_flip(array("GPTBot","PerplexityBot"))); }); $r = WPASL\Plugin::instance()->get("diagnostics")->run(); $bad = 0; foreach ($r["site"] as $k => $c) { if ("ok" !== $c["status"]) { $bad++; echo "site.$k: {$c["status"]} {$c["message"]}\n"; } } foreach ($r["crawlers"] as $a => $d) { foreach ($d["checks"] as $k => $c) { if ("ok" !== $c["status"]) { $bad++; echo "$a.$k: {$c["status"]} {$c["message"]}\n"; } } } echo "non-ok checks: $bad\n";'
+echo "== static front page (Markdown URL with query arg and /.md)"
+FRONT="$(W post list --post_type=page --post_status=publish --field=ID | head -1)"
+W option update show_on_front page --quiet; W option update page_on_front "$FRONT" --quiet
+curl -s -o /dev/null -D - "$B/" | grep -iE '^link: <[^>]*wpasl=md' || echo "MISSING alternate Link header for the front page"
+curl -s -o /dev/null -w 'GET /?wpasl=md -> %{http_code} %{content_type}\n' "$B/?wpasl=md"
+curl -s -o /dev/null -w 'GET /.md -> %{http_code} %{content_type}\n' "$B/.md"
+W option update show_on_front posts --quiet
+echo "== diagnostics in batches (full catalog, wall time of each admin request; budget forced to 2 s)"
+W eval 'wp_set_current_user(1); add_filter("wpasl_diagnostics_time_budget", function () { return 2; }); $c = WPASL\Plugin::instance()->get("diagnostics"); delete_transient(WPASL\Diagnostics\DiagnosticsController::run_key()); $steps = 0; $max = 0; do { $t = microtime(true); $done = $c->step(); $e = microtime(true) - $t; $max = max($max, $e); $steps++; printf("request %d: %.1fs %s\n", $steps, $e, $done ? "report published" : "-> 303 next batch"); } while (!$done && $steps < 60); $r = WPASL\Diagnostics\Report::load(); printf("requests=%d max=%.1fs (Cloudflare limit 100s) crawlers_in_report=%d\n", $steps, $max, count($r["crawlers"]));'
 echo "== crawl check (real user-agents)"; "$(dirname "$0")/crawl-check.sh" "$B" "/$SLUG/" > "${CRAWL_OUT:-/dev/null}"; echo "saved to ${CRAWL_OUT:-/dev/null}"
 echo "== uninstall"; W plugin deactivate wp-agent-support-layer --quiet; W plugin uninstall wp-agent-support-layer --quiet
 echo "options left: $(W option list --search='wpasl_%' --format=count)"

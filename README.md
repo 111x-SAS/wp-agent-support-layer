@@ -12,7 +12,7 @@ WordPress plugin that makes a site discoverable, readable and operable by AI age
 | **AI crawler rules** | One robots.txt group per known AI crawler (GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot, ...) with defaults derived from the signals and per-crawler overrides. |
 | **llms.txt** | Curated Markdown index at `/llms.txt`, optional `/llms-full.txt`. |
 | **Agent manifests** | `/agent-skills.json` (JSON-LD), OpenAPI 3.1 at `/wp-json/wpasl/v1/openapi`, `/.well-known/api-catalog` (RFC 9727). |
-| **Diagnostics** | Loopback simulation of real AI crawlers with a per-crawler report, CDN detection, WAF checklist and `curl` commands. |
+| **Diagnostics** | Loopback simulation of real AI crawlers, run in short batches (safe behind Cloudflare's 100 s limit), with a per-crawler report checked against the served robots.txt, CDN detection, WAF checklist and `curl` commands. |
 
 Requires WordPress 7.0+ and PHP 7.4+. Tested on PHP 7.4, 8.0, 8.2 and 8.3. No external requests, no telemetry.
 
@@ -82,6 +82,7 @@ If `DISABLE_WP_CRON` is set, call `wp-cron.php` from a system cron or run `wp wp
 | `wpasl_llms_sections`, `wpasl_llms_optional_links`, `wpasl_llms_txt` | Adjust llms.txt. |
 | `wpasl_agent_capabilities`, `wpasl_agent_skills`, `wpasl_openapi`, `wpasl_api_catalog` | Adjust the manifests. See [docs/agent-skills.md](docs/agent-skills.md). |
 | `wpasl_diagnostics_crawlers` | Limit the crawlers simulated by the diagnostics. |
+| `wpasl_diagnostics_time_budget` | Seconds of probing per admin request before the diagnostics hand over to the next batch (default 30; each request also probes at least one crawler). |
 | `wpasl_run_time_budget` | Seconds allowed per generation run (default 20). |
 | `wpasl_services` | Replace or add services at boot. |
 

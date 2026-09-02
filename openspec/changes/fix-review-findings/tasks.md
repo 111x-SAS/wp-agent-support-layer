@@ -43,7 +43,7 @@
 
 ## 9. Media: estado resistente a escrituras concurrentes (D8)
 
-- [ ] 9.1 Reescribir `State::save()` para recargar la opción (invalidando el object cache) y fusionar `generated` por timestamp máximo, aplicar los ids de `_removed` y conservar la cola en memoria; hacer que `forget()` y `Runner::prune()` registren `_removed`; verificar con `tests/test-state.php` nuevo: `test_lazy_fill_mark_survives_runner_save`, `test_prune_removal_is_not_resurrected_by_merge` y `test_removed_key_is_never_persisted`
+- [x] 9.1 Reescribir `State::save()` para recargar la opción (invalidando el object cache) y fusionar `generated` por timestamp máximo, aplicar los ids de `_removed` y conservar la cola en memoria; hacer que `forget()` y `Runner::prune()` registren `_removed`; verificar con `tests/test-state.php` nuevo: `test_lazy_fill_mark_survives_runner_save`, `test_prune_removal_is_not_resurrected_by_merge` y `test_removed_key_is_never_persisted`
 
 ## 10. Media: sanitización idempotente (D9)
 

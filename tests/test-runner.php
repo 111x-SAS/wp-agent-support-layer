@@ -119,7 +119,7 @@ class Test_Runner extends WP_UnitTestCase {
 		$data['generated'][ $ids[0] ] = time() + 100;
 		$data['generated'][ $ids[1] ] = time() - 100;
 		$data['generated'][ $ids[2] ] = time();
-		$state->save( $data );
+		$state->save( $data, false ); // Replace: a merge would keep the newest timestamps.
 
 		$this->runner->run( 1 );
 		$data = $state->load();

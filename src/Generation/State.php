@@ -55,12 +55,40 @@ final class State {
 	}
 
 	/**
-	 * Saves the state.
+	 * Saves the state, merging it with what other requests stored meanwhile.
+	 *
+	 * Generation marks recorded by a concurrent request (lazy fill during a cron run, or the reverse) are
+	 * kept: for every item the newest timestamp wins, except items listed in the transient "_removed" key,
+	 * which forget()/prune() use to delete entries. The queue in memory is authoritative.
 	 *
 	 * @param array<string, mixed> $state State.
+	 * @param bool                 $merge Whether to merge with the stored state (false replaces it).
 	 * @return void
 	 */
-	public function save( array $state ) {
+	public function save( array $state, $merge = true ) {
+		$removed = isset( $state['_removed'] ) ? array_map( 'intval', (array) $state['_removed'] ) : array();
+		unset( $state['_removed'] );
+		$state = wp_parse_args( $state, self::defaults() );
+
+		if ( $merge ) {
+			wp_cache_delete( self::OPTION, 'options' );
+			$stored = get_option( self::OPTION, array() );
+			$stored = is_array( $stored ) && isset( $stored['generated'] ) ? (array) $stored['generated'] : array();
+			foreach ( $stored as $post_id => $time ) {
+				$post_id = (int) $post_id;
+				if ( in_array( $post_id, $removed, true ) ) {
+					continue;
+				}
+				if ( ! isset( $state['generated'][ $post_id ] ) || (int) $state['generated'][ $post_id ] < (int) $time ) {
+					$state['generated'][ $post_id ] = (int) $time;
+				}
+			}
+		}
+		if ( ! empty( $removed ) ) {
+			$state['generated'] = array_diff_key( $state['generated'], array_fill_keys( $removed, true ) );
+			$state['queue']     = array_values( array_diff( array_map( 'intval', $state['queue'] ), $removed ) );
+		}
+
 		update_option( self::OPTION, $state, false );
 	}
 
@@ -92,11 +120,8 @@ final class State {
 	 * @return void
 	 */
 	public function forget( $post_id ) {
-		$state = $this->load();
-		if ( isset( $state['generated'][ (int) $post_id ] ) ) {
-			unset( $state['generated'][ (int) $post_id ] );
-			$state['queue'] = array_values( array_diff( $state['queue'], array( (int) $post_id ) ) );
-			$this->save( $state );
-		}
+		$state             = $this->load();
+		$state['_removed'] = array( (int) $post_id );
+		$this->save( $state );
 	}
 }

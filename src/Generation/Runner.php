@@ -304,18 +304,13 @@ final class Runner {
 	 */
 	public function status() {
 		$state    = $this->state->load();
-		$eligible = $this->eligibility->eligible_ids();
-		$stored   = 0;
-		foreach ( $eligible as $post_id ) {
-			if ( isset( $state['generated'][ $post_id ] ) ) {
-				++$stored;
-			}
-		}
+		$eligible = $this->eligibility->count();
+		$stored   = count( array_intersect_key( $state['generated'], array_fill_keys( $this->eligibility->eligible_ids(), true ) ) );
 
 		return array(
-			'eligible'             => count( $eligible ),
+			'eligible'             => $eligible,
 			'generated'            => $stored,
-			'pending'              => count( $eligible ) - $stored,
+			'pending'              => max( 0, $eligible - $stored ),
 			'queued'               => count( $state['queue'] ),
 			'last_run'             => (int) $state['last_run'],
 			'last_run_count'       => (int) $state['last_run_count'],

@@ -75,6 +75,24 @@ class Test_Generation_Status extends WP_UnitTestCase {
 		$this->assertSame( 1, Plugin::instance()->get( 'runner' )->status()['pending'], 'Nothing was generated inline.' );
 	}
 
+	public function test_status_uses_count_query() {
+		global $wpdb;
+		$ids    = self::factory()->post->create_many( 30 );
+		$runner = Plugin::instance()->get( 'runner' );
+		$runner->generate_item( $ids[0] );
+		$runner->generate_item( $ids[1] );
+		wp_cache_flush();
+
+		$before  = $wpdb->num_queries;
+		$status  = $runner->status();
+		$queries = $wpdb->num_queries - $before;
+
+		$this->assertSame( 30, $status['eligible'] );
+		$this->assertSame( 2, $status['generated'] );
+		$this->assertSame( 28, $status['pending'] );
+		$this->assertLessThan( 10, $queries, "status() ran {$queries} queries for 30 items." );
+	}
+
 	public function test_render_shows_status_and_cron_warning() {
 		add_filter( 'wpasl_cron_disabled', '__return_true' );
 		ob_start();

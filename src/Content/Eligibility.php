@@ -16,6 +16,11 @@ use WPASL\Settings;
 final class Eligibility {
 
 	/**
+	 * Posts primed per batch when an external filter forces per-item evaluation.
+	 */
+	const PRIME_CHUNK = 500;
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -96,12 +101,69 @@ final class Eligibility {
 	 * @return int[]
 	 */
 	public function query( $post_types, array $args ) {
-		$enabled = $this->settings->enabled_post_types();
-		$types   = null === $post_types ? $enabled : array_values( array_intersect( (array) $post_types, $enabled ) );
+		$types = $this->types( $post_types );
 		if ( empty( $types ) ) {
 			return array();
 		}
 
+		$query = new \WP_Query( array_merge( $this->base_args( $types ), $args ) );
+		$ids   = array_map( 'intval', $query->posts );
+
+		// Type, status, password and exclusion are already expressed in SQL; only an external filter
+		// requires evaluating every item individually.
+		if ( ! has_filter( 'wpasl_is_eligible' ) ) {
+			return $ids;
+		}
+		foreach ( array_chunk( $ids, self::PRIME_CHUNK ) as $chunk ) {
+			_prime_post_caches( $chunk, false, true );
+		}
+		return array_values( array_filter( $ids, array( $this, 'is_eligible' ) ) );
+	}
+
+	/**
+	 * Number of eligible items, with a single COUNT query unless an external filter is registered.
+	 *
+	 * @param string[]|null $post_types Restrict to these enabled post types.
+	 * @return int
+	 */
+	public function count( $post_types = null ) {
+		if ( has_filter( 'wpasl_is_eligible' ) ) {
+			return count( $this->eligible_ids( $post_types ) );
+		}
+		$types = $this->types( $post_types );
+		if ( empty( $types ) ) {
+			return 0;
+		}
+		$query = new \WP_Query(
+			array_merge(
+				$this->base_args( $types ),
+				array(
+					'posts_per_page' => 1,
+					'no_found_rows'  => false,
+				)
+			)
+		);
+		return (int) $query->found_posts;
+	}
+
+	/**
+	 * Enabled post types, optionally restricted to a subset.
+	 *
+	 * @param string[]|null $post_types Requested subset.
+	 * @return string[]
+	 */
+	private function types( $post_types ) {
+		$enabled = $this->settings->enabled_post_types();
+		return null === $post_types ? $enabled : array_values( array_intersect( (array) $post_types, $enabled ) );
+	}
+
+	/**
+	 * WP_Query arguments that express every eligibility rule in SQL.
+	 *
+	 * @param string[] $types Post types.
+	 * @return array<string, mixed>
+	 */
+	private function base_args( array $types ) {
 		$defaults = array(
 			'post_type'              => $types,
 			'post_status'            => 'publish',
@@ -120,10 +182,7 @@ final class Eligibility {
 		if ( ! empty( $excluded ) ) {
 			$defaults['post__not_in'] = $excluded; // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- Small, explicit exclusion list.
 		}
-
-		$query = new \WP_Query( array_merge( $defaults, $args ) );
-		$ids   = array_map( 'intval', $query->posts );
-		return array_values( array_filter( $ids, array( $this, 'is_eligible' ) ) );
+		return $defaults;
 	}
 
 	/**

@@ -25,11 +25,11 @@
 
 ## 6. Media: diagnóstico por lotes acotado en tiempo (D5)
 
-- [ ] 6.1 En `CrawlerProbe::fetch()` fijar `timeout => 5`, `redirection => 0`, `limit_response_size`, conservar la cabecera `location` y el cuerpo de `robots.txt`/`llms.txt` (máx. 64 KB); verificar con `test_probe_does_not_follow_redirects` en `tests/test-diagnostics.php` (302 a `www.` → una sola petición registrada, ninguna al host de destino)
-- [ ] 6.2 Extraer `CrawlerProbe::probe_site()` y `probe_crawler()` manteniendo `run()` como composición; verificar que los tests existentes de la sonda siguen pasando
-- [ ] 6.3 Reescribir `DiagnosticsController::handle()` con la ejecución persistida en `wpasl_diagnostics_run_{user_id}`, el presupuesto `wpasl_diagnostics_time_budget` (30 s) y la redirección 303 a sí mismo con nonce mientras queden crawlers; verificar con `test_diagnostics_splits_into_batches_and_resumes` (presupuesto forzado a 0 → primera petición guarda progreso y redirige; segunda continúa por el primer pendiente; última publica el informe y borra el transient) y `test_diagnostics_step_requires_capability_and_nonce`
-- [ ] 6.4 Añadir `test_diagnostics_request_duration_is_bounded` que simula 5 s por petición con un reloj falso (filtro sobre `microtime` inyectado o contador de peticiones) y verifica que ninguna petición del administrador sondea más de `budget + 1 crawler`
-- [ ] 6.5 En `Report::site_checks()` marcar 3xx como advertencia con la `location`; mostrar en `DiagnosticsTab` un aviso cuando exista una ejecución en curso; verificar con `test_report_flags_redirect_as_warning` y con `test_tab_shows_in_progress_notice`
+- [x] 6.1 En `CrawlerProbe::fetch()` fijar `timeout => 5`, `redirection => 0`, `limit_response_size`, conservar la cabecera `location` y el cuerpo de `robots.txt`/`llms.txt` (máx. 64 KB); verificar con `test_probe_does_not_follow_redirects` en `tests/test-diagnostics.php` (302 a `www.` → una sola petición registrada, ninguna al host de destino)
+- [x] 6.2 Extraer `CrawlerProbe::probe_site()` y `probe_crawler()` manteniendo `run()` como composición; verificar que los tests existentes de la sonda siguen pasando
+- [x] 6.3 Reescribir `DiagnosticsController::handle()` con la ejecución persistida en `wpasl_diagnostics_run_{user_id}`, el presupuesto `wpasl_diagnostics_time_budget` (30 s) y la redirección 303 a sí mismo con nonce mientras queden crawlers; verificar con `test_diagnostics_splits_into_batches_and_resumes` (presupuesto forzado a 0 → primera petición guarda progreso y redirige; segunda continúa por el primer pendiente; última publica el informe y borra el transient) y `test_diagnostics_step_requires_capability_and_nonce`
+- [x] 6.4 Añadir `test_diagnostics_request_duration_is_bounded` que simula 5 s por petición con un reloj falso (filtro sobre `microtime` inyectado o contador de peticiones) y verifica que ninguna petición del administrador sondea más de `budget + 1 crawler`
+- [x] 6.5 En `Report::site_checks()` marcar 3xx como advertencia con la `location`; mostrar en `DiagnosticsTab` un aviso cuando exista una ejecución en curso; verificar con `test_report_flags_redirect_as_warning` y con `test_tab_shows_in_progress_notice`
 
 ## 7. Media: veredicto de robots.txt desde el cuerpo servido (D6)
 

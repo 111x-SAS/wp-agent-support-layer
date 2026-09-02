@@ -74,12 +74,29 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	 */
 	public function generate( Storage $storage ) {
 		$sections = $this->sections();
-		$storage->write( self::FILE, $this->build( $sections ) );
-		if ( $this->full_enabled() ) {
-			$storage->write( self::FULL_FILE, $this->build_full( $sections ) );
-		} else {
+		$this->generate_file( $storage, self::FILE, $sections );
+		$this->generate_file( $storage, self::FULL_FILE, $sections );
+	}
+
+	/**
+	 * Writes one of the two files. llms-full.txt converts every missing item document, so callers on the
+	 * request path only ask for llms.txt.
+	 *
+	 * @param Storage                   $storage  Storage.
+	 * @param string                    $file     self::FILE or self::FULL_FILE.
+	 * @param array<string, int[]>|null $sections Sections; computed when null.
+	 * @return bool Whether the file exists afterwards.
+	 */
+	public function generate_file( Storage $storage, $file, $sections = null ) {
+		if ( self::FULL_FILE === $file && ! $this->full_enabled() ) {
 			$storage->delete( self::FULL_FILE );
+			return false;
 		}
+		$sections = null === $sections ? $this->sections() : $sections;
+		if ( self::FULL_FILE === $file ) {
+			return $storage->write( self::FULL_FILE, $this->build_full( $sections ) );
+		}
+		return $storage->write( self::FILE, $this->build( $sections ) );
 	}
 
 	/**

@@ -6,6 +6,8 @@
  */
 
 use WPASL\Admin\ExcludeMetaBox;
+use WPASL\Generation\Scheduler;
+use WPASL\Http;
 use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Llms\LlmsTxtRouter;
 use WPASL\Plugin;
@@ -40,10 +42,18 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->storage = Plugin::instance()->get( 'storage' );
 		Plugin::instance()->get( 'runner' )->clear();
 		add_filter( 'wpasl_terminate_after_serve', '__return_false' );
+		add_filter( 'pre_http_request', array( $this, 'block_http' ), 10, 3 );
+		wp_clear_scheduled_hook( Scheduler::LLMS_FULL_HOOK );
+	}
+
+	public function block_http( $pre, $args, $url ) {
+		return new WP_Error( 'blocked', 'No HTTP in tests: ' . $url );
 	}
 
 	public function tear_down() {
 		remove_filter( 'wpasl_terminate_after_serve', '__return_false' );
+		remove_filter( 'pre_http_request', array( $this, 'block_http' ), 10 );
+		wp_clear_scheduled_hook( Scheduler::LLMS_FULL_HOOK );
 		remove_all_filters( 'wpasl_physical_llms_path' );
 		Plugin::instance()->get( 'runner' )->clear();
 		delete_option( Settings::OPTION );
@@ -224,6 +234,73 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		unlink( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
 	}
 
+	public function test_llms_txt_request_does_not_build_llms_full() {
+		$this->settings( array( 'llms_full_enabled' => true ) );
+		self::factory()->post->create_many( 3 );
+		$this->router->invalidate();
+		$this->assertFalse( $this->storage->exists( LlmsTxtBuilder::FILE ) );
+
+		ob_start();
+		$this->go_to( home_url( '/llms.txt' ) );
+		$out = ob_get_clean();
+
+		$this->assertStringStartsWith( '# ', $out );
+		$this->assertTrue( $this->storage->exists( LlmsTxtBuilder::FILE ) );
+		$this->assertFalse( $this->storage->exists( LlmsTxtBuilder::FULL_FILE ), 'llms-full.txt is not built on the request path.' );
+		$this->assertSame( array(), $this->storage->list_files( 'md' ), 'No item document was converted.' );
+	}
+
+	public function test_missing_llms_full_returns_503_and_schedules_build() {
+		$this->settings( array( 'llms_full_enabled' => true ) );
+		$post = self::factory()->post->create( array( 'post_title' => 'Completa' ) );
+		$this->router->invalidate();
+		$codes  = array();
+		$status = static function ( $header, $code ) use ( &$codes ) {
+			$codes[] = (int) $code;
+			return $header;
+		};
+		add_filter( 'status_header', $status, 10, 2 );
+		Http::reset();
+		ob_start();
+		$this->go_to( home_url( '/llms-full.txt' ) );
+		$out = ob_get_clean();
+		remove_filter( 'status_header', $status, 10 );
+
+		$headers = Http::effective_headers();
+		$this->assertContains( 503, $codes );
+		$this->assertSame( array( (string) LlmsTxtRouter::RETRY_AFTER ), $headers['retry-after'] );
+		$this->assertSame( array( 'no-store' ), $headers['cache-control'] );
+		$this->assertArrayHasKey( 'content-signal', $headers );
+		$this->assertStringContainsString( 'being generated', $out );
+		$this->assertFalse( $this->storage->exists( LlmsTxtBuilder::FULL_FILE ) );
+		$this->assertSame( array(), $this->storage->list_files( 'md' ) );
+		$this->assertNotFalse( wp_next_scheduled( Scheduler::LLMS_FULL_HOOK ) );
+
+		do_action( Scheduler::LLMS_FULL_HOOK );
+		$this->assertTrue( $this->storage->exists( LlmsTxtBuilder::FULL_FILE ) );
+		$this->assertTrue( $this->storage->exists( \WPASL\Generation\Runner::document_path( 'post', $post ) ) );
+
+		ob_start();
+		$this->go_to( home_url( '/llms-full.txt' ) );
+		$out = ob_get_clean();
+		$this->assertStringContainsString( '# Completa', $out );
+	}
+
+	public function test_llms_full_build_event_is_not_duplicated() {
+		$scheduler = Plugin::instance()->get( 'scheduler' );
+		$scheduler->schedule_llms_full();
+		$scheduler->schedule_llms_full();
+		$count = 0;
+		foreach ( (array) _get_cron_array() as $events ) {
+			if ( isset( $events[ Scheduler::LLMS_FULL_HOOK ] ) ) {
+				$count += count( $events[ Scheduler::LLMS_FULL_HOOK ] );
+			}
+		}
+		$this->assertSame( 1, $count );
+		$scheduler->unschedule();
+		$this->assertFalse( wp_next_scheduled( Scheduler::LLMS_FULL_HOOK ) );
+	}
+
 	public function test_llms_full_disabled_is_404() {
 		ob_start();
 		$this->go_to( home_url( '/llms-full.txt' ) );
@@ -236,6 +313,8 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->settings( array( 'llms_full_enabled' => true ) );
 		self::factory()->post->create( array( 'post_title' => 'Uno', 'post_content' => '<p>Cuerpo uno</p>' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 		self::factory()->post->create( array( 'post_title' => 'Dos', 'post_content' => '<p>Cuerpo dos</p>' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		// Built by the scheduled run (or the one-off event), never by the request itself.
+		$this->builder->generate( $this->storage );
 
 		ob_start();
 		$this->go_to( home_url( '/llms-full.txt' ) );

@@ -167,11 +167,11 @@ final class Report {
 			if ( self::is_redirect( $result ) ) {
 				$checks[ $key ] = self::check( self::WARNING, self::redirect_message( $spec[1], $result ) );
 			} elseif ( 200 !== (int) $result['status'] ) {
-				$checks[ $key ] = self::check( self::ERROR, sprintf( '%1$s: HTTP %2$s %3$s', $spec[1], $result['status'], $result['error'] ) );
+				$checks[ $key ] = self::check( self::ERROR, sprintf( /* translators: 1: target, 2: HTTP status, 3: error message. */ __( '%1$s: HTTP %2$s %3$s', 'wp-agent-support-layer' ), $spec[1], $result['status'], $result['error'] ) );
 			} elseif ( false === stripos( $type, $spec[0] ) ) {
-				$checks[ $key ] = self::check( self::WARNING, sprintf( '%1$s: unexpected Content-Type "%2$s" (expected %3$s).', $spec[1], $type, $spec[0] ) );
+				$checks[ $key ] = self::check( self::WARNING, sprintf( /* translators: 1: target, 2: Content-Type received, 3: Content-Type expected. */ __( '%1$s: unexpected Content-Type "%2$s" (expected %3$s).', 'wp-agent-support-layer' ), $spec[1], $type, $spec[0] ) );
 			} else {
-				$checks[ $key ] = self::check( self::OK, sprintf( '%1$s: HTTP 200, %2$s.', $spec[1], $type ) );
+				$checks[ $key ] = self::check( self::OK, sprintf( /* translators: 1: target, 2: Content-Type. */ __( '%1$s: HTTP 200, %2$s.', 'wp-agent-support-layer' ), $spec[1], $type ) );
 			}
 		}
 
@@ -208,13 +208,13 @@ final class Report {
 			$result = (array) $checks[ $key ];
 			$label  = 'home' === $key ? __( 'Home page', 'wp-agent-support-layer' ) : __( 'Sample item (HTML)', 'wp-agent-support-layer' );
 			if ( 200 === (int) $result['status'] ) {
-				$out['checks'][ $key ] = self::check( self::OK, $label . ': HTTP 200.' );
+				$out['checks'][ $key ] = self::check( self::OK, sprintf( /* translators: %s: target. */ __( '%s: HTTP 200.', 'wp-agent-support-layer' ), $label ) );
 			} elseif ( self::is_redirect( $result ) ) {
 				$out['checks'][ $key ] = self::check( self::WARNING, self::redirect_message( $label, $result ) );
 			} elseif ( in_array( (int) $result['status'], array( 403, 429, 503 ), true ) ) {
-				$out['checks'][ $key ] = self::check( self::ERROR, sprintf( '%1$s: HTTP %2$d. A WAF, rate limit or bot filter is blocking this user-agent.', $label, $result['status'] ) );
+				$out['checks'][ $key ] = self::check( self::ERROR, sprintf( /* translators: 1: target, 2: HTTP status. */ __( '%1$s: HTTP %2$d. A WAF, rate limit or bot filter is blocking this user-agent.', 'wp-agent-support-layer' ), $label, $result['status'] ) );
 			} else {
-				$out['checks'][ $key ] = self::check( self::ERROR, sprintf( '%1$s: HTTP %2$s %3$s', $label, $result['status'], $result['error'] ) );
+				$out['checks'][ $key ] = self::check( self::ERROR, sprintf( /* translators: 1: target, 2: HTTP status, 3: error message. */ __( '%1$s: HTTP %2$s %3$s', 'wp-agent-support-layer' ), $label, $result['status'], $result['error'] ) );
 			}
 		}
 
@@ -222,12 +222,12 @@ final class Report {
 			$html                            = (array) $checks['post_html'];
 			$headers                         = (array) $html['headers'];
 			$out['checks']['content_signal'] = isset( $headers['content-signal'] )
-				? self::check( self::OK, 'Content-Signal: ' . $headers['content-signal'] )
+				? self::check( self::OK, sprintf( /* translators: %s: header value. */ __( 'Content-Signal: %s', 'wp-agent-support-layer' ), $headers['content-signal'] ) )
 				: self::check( self::WARNING, __( 'Content-Signal header missing on the HTML response (a cache or proxy may strip it).', 'wp-agent-support-layer' ) );
 
 			if ( ! $this->signals->allows_training() ) {
 				$out['checks']['x_robots_tag'] = isset( $headers['x-robots-tag'] ) && false !== stripos( $headers['x-robots-tag'], 'noai' )
-					? self::check( self::OK, 'X-Robots-Tag: ' . $headers['x-robots-tag'] )
+					? self::check( self::OK, sprintf( /* translators: %s: header value. */ __( 'X-Robots-Tag: %s', 'wp-agent-support-layer' ), $headers['x-robots-tag'] ) )
 					: self::check( self::WARNING, __( 'X-Robots-Tag noai missing on the HTML response.', 'wp-agent-support-layer' ) );
 			}
 
@@ -249,7 +249,7 @@ final class Report {
 			} elseif ( 200 === (int) $md['status'] ) {
 				$out['checks']['negotiation'] = self::check( self::ERROR, __( 'HTML returned for Accept: text/markdown. A page cache or CDN that ignores "Vary: Accept" is probably interfering; agents can still use the .md URL.', 'wp-agent-support-layer' ) );
 			} else {
-				$out['checks']['negotiation'] = self::check( self::ERROR, sprintf( 'Accept: text/markdown -> HTTP %1$s %2$s', $md['status'], $md['error'] ) );
+				$out['checks']['negotiation'] = self::check( self::ERROR, sprintf( /* translators: 1: HTTP status, 2: error message. */ __( 'Accept: text/markdown -> HTTP %1$s %2$s', 'wp-agent-support-layer' ), $md['status'], $md['error'] ) );
 			}
 		}
 

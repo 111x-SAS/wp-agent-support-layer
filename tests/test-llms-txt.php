@@ -237,6 +237,18 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( '# Larga', $full );
 	}
 
+	public function test_optional_sitemap_link_uses_query_form_with_plain_permalinks() {
+		self::factory()->post->create();
+		$this->set_permalink_structure( '' );
+		$out = $this->builder->build();
+		$this->assertStringContainsString( '[Sitemap](' . home_url( '/?sitemap=index' ) . ')', $out );
+		$this->assertStringNotContainsString( 'wp-sitemap.xml', $out );
+
+		$this->set_permalink_structure( '/%postname%/' );
+		$out = $this->builder->build();
+		$this->assertStringContainsString( '[Sitemap](' . home_url( '/wp-sitemap.xml' ) . ')', $out );
+	}
+
 	public function test_settings_change_invalidates_stored_files() {
 		self::factory()->post->create();
 		$this->router->document( LlmsTxtBuilder::FILE );

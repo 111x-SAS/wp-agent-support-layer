@@ -275,11 +275,13 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	private function optional_links() {
 		$links = array();
 		if ( function_exists( 'wp_sitemaps_get_server' ) && wp_sitemaps_get_server()->sitemaps_enabled() ) {
-			$links['Sitemap'] = array( home_url( '/wp-sitemap.xml' ), 'XML sitemap of the whole site.' );
+			// The index URL depends on the permalink structure ("?sitemap=index" with plain permalinks).
+			$sitemap = function_exists( 'get_sitemap_url' ) ? (string) get_sitemap_url( 'index' ) : home_url( '/wp-sitemap.xml' );
+			$links[ __( 'Sitemap', 'wp-agent-support-layer' ) ] = array( $sitemap, __( 'XML sitemap of the whole site.', 'wp-agent-support-layer' ) );
 		}
 		if ( $this->settings->get( 'manifest_enabled' ) ) {
-			$links['Agent skills'] = array( home_url( '/agent-skills.json' ), 'Capabilities an agent can use on this site (JSON-LD).' );
-			$links['OpenAPI']      = array( rest_url( 'wpasl/v1/openapi' ), 'OpenAPI 3.1 description of the public REST API.' );
+			$links[ __( 'Agent skills', 'wp-agent-support-layer' ) ] = array( home_url( '/agent-skills.json' ), __( 'Capabilities an agent can use on this site (JSON-LD).', 'wp-agent-support-layer' ) );
+			$links[ __( 'OpenAPI', 'wp-agent-support-layer' ) ]      = array( rest_url( 'wpasl/v1/openapi' ), __( 'OpenAPI 3.1 description of the public REST API.', 'wp-agent-support-layer' ) );
 		}
 		/**
 		 * Filters the Optional links of llms.txt.

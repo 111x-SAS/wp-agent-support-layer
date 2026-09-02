@@ -75,7 +75,7 @@ final class ManifestsTab implements Tab {
 		<p><?php esc_html_e( 'The manifests only declare what the site really exposes: search, listing and reading of the enabled content types through the REST API, Markdown delivery and llms.txt. Nothing that requires authentication is ever listed.', 'wp-agent-support-layer' ); ?></p>
 		<ul>
 			<?php foreach ( $links as $url => $description ) : ?>
-				<li><a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener noreferrer"><code><?php echo esc_html( $url ); ?></code></a> — <?php echo esc_html( $description ); ?></li>
+				<li><a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener noreferrer"><code><?php echo esc_html( $url ); ?></code></a> &mdash; <?php echo esc_html( $description ); ?></li>
 			<?php endforeach; ?>
 		</ul>
 		<table class="form-table" role="presentation">

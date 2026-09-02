@@ -54,23 +54,23 @@
 - [x] 11.1 `ContentSignals::send('markdown')` retira `X-Robots-Tag`; `Delivery`, `LlmsTxtRouter` y `ManifestRouter` añaden `X-Content-Type-Options: nosniff`; `Delivery::send_html_headers()` envía `Link` con `replace = false`; verificar con `test_negotiated_markdown_has_no_x_robots_tag`, `test_markdown_and_json_responses_send_nosniff` y `test_html_link_header_does_not_replace_existing_link` (las cabeceras se capturan con `xdebug_get_headers()` o el helper existente de los tests)
 - [x] 11.2 `LeagueConverter::absolutize()` usa el esquema de la URL base para `//host` y normaliza `./` y `../`; verificar con `test_absolutize_resolves_parent_segments_and_protocol_relative_urls` en `tests/test-document-builder.php`
 - [x] 11.3 Autoload `yes` para `wpasl_settings` y `wpasl_storage_token` en activación y guardado, más la comprobación única por versión (`wpasl_version`, añadida a `Uninstaller::OPTIONS`) que aplica `wp_set_option_autoload_values()`; verificar con `test_settings_and_token_options_are_autoloaded` en `tests/test-settings.php` y `test_uninstall_removes_version_option` en `tests/test-lifecycle.php`
-- [ ] 11.4 Envolver en `__()` con comentarios `translators:` las cadenas de `Report`, `LlmsTxtBuilder::optional_links()` y `CLI\Commands`; regenerar `languages/wp-agent-support-layer.pot` con `wp i18n make-pot` y verificar con `grep -c 'Blocked by robots.txt' languages/*.pot` que las cadenas nuevas aparecen y que `vendor/bin/phpcs` no reporta `WordPress.WP.I18n`
+- [x] 11.4 Envolver en `__()` con comentarios `translators:` las cadenas de `Report`, `LlmsTxtBuilder::optional_links()` y `CLI\Commands`; regenerar `languages/wp-agent-support-layer.pot` con `wp i18n make-pot` y verificar con `grep -c 'Blocked by robots.txt' languages/*.pot` que las cadenas nuevas aparecen y que `vendor/bin/phpcs` no reporta `WordPress.WP.I18n`
 
 ## 12. Baja: sonda de almacenamiento, sitemap, catálogo y WP-CLI (D11.15 a D11.18)
 
-- [ ] 12.1 `Storage::ensure()` escribe `probe.txt` y `CrawlerProbe::storage_direct_url()` lo usa siempre; verificar con `test_storage_probe_runs_without_generated_documents` en `tests/test-diagnostics.php` y que `Storage::clear()` lo conserva
-- [ ] 12.2 `LlmsTxtBuilder::optional_links()` usa `get_sitemap_url('index')`; verificar con `test_optional_sitemap_link_uses_query_form_with_plain_permalinks` en `tests/test-llms-txt.php`
-- [ ] 12.3 `Catalog::all()` rechaza tokens con `.`, `[` o `]`; verificar con `test_catalog_rejects_tokens_with_dots_and_brackets` en `tests/test-crawler-robots.php`
-- [ ] 12.4 `Commands::generate()` termina con `WP_CLI::error()` si el post type no está habilitado o falta la librería; verificar con `test_cli_generate_errors_for_disabled_post_type` (doble de `WP_CLI` ya usado en los tests o comprobación de la excepción) en `tests/test-cli.php`
+- [x] 12.1 `Storage::ensure()` escribe `probe.txt` y `CrawlerProbe::storage_direct_url()` lo usa siempre; verificar con `test_storage_probe_runs_without_generated_documents` en `tests/test-diagnostics.php` y que `Storage::clear()` lo conserva
+- [x] 12.2 `LlmsTxtBuilder::optional_links()` usa `get_sitemap_url('index')`; verificar con `test_optional_sitemap_link_uses_query_form_with_plain_permalinks` en `tests/test-llms-txt.php`
+- [x] 12.3 `Catalog::all()` rechaza tokens con `.`, `[` o `]`; verificar con `test_catalog_rejects_tokens_with_dots_and_brackets` en `tests/test-crawler-robots.php`
+- [x] 12.4 `Commands::generate()` termina con `WP_CLI::error()` si el post type no está habilitado o falta la librería; verificar con `test_cli_generate_errors_for_disabled_post_type` (doble de `WP_CLI` ya usado en los tests o comprobación de la excepción) en `tests/test-cli.php`
 
 ## 13. Baja: WPCS y regeneración manual (D11.19, D10)
 
-- [ ] 13.1 Acotar el `phpcs:disable` de `Storage.php`, pasar los arrays de `Catalog` a multilínea, imprimir el `<textarea>` de `DiagnosticsTab` sin sangría, mover el guion largo de `ManifestsTab` a una cadena traducible y aplicar `esc_url_raw()` a `REQUEST_URI` en `Delivery::handle_md_suffix()`; verificar con `vendor/bin/phpcs` en verde y `test_physical_robots_textarea_has_no_leading_whitespace`
-- [ ] 13.2 `Scheduler::run_soon()` programa `wp_schedule_single_event(time(), HOOK, array('manual'))` sin tocar el evento recurrente, y `unschedule()` limpia también los eventos únicos; verificar con `test_run_soon_schedules_single_event_and_keeps_recurring_timestamp` y `test_deactivation_clears_manual_events` en `tests/test-runner.php` (o el test de scheduler existente)
+- [x] 13.1 Acotar el `phpcs:disable` de `Storage.php`, pasar los arrays de `Catalog` a multilínea, imprimir el `<textarea>` de `DiagnosticsTab` sin sangría, mover el guion largo de `ManifestsTab` a una cadena traducible y aplicar `esc_url_raw()` a `REQUEST_URI` en `Delivery::handle_md_suffix()`; verificar con `vendor/bin/phpcs` en verde y `test_physical_robots_textarea_has_no_leading_whitespace`
+- [x] 13.2 `Scheduler::run_soon()` programa `wp_schedule_single_event(time(), HOOK, array('manual'))` sin tocar el evento recurrente, y `unschedule()` limpia también los eventos únicos; verificar con `test_run_soon_schedules_single_event_and_keeps_recurring_timestamp` y `test_deactivation_clears_manual_events` en `tests/test-runner.php` (o el test de scheduler existente)
 
 ## 14. Tests faltantes de la revisión y cobertura
 
-- [ ] 14.1 Añadir `test_uninstall_removes_storage_and_options_on_every_site` en `tests/test-multisite.php` y verificar con `vendor/bin/phpunit -c tests/multisite.xml.dist`
+- [x] 14.1 Añadir `test_uninstall_removes_storage_and_options_on_every_site` en `tests/test-multisite.php` y verificar con `vendor/bin/phpunit -c tests/multisite.xml.dist`
 - [ ] 14.2 Actualizar `docs/spec-coverage.md`: mapear los escenarios nuevos de las seis delta specs a sus tests y restaurar a **A** las seis filas que la revisión marcó como parciales; verificar que cada test citado existe con `grep -c "function <nombre>" tests/*.php`
 
 ## 15. Verificación y release 1.0.2

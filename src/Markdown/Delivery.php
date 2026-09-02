@@ -174,7 +174,7 @@ final class Delivery {
 	public function handle_md_suffix( $wp ) {
 		$this->md_request_post_id = 0;
 		// A new request is being parsed.
-		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
+		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 		$path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
 
 		if ( preg_match( '#^(.*?)/?\.md$#', $path, $m ) ) {

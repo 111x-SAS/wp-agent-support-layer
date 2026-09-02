@@ -74,6 +74,28 @@ class Test_Crawler_Robots extends WP_UnitTestCase {
 		$this->assertStringContainsString( "User-agent: ExampleBot\nAllow: /", $this->robots->rules_block() );
 	}
 
+	public function test_catalog_rejects_tokens_with_dots_and_brackets() {
+		add_filter(
+			'wpasl_crawler_catalog',
+			static function ( $crawlers ) {
+				foreach ( array( 'foo.bar', 'foo[1]', 'a]b', 'with space', 'hash#', 'colon:x', 'Valid-Bot_2' ) as $agent ) {
+					$crawlers[] = array(
+						'agent'  => $agent,
+						'vendor' => 'x',
+						'group'  => 'search',
+						'docs'   => '',
+					);
+				}
+				return $crawlers;
+			}
+		);
+		$all = Catalog::all();
+		foreach ( array( 'foo.bar', 'foo[1]', 'a]b', 'with space', 'hash#', 'colon:x' ) as $agent ) {
+			$this->assertArrayNotHasKey( $agent, $all, $agent );
+		}
+		$this->assertArrayHasKey( 'Valid-Bot_2', $all );
+	}
+
 	public function test_catalog_matches_user_agent_strings() {
 		$this->assertSame( 'GPTBot', Catalog::match( 'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)' ) );
 		$this->assertSame( 'ClaudeBot', Catalog::match( 'Mozilla/5.0 (compatible; claudebot/1.0; +claudebot@anthropic.com)' ) );

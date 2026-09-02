@@ -158,7 +158,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'GPTBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'PerplexityBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'post_markdown', $raw['crawlers']['GPTBot'] );
-		$this->assertSame( array( 'robots', 'llms', 'skills', 'catalog', 'markdown_url' ), array_keys( $raw['site'] ) );
+		$this->assertSame( array( 'robots', 'llms', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
 
 		$agents = array_unique( array_column( $this->requests, 'ua' ) );
 		$this->assertCount( 3, $agents, 'Two crawlers plus the diagnostics agent.' );
@@ -249,7 +249,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'robots', $run['site'] );
 		$this->assertNull( Report::load(), 'No report until the last batch.' );
 		$first_batch = count( $this->requests );
-		$this->assertSame( 5 + 3, $first_batch, 'Five site targets and the three requests of one crawler.' );
+		$this->assertSame( 6 + 3, $first_batch, 'Six site targets and the three requests of one crawler.' );
 
 		// Second request: resumes with the first pending crawler only and publishes the report.
 		$this->requests = array();
@@ -488,6 +488,34 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$html = ob_get_clean();
 		$this->assertStringContainsString( 'Cloudflare detected', $html );
 		$this->assertStringContainsString( 'Infrastructure checklist', $html );
+	}
+
+	public function test_storage_probe_runs_without_generated_documents() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$storage = Plugin::instance()->get( 'storage' );
+		$this->assertSame( array(), $storage->list_files( '' ), 'No document generated yet.' );
+
+		$direct = $this->probe->storage_direct_url();
+		$this->assertNotNull( $direct );
+		$this->assertStringEndsWith( '/' . WPASL\Storage::PROBE_FILE, $direct );
+		$this->assertFileExists( $storage->base_dir() . '/' . WPASL\Storage::PROBE_FILE );
+		$this->assertSame( array(), $storage->list_files( '' ), 'The probe file is a guard, not a document.' );
+
+		$report = $this->controller->run();
+		$this->assertArrayHasKey( 'storage', $report['site'] );
+		$this->assertSame( Report::OK, $report['site']['storage']['status'] );
+
+		Plugin::instance()->get( 'runner' )->clear();
+		$this->assertFileExists( $storage->base_dir() . '/' . WPASL\Storage::PROBE_FILE, 'Clearing the storage keeps the probe.' );
+	}
+
+	public function test_tab_curl_textarea_has_no_leading_whitespace() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$tabs = Plugin::instance()->get( 'page' )->tabs();
+		ob_start();
+		$tabs['diagnostics']->render();
+		$html = ob_get_clean();
+		$this->assertMatchesRegularExpression( '/<textarea[^>]*>#/', $html, 'The textarea content starts immediately with the first comment.' );
 	}
 
 	public function test_report_flags_exposed_storage() {

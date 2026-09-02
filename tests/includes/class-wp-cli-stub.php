@@ -28,6 +28,18 @@ if ( ! class_exists( 'WP_CLI' ) ) {
 		}
 
 		/**
+		 * Records an error line and aborts, as the real command runner does (exit).
+		 *
+		 * @param string $message Message.
+		 * @return void
+		 * @throws \RuntimeException Always.
+		 */
+		public static function error( $message ) {
+			self::$log[] = 'Error: ' . $message;
+			throw new \RuntimeException( 'WP_CLI::error: ' . $message ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Test stub.
+		}
+
+		/**
 		 * Records a plain line.
 		 *
 		 * @param string $message Message.

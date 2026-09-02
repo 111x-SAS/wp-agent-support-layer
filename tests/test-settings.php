@@ -96,6 +96,62 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( 'daily', $clean['schedule'] );
 	}
 
+	/**
+	 * A complete form submission touching every setting.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function full_input() {
+		return array(
+			'post_types'             => array( 'page' ),
+			'schedule'               => 'weekly',
+			'batch_size'             => '25',
+			'signal_search'          => 'yes',
+			'signal_ai_input'        => 'no',
+			'signal_ai_train'        => 'yes',
+			'content_usage_header'   => '1',
+			'crawler_overrides'      => array( 'GPTBot' => 'allow' ),
+			'llms_description'       => 'Desc',
+			'llms_intro'             => "Intro\nline",
+			'llms_limit'             => '40',
+			'llms_full_enabled'      => '1',
+			'llms_full_max_bytes_mb' => '5',
+			'manifest_enabled'       => '1',
+			'contact_email'          => 'a@example.org',
+		);
+	}
+
+	public function test_sanitize_is_idempotent_for_every_field() {
+		$settings = new Settings();
+		$once     = $settings->sanitize( $this->full_input() );
+		$twice    = $settings->sanitize( $once );
+		$this->assertSame( $once, $twice );
+		$this->assertSame( 5 * MB_IN_BYTES, $once['llms_full_max_bytes'] );
+		$this->assertArrayNotHasKey( 'llms_full_max_bytes_mb', $once );
+
+		// The real trigger: update_option() on a missing option falls back to add_option() and sanitizes twice.
+		Plugin::instance()->get( 'page' )->register_setting();
+		delete_option( Settings::OPTION );
+		update_option( Settings::OPTION, array_merge( $this->full_input(), array( '_tab' => 'llms' ) ) );
+		$stored = get_option( Settings::OPTION );
+		$this->assertSame( 5 * MB_IN_BYTES, $stored['llms_full_max_bytes'] );
+		$this->assertSame( 40, $stored['llms_limit'] );
+	}
+
+	public function test_llms_full_max_out_of_range_clamps_to_100_mb() {
+		$settings = new Settings();
+		$clean    = $settings->sanitize( array( '_tab' => 'llms', 'llms_full_max_bytes_mb' => '500' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( 100 * MB_IN_BYTES, $clean['llms_full_max_bytes'] );
+
+		$clean = $settings->sanitize( array( '_tab' => 'llms', 'llms_full_max_bytes_mb' => '0' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( 5 * MB_IN_BYTES, $clean['llms_full_max_bytes'], 'Zero or absent: default.' );
+
+		$clean = $settings->sanitize( array( 'llms_full_max_bytes' => 900 ) );
+		$this->assertSame( 900, $clean['llms_full_max_bytes'], 'A stored byte value passes through unchanged.' );
+		$clean = $settings->sanitize( array( 'llms_full_max_bytes' => 500 * MB_IN_BYTES ) );
+		$this->assertSame( 100 * MB_IN_BYTES, $clean['llms_full_max_bytes'] );
+	}
+
 	public function test_page_is_registered_under_tools_for_administrators() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		set_current_screen( 'dashboard' );

@@ -115,7 +115,7 @@ final class LlmsTab implements Tab {
 			<tr>
 				<th scope="row"><label for="wpasl-llms-full-max"><?php esc_html_e( 'llms-full.txt size limit (MB)', 'wp-agent-support-layer' ); ?></label></th>
 				<td>
-					<input type="number" id="wpasl-llms-full-max" name="<?php echo esc_attr( $option ); ?>[llms_full_max_bytes]" value="<?php echo esc_attr( (string) max( 1, $mb ) ); ?>" min="1" max="100" class="small-text" />
+					<input type="number" id="wpasl-llms-full-max" name="<?php echo esc_attr( $option ); ?>[<?php echo esc_attr( Settings::LLMS_FULL_MAX_FIELD_MB ); ?>]" value="<?php echo esc_attr( (string) max( 1, $mb ) ); ?>" min="1" max="100" class="small-text" />
 					<p class="description"><?php esc_html_e( 'When the limit is reached the file stops at the last complete item and ends with a note saying it was truncated.', 'wp-agent-support-layer' ); ?></p>
 				</td>
 			</tr>

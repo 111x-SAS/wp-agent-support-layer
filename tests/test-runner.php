@@ -300,4 +300,10 @@ class Test_Runner extends WP_UnitTestCase {
 	public function test_cron_hook_is_wired() {
 		$this->assertSame( 10, has_action( 'wpasl_generate', array( $this->runner, 'run' ) ) );
 	}
+
+	public function test_manual_event_argument_does_not_limit_the_run() {
+		self::factory()->post->create_many( 3 );
+		do_action( 'wpasl_generate', 'manual' ); // The one-off event passes its args to the hook.
+		$this->assertSame( 3, $this->items->calls, 'The "manual" argument was not taken as a batch limit of 0.' );
+	}
 }

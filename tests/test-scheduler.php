@@ -59,20 +59,35 @@ class Test_Scheduler extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->count_events() );
 	}
 
-	public function test_run_soon_makes_the_recurring_event_due_now() {
+	public function test_run_soon_schedules_single_event_and_keeps_recurring_timestamp() {
 		$this->scheduler->schedule( 'daily' );
+		$recurring = wp_next_scheduled( Scheduler::HOOK );
+		$this->assertGreaterThan( time(), $recurring, 'The recurring event is in the future.' );
+
 		$this->scheduler->run_soon();
-		$next = $this->scheduler->next_run();
-		$this->assertNotNull( $next );
-		$this->assertLessThanOrEqual( time(), $next );
+
+		$this->assertSame( $recurring, wp_next_scheduled( Scheduler::HOOK ), 'The recurring event did not move.' );
+		$manual = wp_next_scheduled( Scheduler::HOOK, Scheduler::MANUAL_ARGS );
+		$this->assertNotFalse( $manual );
+		$this->assertLessThanOrEqual( time(), $manual );
+		$this->assertSame( $manual, $this->scheduler->next_run(), 'next_run() reports the earliest of both.' );
 		$this->assertSame( 'daily', $this->scheduler->current_interval(), 'Still recurring.' );
-		$this->assertSame( 1, $this->count_events() );
+		$this->assertSame( 2, $this->count_events() );
 	}
 
 	public function test_run_soon_does_not_duplicate_a_due_event() {
 		$this->scheduler->run_soon();
 		$this->scheduler->run_soon();
 		$this->assertSame( 1, $this->count_events() );
+	}
+
+	public function test_deactivation_clears_manual_events() {
+		$this->scheduler->schedule( 'daily' );
+		$this->scheduler->run_soon();
+		$this->assertSame( 2, $this->count_events() );
+		$this->scheduler->unschedule();
+		$this->assertSame( 0, $this->count_events() );
+		$this->assertNull( $this->scheduler->next_run() );
 	}
 
 	private function count_events() {

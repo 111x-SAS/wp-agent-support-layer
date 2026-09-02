@@ -109,7 +109,8 @@ final class Runner {
 	 * @return void
 	 */
 	public function register() {
-		add_action( Scheduler::HOOK, array( $this, 'run' ) );
+		add_action( Scheduler::HOOK, array( $this, 'run' ), 10, 0 );
+		// Event args (e.g. "manual") are not run() arguments.
 		add_action( 'transition_post_status', array( $this, 'on_transition_post_status' ), 10, 3 );
 		add_action( 'deleted_post', array( $this, 'on_deleted_post' ), 10, 2 );
 	}

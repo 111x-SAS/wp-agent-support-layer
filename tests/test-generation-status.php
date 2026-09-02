@@ -69,8 +69,8 @@ class Test_Generation_Status extends WP_UnitTestCase {
 			$this->assertStringContainsString( 'wpasl_notice=scheduled', $e->getMessage() );
 		}
 
-		$next = wp_next_scheduled( Scheduler::HOOK );
-		$this->assertNotFalse( $next );
+		$next = wp_next_scheduled( Scheduler::HOOK, Scheduler::MANUAL_ARGS );
+		$this->assertNotFalse( $next, 'A one-off event with the manual args.' );
 		$this->assertLessThanOrEqual( time(), $next );
 		$this->assertSame( 1, Plugin::instance()->get( 'runner' )->status()['pending'], 'Nothing was generated inline.' );
 	}

@@ -76,6 +76,14 @@ final class Runner {
 	private $last_error = '';
 
 	/**
+	 * Generation marks recorded by generate_item() while run() is active, or null outside a run. They are
+	 * folded into the run's state instead of rewriting the option once per lazy fill.
+	 *
+	 * @var array<int,int>|null
+	 */
+	private $run_marks = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings    $settings    Settings.
@@ -156,7 +164,8 @@ final class Runner {
 		}
 
 		$this->storage->ensure();
-		$state = $this->state->load();
+		$state           = $this->state->load();
+		$this->run_marks = array();
 
 		if ( empty( $state['queue'] ) ) {
 			$state['queue']         = $this->build_queue( $state['generated'], $this->cycle_post_types, $state['failed'] );
@@ -206,6 +215,12 @@ final class Runner {
 			$state['artifacts_generated']        = $this->regenerate_artifacts();
 			$state['last_artifacts_regenerated'] = time();
 		}
+
+		// Documents generated on demand during this run (e.g. while building llms-full.txt).
+		$state['generated'] = $this->run_marks + $state['generated'];
+		$state['failed']    = array_diff_key( (array) $state['failed'], $this->run_marks );
+		$state['queue']     = array_values( array_diff( array_map( 'intval', $state['queue'] ), array_keys( $this->run_marks ) ) );
+		$this->run_marks    = null;
 
 		$state['last_run']       = time();
 		$state['last_run_count'] = $processed;
@@ -268,7 +283,11 @@ final class Runner {
 		if ( ! $this->write_document( $post ) ) {
 			return null;
 		}
-		$this->state->mark_generated( $post->ID );
+		if ( null !== $this->run_marks ) {
+			$this->run_marks[ $post->ID ] = time();
+		} else {
+			$this->state->mark_generated( $post->ID );
+		}
 		return $this->storage->read( self::document_path( $post->post_type, $post->ID ) );
 	}
 
@@ -576,6 +595,9 @@ final class Runner {
 		$relative = self::document_path( $post->post_type, $post->ID );
 		if ( $this->storage->exists( $relative ) ) {
 			$this->storage->delete( $relative );
+		} elseif ( ! in_array( $post->post_type, $this->settings->enabled_post_types(), true ) ) {
+			// Nothing stored and nothing tracked for this type: do not rewrite the state option.
+			return;
 		}
 		$this->state->forget( $post->ID );
 	}

@@ -40,7 +40,7 @@
 
 ## 9. Media: escrituras del estado acotadas (D8, hallazgo 8)
 
-- [ ] 9.1 Cortocircuitar `Runner::remove_document()` para post types no habilitados y registrar los rellenos perezosos de `generate_item()` en el estado en curso cuando `run()` está activo; verificar con `test_trashing_non_enabled_post_type_does_not_write_state` y `test_run_with_full_llms_writes_state_once` en `tests/test-runner.php` (100 ítems no generados con `llms_full_enabled`, contador en `pre_update_option_wpasl_state` igual a 1 y las 100 marcas presentes)
+- [x] 9.1 Cortocircuitar `Runner::remove_document()` para post types no habilitados y registrar los rellenos perezosos de `generate_item()` en el estado en curso cuando `run()` está activo; verificar con `test_trashing_non_enabled_post_type_does_not_write_state` y `test_run_with_full_llms_writes_state_once` en `tests/test-runner.php` (100 ítems no generados con `llms_full_enabled`, contador en `pre_update_option_wpasl_state` igual a 1 y las 100 marcas presentes)
 
 ## 10. Media: vista previa de robots.txt igual al núcleo (D9, hallazgo 9)
 

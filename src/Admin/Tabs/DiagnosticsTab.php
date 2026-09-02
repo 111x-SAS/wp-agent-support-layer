@@ -190,14 +190,16 @@ final class DiagnosticsTab implements Tab {
 	 */
 	private function badge( $status ) {
 		$labels = array(
-			Report::OK      => __( 'OK', 'wp-agent-support-layer' ),
-			Report::WARNING => __( 'Warning', 'wp-agent-support-layer' ),
-			Report::ERROR   => __( 'Error', 'wp-agent-support-layer' ),
+			Report::OK            => __( 'OK', 'wp-agent-support-layer' ),
+			Report::WARNING       => __( 'Warning', 'wp-agent-support-layer' ),
+			Report::ERROR         => __( 'Error', 'wp-agent-support-layer' ),
+			Report::NOT_AVAILABLE => __( 'Not available', 'wp-agent-support-layer' ),
 		);
 		$colors = array(
-			Report::OK      => '#00a32a',
-			Report::WARNING => '#dba617',
-			Report::ERROR   => '#d63638',
+			Report::OK            => '#00a32a',
+			Report::WARNING       => '#dba617',
+			Report::ERROR         => '#d63638',
+			Report::NOT_AVAILABLE => '#8c8f94',
 		);
 		$status = isset( $labels[ $status ] ) ? $status : Report::WARNING;
 		printf( '<span class="wpasl-badge" style="display:inline-block;min-width:64px;text-align:center;padding:1px 6px;border-radius:3px;color:#fff;background:%1$s">%2$s</span>', esc_attr( $colors[ $status ] ), esc_html( $labels[ $status ] ) );
@@ -238,14 +240,30 @@ final class DiagnosticsTab implements Tab {
 	 * @return string
 	 */
 	public function curl_commands( $url ) {
-		$text = '';
+		$text   = '';
+		$target = self::shell_quote( $url );
 		foreach ( Catalog::all() as $agent => $crawler ) {
-			$text .= sprintf( "# %s (%s)\n", $agent, $crawler['vendor'] );
-			$text .= sprintf( "curl -sI -A 'Mozilla/5.0 (compatible; %s/1.0)' -H 'Accept: text/html' '%s'\n", $agent, $url );
-			$text .= sprintf( "curl -sI -A 'Mozilla/5.0 (compatible; %s/1.0)' -H 'Accept: text/markdown' '%s'\n\n", $agent, $url );
+			$ua    = self::shell_quote( 'Mozilla/5.0 (compatible; ' . $agent . '/1.0)' );
+			$text .= sprintf( "# %s (%s)\n", str_replace( "\n", ' ', $agent ), str_replace( "\n", ' ', $crawler['vendor'] ) );
+			$text .= sprintf( "curl -sI -A %s -H 'Accept: text/html' %s\n", $ua, $target );
+			$text .= sprintf( "curl -sI -A %s -H 'Accept: text/markdown' %s\n\n", $ua, $target );
 		}
-		$text .= sprintf( "# Discovery files\ncurl -s '%s'\ncurl -s '%s'\ncurl -s '%s'\ncurl -s '%s'\n", home_url( '/robots.txt' ), home_url( '/llms.txt' ), home_url( '/agent-skills.json' ), home_url( '/.well-known/api-catalog' ) );
+		$text .= "# Discovery files\n";
+		foreach ( array( '/robots.txt', '/llms.txt', '/agent-skills.json', '/.well-known/api-catalog' ) as $path ) {
+			$text .= 'curl -s ' . self::shell_quote( home_url( $path ) ) . "\n";
+		}
 		return $text;
+	}
+
+	/**
+	 * Quotes a string for a POSIX shell (single quotes; embedded quotes become '\''). Unlike
+	 * escapeshellarg() it does not depend on the process locale, which can strip multibyte characters.
+	 *
+	 * @param string $value Value.
+	 * @return string
+	 */
+	public static function shell_quote( $value ) {
+		return "'" . str_replace( "'", "'\\''", (string) $value ) . "'";
 	}
 
 	/**

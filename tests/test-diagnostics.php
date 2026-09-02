@@ -5,6 +5,7 @@
  * @package WPASL
  */
 
+use WPASL\Admin\Tabs\DiagnosticsTab;
 use WPASL\Diagnostics\CrawlerProbe;
 use WPASL\Diagnostics\DiagnosticsController;
 use WPASL\Diagnostics\Report;
@@ -602,6 +603,59 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		}
 		$this->assertNotEmpty( $this->requests );
 		$this->assertNotNull( Report::load() );
+	}
+
+	public function test_curl_commands_are_shell_safe() {
+		$this->assertSame( "'plain'", DiagnosticsTab::shell_quote( 'plain' ) );
+		$this->assertSame( "'it'\\''s'", DiagnosticsTab::shell_quote( "it's" ) );
+
+		$add_bot = static function ( $crawlers ) {
+			$crawlers[] = array( 'agent' => "O'Bot", 'vendor' => 'Acme', 'group' => 'agent', 'docs' => '' ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			return $crawlers;
+		};
+		add_filter( 'wpasl_crawler_catalog', $add_bot );
+		$text = Plugin::instance()->get( 'page' )->tabs()['diagnostics']->curl_commands( "https://example.org/it's here/" );
+		remove_filter( 'wpasl_crawler_catalog', $add_bot );
+
+		$this->assertStringContainsString( "curl -sI -A 'Mozilla/5.0 (compatible; O'\\''Bot/1.0)' -H 'Accept: text/html' 'https://example.org/it'\\''s here/'", $text );
+		$this->assertStringContainsString( "curl -sI -A 'Mozilla/5.0 (compatible; GPTBot/1.0)' -H 'Accept: text/markdown' 'https://example.org/it'\\''s here/'", $text );
+		foreach ( explode( "\n", $text ) as $line ) {
+			if ( 0 === strpos( $line, 'curl ' ) ) {
+				$this->assertSame( 0, substr_count( str_replace( "'\\''", '', $line ), "'" ) % 2, 'Balanced quotes: ' . $line );
+			}
+		}
+	}
+
+	public function test_tab_renders_report_from_previous_version_without_notices() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		set_transient(
+			Report::TRANSIENT,
+			array(
+				'generated_at'   => time(),
+				'sample_post'    => 0,
+				'infrastructure' => array( 'cdn' => '' ),
+				'site'           => array( 'robots' => array( 'status' => 'ok', 'message' => 'robots ok' ) ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+				'crawlers'       => array(
+					'GPTBot' => array(
+						'policy' => 'block',
+						'checks' => array( 'home' => array( 'status' => 'ok', 'message' => 'home ok' ) ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+					),
+				),
+			),
+			Report::TTL
+		);
+
+		$report = Report::load();
+		$this->assertFalse( $report['infrastructure']['storage_exposed'] );
+		$this->assertSame( Report::NOT_AVAILABLE, $report['crawlers']['GPTBot']['checks']['markdown_url']['status'] );
+		$this->assertSame( 'ok', $report['crawlers']['GPTBot']['checks']['home']['status'] );
+
+		ob_start();
+		Plugin::instance()->get( 'page' )->tabs()['diagnostics']->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'home ok', $html );
+		$this->assertStringContainsString( 'Not available', $html );
+		$this->assertStringContainsString( 'No CDN or proxy detected.', $html );
 	}
 
 	public function test_tab_renders_checklist_and_curl_commands() {

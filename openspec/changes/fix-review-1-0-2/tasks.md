@@ -24,13 +24,13 @@
 
 ## 6. Media: sitios creados tras la activación en red (D5, hallazgo 5)
 
-- [ ] 6.1 En `Plugin::boot()` añadir el handler de `wp_initialize_site` (prioridad 100) que, con el plugin en `active_sitewide_plugins`, ejecuta `Lifecycle::activate_site()` dentro de `switch_to_blog()`; en `Plugin::maybe_upgrade()` reprogramar cuando `Scheduler::current_interval()` sea `null` y asegurar el almacenamiento; verificar con `test_site_created_after_network_activation_is_configured` en `tests/test-multisite.php` (evento recurrente y opción presentes en el sitio nuevo) y `test_site_created_without_network_activation_is_untouched`
-- [ ] 6.2 Añadir `test_maybe_upgrade_reschedules_missing_event` en `tests/test-scheduler.php` (borrar el evento, ejecutar `maybe_upgrade()` → `wp_next_scheduled( Scheduler::HOOK )` no es `false`)
+- [x] 6.1 En `Plugin::boot()` añadir el handler de `wp_initialize_site` (prioridad 100) que, con el plugin en `active_sitewide_plugins`, ejecuta `Lifecycle::activate_site()` dentro de `switch_to_blog()`; en `Plugin::maybe_upgrade()` reprogramar cuando `Scheduler::current_interval()` sea `null` y asegurar el almacenamiento; verificar con `test_site_created_after_network_activation_is_configured` en `tests/test-multisite.php` (evento recurrente y opción presentes en el sitio nuevo) y `test_site_created_without_network_activation_is_untouched`
+- [x] 6.2 Añadir `test_maybe_upgrade_reschedules_missing_event` en `tests/test-scheduler.php` (borrar el evento, ejecutar `maybe_upgrade()` → `wp_next_scheduled( Scheduler::HOOK )` no es `false`)
 
 ## 7. Media: WP-CLI acotado por post type (D6, hallazgos 6 y 13)
 
-- [ ] 7.1 Añadir `$post_types` a `Runner::run()`, pasarlo a `build_queue()` en la rama de reconstrucción, salir de `run_cycle()` con cola vacía y pasar `$types` desde `Commands::generate()` con `--batch`; verificar con `test_generate_post_type_with_batch_only_processes_that_type` y `test_generate_post_type_without_eligible_items_processes_nothing` en `tests/test-cli.php`
-- [ ] 7.2 Implementar `reset_cycle( $post_types = null )` que solo olvide las marcas de esos tipos; verificar con `test_generate_all_with_post_type_keeps_other_types_generated` (posts siguen en `generated` tras `--all --post-type=page`) y `test_reset_cycle_without_types_forgets_everything` en `tests/test-runner.php`
+- [x] 7.1 Añadir `$post_types` a `Runner::run()`, pasarlo a `build_queue()` en la rama de reconstrucción, salir de `run_cycle()` con cola vacía y pasar `$types` desde `Commands::generate()` con `--batch`; verificar con `test_generate_post_type_with_batch_only_processes_that_type` y `test_generate_post_type_without_eligible_items_processes_nothing` en `tests/test-cli.php`
+- [x] 7.2 Implementar `reset_cycle( $post_types = null )` que solo olvide las marcas de esos tipos; verificar con `test_generate_all_with_post_type_keeps_other_types_generated` (posts siguen en `generated` tras `--all --post-type=page`) y `test_reset_cycle_without_types_forgets_everything` en `tests/test-runner.php`
 
 ## 8. Media: fallos de generación visibles (D7, hallazgo 7)
 

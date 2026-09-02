@@ -288,6 +288,24 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertFalse( $this->storage->exists( Runner::document_path( 'post', $post ) ) );
 	}
 
+	public function test_reset_cycle_without_types_forgets_everything() {
+		$post = self::factory()->post->create();
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->runner->run_cycle();
+		$this->assertCount( 2, ( new State() )->load()['generated'] );
+
+		$this->runner->reset_cycle( array( 'page' ) );
+		$state = ( new State() )->load();
+		$this->assertSame( array(), $state['queue'] );
+		$this->assertArrayHasKey( $post, $state['generated'] );
+		$this->assertArrayNotHasKey( $page, $state['generated'] );
+
+		$this->runner->reset_cycle();
+		$state = ( new State() )->load();
+		$this->assertSame( array(), $state['generated'] );
+		$this->assertSame( array(), $state['queue'] );
+	}
+
 	public function test_without_item_generator_runs_only_artifacts() {
 		self::factory()->post->create();
 		$this->runner->set_item_generator( null );

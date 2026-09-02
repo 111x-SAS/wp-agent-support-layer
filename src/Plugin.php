@@ -106,12 +106,12 @@ final class Plugin {
 
 		$llms_builder                  = new LlmsTxtBuilder( $settings, $eligibility, $this->services['delivery'] );
 		$this->services['llms']        = $llms_builder;
-		$this->services['llms_router'] = new LlmsTxtRouter( $settings, $storage, $llms_builder, $this->services['delivery'] );
+		$this->services['llms_router'] = new LlmsTxtRouter( $settings, $storage, $llms_builder, $this->services['delivery'], $scheduler );
 		$runner->add_artifact_generator( $llms_builder );
 
 		$manifest_builder                  = new ManifestBuilder( $settings, new CapabilityRegistry( $settings ), $this->services['signals'] );
 		$this->services['manifest']        = $manifest_builder;
-		$this->services['manifest_router'] = new ManifestRouter( $settings, $storage, $manifest_builder, $this->services['delivery'] );
+		$this->services['manifest_router'] = new ManifestRouter( $settings, $storage, $manifest_builder, $this->services['delivery'], $this->services['signals'] );
 		$runner->add_artifact_generator( $manifest_builder );
 
 		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage );

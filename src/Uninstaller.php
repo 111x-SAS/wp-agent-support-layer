@@ -61,6 +61,7 @@ final class Uninstaller {
 	 */
 	public static function run_site() {
 		wp_clear_scheduled_hook( Scheduler::HOOK );
+		wp_clear_scheduled_hook( Scheduler::LLMS_FULL_HOOK );
 
 		Storage::delete_all();
 

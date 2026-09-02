@@ -7,6 +7,7 @@
 
 namespace WPASL\Llms;
 
+use WPASL\Generation\Scheduler;
 use WPASL\Http;
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\LlmsTab;
@@ -18,6 +19,11 @@ use WPASL\Storage;
  * Root-level routes for the llms.txt files, with physical-file precedence and lazy generation.
  */
 final class LlmsTxtRouter {
+
+	/**
+	 * Seconds suggested to clients while llms-full.txt is being built.
+	 */
+	const RETRY_AFTER = 120;
 
 	/**
 	 * Settings.
@@ -48,18 +54,27 @@ final class LlmsTxtRouter {
 	private $delivery;
 
 	/**
+	 * Scheduler (background build of llms-full.txt).
+	 *
+	 * @var Scheduler|null
+	 */
+	private $scheduler;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Settings       $settings Settings.
-	 * @param Storage        $storage  Storage.
-	 * @param LlmsTxtBuilder $builder  Builder.
-	 * @param Delivery       $delivery Delivery.
+	 * @param Settings       $settings  Settings.
+	 * @param Storage        $storage   Storage.
+	 * @param LlmsTxtBuilder $builder   Builder.
+	 * @param Delivery       $delivery  Delivery.
+	 * @param Scheduler|null $scheduler Scheduler.
 	 */
-	public function __construct( Settings $settings, Storage $storage, LlmsTxtBuilder $builder, Delivery $delivery ) {
-		$this->settings = $settings;
-		$this->storage  = $storage;
-		$this->builder  = $builder;
-		$this->delivery = $delivery;
+	public function __construct( Settings $settings, Storage $storage, LlmsTxtBuilder $builder, Delivery $delivery, ?Scheduler $scheduler = null ) {
+		$this->settings  = $settings;
+		$this->storage   = $storage;
+		$this->builder   = $builder;
+		$this->delivery  = $delivery;
+		$this->scheduler = $scheduler;
 	}
 
 	/**
@@ -72,6 +87,17 @@ final class LlmsTxtRouter {
 		add_action( 'update_option_' . Settings::OPTION, array( $this, 'invalidate' ) );
 		add_action( 'add_option_' . Settings::OPTION, array( $this, 'invalidate' ) );
 		add_action( 'wpasl_register_tabs', array( $this, 'register_tab' ) );
+		add_action( Scheduler::LLMS_FULL_HOOK, array( $this, 'build_full_file' ) );
+	}
+
+	/**
+	 * Builds llms-full.txt in the background (one-off cron event).
+	 *
+	 * @return void
+	 */
+	public function build_full_file() {
+		$this->storage->ensure();
+		$this->builder->generate_file( $this->storage, LlmsTxtBuilder::FULL_FILE );
 	}
 
 	/**
@@ -157,16 +183,17 @@ final class LlmsTxtRouter {
 	}
 
 	/**
-	 * Returns a file's contents, generating both files when the requested one is missing.
+	 * Returns a file's contents. A missing llms.txt is generated on the spot; a missing llms-full.txt is
+	 * not (it converts every item document), so null is returned and the caller answers 503.
 	 *
 	 * @param string $file "llms.txt" or "llms-full.txt".
 	 * @return string|null
 	 */
 	public function document( $file ) {
 		$document = $this->storage->read( $file );
-		if ( null === $document ) {
+		if ( null === $document && LlmsTxtBuilder::FILE === $file ) {
 			$this->storage->ensure();
-			$this->builder->generate( $this->storage );
+			$this->builder->generate_file( $this->storage, $file );
 			$document = $this->storage->read( $file );
 		}
 		return $document;
@@ -196,6 +223,9 @@ final class LlmsTxtRouter {
 	public function serve( $file ) {
 		$document = $this->document( $file );
 		if ( null === $document ) {
+			if ( LlmsTxtBuilder::FULL_FILE === $file ) {
+				$this->serve_unavailable();
+			}
 			return false;
 		}
 
@@ -216,5 +246,33 @@ final class LlmsTxtRouter {
 			exit;
 		}
 		return true;
+	}
+
+	/**
+	 * Answers 503 with Retry-After for a missing llms-full.txt and schedules its background build.
+	 *
+	 * @return void
+	 */
+	private function serve_unavailable() {
+		/** This action is documented in src/Markdown/Delivery.php */
+		do_action( 'wpasl_before_serve', 'llms-txt', null );
+
+		status_header( 503 );
+		// Checks headers_sent() itself; the filter still records the code.
+		Http::send_header( 'Content-Type', 'text/plain; charset=utf-8' );
+		Http::send_header( 'Retry-After', (string) self::RETRY_AFTER );
+		Http::send_header( 'Cache-Control', 'no-store' );
+		Http::send_header( 'X-Content-Type-Options', 'nosniff' );
+
+		echo esc_html__( 'llms-full.txt is being generated in the background. Retry in a few minutes.', 'wp-agent-support-layer' ), "\n";
+
+		if ( $this->scheduler ) {
+			$this->scheduler->schedule_llms_full();
+		}
+
+		/** This filter is documented in src/Markdown/Delivery.php */
+		if ( apply_filters( 'wpasl_terminate_after_serve', true ) ) {
+			exit;
+		}
 	}
 }

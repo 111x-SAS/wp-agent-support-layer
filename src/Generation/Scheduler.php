@@ -24,6 +24,11 @@ final class Scheduler {
 	const MANUAL_ARGS = array( 'manual' );
 
 	/**
+	 * One-off event that builds llms-full.txt in the background when a request finds it missing.
+	 */
+	const LLMS_FULL_HOOK = 'wpasl_build_llms_full';
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -118,6 +123,19 @@ final class Scheduler {
 	public function unschedule() {
 		wp_clear_scheduled_hook( self::HOOK );
 		wp_clear_scheduled_hook( self::HOOK, self::MANUAL_ARGS );
+		wp_clear_scheduled_hook( self::LLMS_FULL_HOOK );
+	}
+
+	/**
+	 * Schedules the background build of llms-full.txt once (no duplicates while one is pending).
+	 *
+	 * @return void
+	 */
+	public function schedule_llms_full() {
+		if ( false === wp_next_scheduled( self::LLMS_FULL_HOOK ) ) {
+			wp_schedule_single_event( time(), self::LLMS_FULL_HOOK );
+		}
+		spawn_cron();
 	}
 
 	/**

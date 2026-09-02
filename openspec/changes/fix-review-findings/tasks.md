@@ -10,9 +10,9 @@
 
 ## 3. Alta: URL Markdown de portada estática y permalinks con query string (D2)
 
-- [ ] 3.1 En `Delivery::markdown_url()` devolver `add_query_arg('wpasl','md', $permalink)` cuando el permalink contenga `?` o sea la raíz del sitio; verificar con `test_markdown_url_for_static_front_page_uses_query_arg` y `test_markdown_url_for_post_type_without_rewrite_uses_query_arg` en `tests/test-delivery.php`
-- [ ] 3.2 En `Delivery::handle_md_suffix()` resolver `/.md` a `page_on_front` cuando `show_on_front === 'page'` (sujeto a elegibilidad) y mantener 404 en caso contrario; verificar con `test_md_suffix_for_home_serves_static_front_page` y con el `test_md_suffix_for_home_is_404` existente ajustado a `show_on_front = posts`
-- [ ] 3.3 Verificar que `<link rel="alternate">`, la cabecera `Link`, `llms.txt` y `CrawlerProbe::site_targets()` usan la URL corregida para la portada estática mediante `test_static_front_page_alternate_links_are_servable` (la URL anunciada responde 200 en Markdown)
+- [x] 3.1 En `Delivery::markdown_url()` devolver `add_query_arg('wpasl','md', $permalink)` cuando el permalink contenga `?` o sea la raíz del sitio; verificar con `test_markdown_url_for_static_front_page_uses_query_arg` y `test_markdown_url_for_post_type_without_rewrite_uses_query_arg` en `tests/test-delivery.php`
+- [x] 3.2 En `Delivery::handle_md_suffix()` resolver `/.md` a `page_on_front` cuando `show_on_front === 'page'` (sujeto a elegibilidad) y mantener 404 en caso contrario; verificar con `test_md_suffix_for_home_serves_static_front_page` y con el `test_md_suffix_for_home_is_404` existente ajustado a `show_on_front = posts`
+- [x] 3.3 Verificar que `<link rel="alternate">`, la cabecera `Link`, `llms.txt` y `CrawlerProbe::site_targets()` usan la URL corregida para la portada estática mediante `test_static_front_page_alternate_links_are_servable` (la URL anunciada responde 200 en Markdown)
 
 ## 4. Alta: consultas acotadas al listar elegibles (D3)
 

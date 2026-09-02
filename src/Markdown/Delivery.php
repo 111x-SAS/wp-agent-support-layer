@@ -105,10 +105,27 @@ final class Delivery {
 		if ( ! $permalink ) {
 			return '';
 		}
-		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+		if ( self::needs_query_arg( $permalink ) ) {
 			return add_query_arg( self::QUERY_VAR, 'md', $permalink );
 		}
 		return untrailingslashit( $permalink ) . '.md';
+	}
+
+	/**
+	 * Whether the ".md" suffix cannot be appended to a permalink: plain permalinks, a permalink that already
+	 * carries a query string (post types without rewrite rules) or the site root (static front page).
+	 *
+	 * @param string $permalink Permalink.
+	 * @return bool
+	 */
+	private static function needs_query_arg( $permalink ) {
+		if ( '' === (string) get_option( 'permalink_structure' ) ) {
+			return true;
+		}
+		if ( false !== strpos( $permalink, '?' ) ) {
+			return true;
+		}
+		return untrailingslashit( $permalink ) === untrailingslashit( home_url( '/' ) );
 	}
 
 	/**
@@ -156,28 +173,43 @@ final class Delivery {
 	public function handle_md_suffix( $wp ) {
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
 		$path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
-		if ( ! preg_match( '#^(.*?)/?\.md$#', $path, $m ) ) {
+
+		if ( preg_match( '#^(.*?)/?\.md$#', $path, $m ) ) {
+			$this->serve_md_suffix( $wp, self::relative_path( $m[1] ) );
 			return;
 		}
 
+		// "/?wpasl=md" on a static front page: WordPress does not resolve the root URL to the page when an
+		// extra query variable is present (WP_Query::parse_query), so the request is served here.
+		$requested = isset( $wp->query_vars[ self::QUERY_VAR ] ) && 'md' === $wp->query_vars[ self::QUERY_VAR ];
+		if ( $requested && '' === self::relative_path( $path ) ) {
+			$front = self::front_page_id();
+			if ( $front > 0 && $this->eligibility->is_eligible( $front ) ) {
+				$this->md_request_post_id = $front;
+				$this->serve( get_post( $front ) );
+			}
+		}
+	}
+
+	/**
+	 * Serves a ".md" request: "/path.md", "/path/.md" or "/.md" (static front page).
+	 *
+	 * @param \WP    $wp       WordPress environment.
+	 * @param string $relative Path relative to the site root, without slashes.
+	 * @return void
+	 */
+	private function serve_md_suffix( $wp, $relative ) {
 		$this->md_request_post_id = -1;
 		// Marks a ".md" request that did not resolve.
 		add_filter( 'redirect_canonical', '__return_false' );
 
-		$base_path = rtrim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
-		$relative  = $m[1];
-		if ( '' !== $base_path && 0 === strpos( $relative, $base_path ) ) {
-			$relative = substr( $relative, strlen( $base_path ) );
-		}
-		$relative = trim( $relative, '/' );
 		if ( '' === $relative ) {
-			$this->force_404( $wp );
-			return;
-		}
-
-		$post_id = url_to_postid( home_url( '/' . $relative . '/' ) );
-		if ( $post_id <= 0 ) {
-			$post_id = url_to_postid( home_url( '/' . $relative ) );
+			$post_id = self::front_page_id();
+		} else {
+			$post_id = url_to_postid( home_url( '/' . $relative . '/' ) );
+			if ( $post_id <= 0 ) {
+				$post_id = url_to_postid( home_url( '/' . $relative ) );
+			}
 		}
 		if ( $post_id <= 0 || ! $this->eligibility->is_eligible( $post_id ) ) {
 			$this->force_404( $wp );
@@ -186,6 +218,29 @@ final class Delivery {
 
 		$this->md_request_post_id = $post_id;
 		$this->serve( get_post( $post_id ) );
+	}
+
+	/**
+	 * Strips the site's base path (subdirectory installs) and surrounding slashes from a request path.
+	 *
+	 * @param string $path Request path.
+	 * @return string
+	 */
+	private static function relative_path( $path ) {
+		$base_path = rtrim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
+		if ( '' !== $base_path && 0 === strpos( $path, $base_path ) ) {
+			$path = substr( $path, strlen( $base_path ) );
+		}
+		return trim( (string) $path, '/' );
+	}
+
+	/**
+	 * Id of the static front page, or 0 when the front page lists posts.
+	 *
+	 * @return int
+	 */
+	private static function front_page_id() {
+		return 'page' === get_option( 'show_on_front' ) ? (int) get_option( 'page_on_front' ) : 0;
 	}
 
 	/**

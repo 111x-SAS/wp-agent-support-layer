@@ -1,0 +1,54 @@
+## MODIFIED Requirements
+
+### Requirement: Ejecución de la prueba de rastreo
+La página de diagnóstico SHALL ofrecer una acción que realice peticiones HTTP desde el servidor a URLs del propio sitio (portada, una entrada elegible de muestra, su URL `.md`, `/robots.txt`, `/llms.txt`, `/agent-skills.json` y `/.well-known/api-catalog`) usando los user-agents del catálogo de crawlers y las cabeceras `Accept: text/markdown` y `Accept: text/html`. La acción MUST requerir `manage_options` y nonce válido, MUST limitar cada petición a 5 segundos, MUST NOT seguir redirecciones, MUST limitar el tamaño de cada respuesta leída y MUST NOT contactar ningún host distinto del propio sitio. La prueba SHALL ejecutarse en lotes repartidos en varias peticiones del navegador encadenadas automáticamente: cada petición del administrador MUST terminar dentro de un presupuesto de tiempo configurable por filtro (por defecto 30 segundos) y, si quedan crawlers por sondear, MUST guardar el progreso y continuar en la siguiente petición sin intervención del administrador ni JavaScript. Ninguna petición del administrador MUST superar los 100 segundos. El informe SHALL publicarse solo cuando el último lote termine; un progreso interrumpido MUST descartarse al cabo de una hora.
+
+#### Scenario: Ejecución completa
+- **WHEN** un administrador lanza la prueba
+- **THEN** se obtiene un resultado por cada combinación de URL y user-agent con código HTTP, `Content-Type` y cabeceras relevantes
+
+#### Scenario: Sin permisos
+- **WHEN** un usuario sin `manage_options` intenta lanzar la prueba
+- **THEN** el sistema rechaza la acción
+
+#### Scenario: Prueba dividida en lotes
+- **WHEN** el presupuesto de tiempo se agota con crawlers pendientes
+- **THEN** la petición actual guarda los resultados parciales y redirige a la siguiente petición, que continúa por el primer crawler pendiente hasta completar el informe
+
+#### Scenario: Peticiones lentas
+- **WHEN** cada URL sondeada tarda 5 segundos en responder
+- **THEN** ninguna petición del administrador dura más del presupuesto configurado más la duración de un crawler, y el informe final contiene todos los crawlers
+
+#### Scenario: Redirección en una URL sondeada
+- **WHEN** la portada responde 301 hacia otra URL
+- **THEN** el resultado registra el código 301 sin seguirlo y el informe marca la comprobación como advertencia
+
+### Requirement: Informe por crawler
+El informe SHALL mostrar, por cada crawler, el veredicto de robots.txt para su user-agent, si obtuvo la portada y la entrada de muestra, si recibió Markdown al pedir `text/markdown`, y si las cabeceras `Content-Signal`, `X-Robots-Tag` y `Link rel="alternate"` estaban presentes. El veredicto de robots.txt SHALL obtenerse del cuerpo de `/robots.txt` realmente servido, localizando el grupo `User-agent` del crawler y su directiva `Disallow`/`Allow`, y SHALL compararse con la política configurada: coincidencia como comprobación correcta; grupo ausente o directiva distinta como advertencia que indique que el robots.txt servido no refleja la configuración. Cada comprobación SHALL etiquetarse como correcta, advertencia o error, y el informe SHALL guardarse durante una hora para consultarlo sin repetir las peticiones.
+
+#### Scenario: Crawler bloqueado en robots.txt
+- **WHEN** GPTBot tiene política `block` y el cuerpo servido de `/robots.txt` contiene `User-agent: GPTBot` seguido de `Disallow: /`
+- **THEN** el informe muestra para GPTBot el veredicto "bloqueado por robots.txt" como comprobación correcta, coherente con la configuración
+
+#### Scenario: robots.txt servido sin el grupo del crawler
+- **WHEN** GPTBot tiene política `block` y el cuerpo servido de `/robots.txt` no contiene ningún grupo `User-agent: GPTBot`
+- **THEN** el informe marca el veredicto de robots.txt de GPTBot como advertencia indicando que el robots.txt servido no contiene la regla configurada
+
+#### Scenario: Markdown no servido
+- **WHEN** la petición con `Accept: text/markdown` a la entrada de muestra devuelve HTML
+- **THEN** el informe marca la comprobación de negociación de contenido como error e indica que una caché o CDN puede estar interfiriendo
+
+### Requirement: Detección de CDN y advertencias de infraestructura
+El informe SHALL indicar si las respuestas provienen de un CDN o proxy conocido a partir de cabeceras como `cf-ray`, `server` o `x-cache`, y SHALL advertir cuando detecte que Cloudflare ya convierte a Markdown en el borde. El informe SHALL comprobar si los archivos del almacenamiento son accesibles por acceso directo y marcarlo como error si lo son. El almacenamiento SHALL contener siempre un archivo sonda para esta comprobación, de modo que se realice aunque no exista ningún documento generado.
+
+#### Scenario: Cloudflare detectado
+- **WHEN** las respuestas incluyen la cabecera `cf-ray`
+- **THEN** el informe indica "Cloudflare detectado" y muestra la lista de verificación de WAF y rate-limiting
+
+#### Scenario: Almacenamiento expuesto
+- **WHEN** la petición directa a un documento almacenado devuelve 200
+- **THEN** el informe marca "almacenamiento accesible públicamente" como error con la instrucción de corrección para el servidor web
+
+#### Scenario: Almacenamiento sin documentos generados
+- **WHEN** todavía no se ha generado ningún documento y un administrador lanza la prueba
+- **THEN** el informe incluye igualmente la comprobación de acceso directo al almacenamiento usando el archivo sonda

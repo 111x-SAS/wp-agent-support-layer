@@ -44,20 +44,20 @@
 
 ## 10. Media: vista previa de robots.txt igual al núcleo (D9, hallazgo 9)
 
-- [ ] 10.1 Reescribir `RobotsTxt::generated_output()` para reproducir `do_robots()` (paths de `admin_url()`, sin rama `Disallow: /`, `$public` solo al filtro); verificar con `test_generated_output_equals_do_robots_when_public` y `test_generated_output_equals_do_robots_when_not_public` en `tests/test-crawler-robots.php` (comparación exacta con `ob_start(); do_robots();` para `blog_public` 1 y 0), reemplazando la comprobación de prefijo de `test_generated_output_matches_the_virtual_file`
+- [x] 10.1 Reescribir `RobotsTxt::generated_output()` para reproducir `do_robots()` (paths de `admin_url()`, sin rama `Disallow: /`, `$public` solo al filtro); verificar con `test_generated_output_equals_do_robots_when_public` y `test_generated_output_equals_do_robots_when_not_public` en `tests/test-crawler-robots.php` (comparación exacta con `ob_start(); do_robots();` para `blog_public` 1 y 0), reemplazando la comprobación de prefijo de `test_generated_output_matches_the_virtual_file`
 
 ## 11. Media: llms.txt por fichero y llms-full.txt en frío (D10, hallazgo 10)
 
-- [ ] 11.1 Añadir `LlmsTxtBuilder::generate_file()` y usarla en `generate()` y en `LlmsTxtRouter::document()`; verificar con `test_llms_txt_request_does_not_build_llms_full` en `tests/test-llms-txt.php` (con `llms_full_enabled`, tras `invalidate()` pedir `/llms.txt` → 200, `llms-full.txt` ausente, `list_files('md')` vacío)
-- [ ] 11.2 Responder 503 con `Retry-After` y `Cache-Control: no-store` en `/llms-full.txt` ausente, programar `wpasl_build_llms_full` mediante `Scheduler::schedule_llms_full()` (sin duplicados) y registrar su handler; incluir el hook en `Uninstaller`; verificar con `test_missing_llms_full_returns_503_and_schedules_build` (503, cabeceras, evento programado; ejecutar el hook → fichero presente y 200) y `test_llms_full_build_event_is_not_duplicated`
+- [x] 11.1 Añadir `LlmsTxtBuilder::generate_file()` y usarla en `generate()` y en `LlmsTxtRouter::document()`; verificar con `test_llms_txt_request_does_not_build_llms_full` en `tests/test-llms-txt.php` (con `llms_full_enabled`, tras `invalidate()` pedir `/llms.txt` → 200, `llms-full.txt` ausente, `list_files('md')` vacío)
+- [x] 11.2 Responder 503 con `Retry-After` y `Cache-Control: no-store` en `/llms-full.txt` ausente, programar `wpasl_build_llms_full` mediante `Scheduler::schedule_llms_full()` (sin duplicados) y registrar su handler; incluir el hook en `Uninstaller`; verificar con `test_missing_llms_full_returns_503_and_schedules_build` (503, cabeceras, evento programado; ejecutar el hook → fichero presente y 200) y `test_llms_full_build_event_is_not_duplicated`
 
 ## 12. Media: diagnóstico por crawler para .md y robots.txt (D11, hallazgo 11)
 
-- [ ] 12.1 Añadir `post_md` y `robots` a `CrawlerProbe::probe_crawler()`, las comprobaciones `markdown_url` y `robots_fetch` a `Report::crawler_checks()` y su render en `DiagnosticsTab`; actualizar `test_probe_uses_crawler_user_agents_and_accept_headers` (5 peticiones por crawler); verificar con `test_report_contains_markdown_url_check_per_crawler` y `test_ua_specific_block_on_md_is_reported_only_for_that_crawler` en `tests/test-diagnostics.php` (403 en `.md` solo para `ClaudeBot` vía `pre_http_request`)
+- [x] 12.1 Añadir `post_md` y `robots` a `CrawlerProbe::probe_crawler()`, las comprobaciones `markdown_url` y `robots_fetch` a `Report::crawler_checks()` y su render en `DiagnosticsTab`; actualizar `test_probe_uses_crawler_user_agents_and_accept_headers` (5 peticiones por crawler); verificar con `test_report_contains_markdown_url_check_per_crawler` y `test_ua_specific_block_on_md_is_reported_only_for_that_crawler` en `tests/test-diagnostics.php` (403 en `.md` solo para `ClaudeBot` vía `pre_http_request`)
 
 ## 13. Media: señales en el documento OpenAPI por REST (D12, hallazgo 12)
 
-- [ ] 13.1 Inyectar `ContentSignals` en `ManifestRouter` (parámetro opcional, actualizado en `Plugin::boot()`) y añadir sus cabeceras en `rest_openapi()`; verificar ampliando `test_openapi_rest_route` en `tests/test-agent-manifest.php` (`Content-Signal` y `Content-Usage` presentes; solo `Content-Signal` con el interruptor desactivado)
+- [x] 13.1 Inyectar `ContentSignals` en `ManifestRouter` (parámetro opcional, actualizado en `Plugin::boot()`) y añadir sus cabeceras en `rest_openapi()`; verificar ampliando `test_openapi_rest_route` en `tests/test-agent-manifest.php` (`Content-Signal` y `Content-Usage` presentes; solo `Content-Signal` con el interruptor desactivado)
 
 ## 14. Baja: ciclo de vida y desinstalación (D13, hallazgos 14 y 29)
 

@@ -237,6 +237,31 @@ final class Report {
 				: self::check( self::WARNING, __( 'No link rel="alternate" type="text/markdown" found (theme without wp_head, or headers stripped).', 'wp-agent-support-layer' ) );
 		}
 
+		if ( isset( $checks['robots'] ) ) {
+			$result = (array) $checks['robots'];
+			$label  = __( 'robots.txt', 'wp-agent-support-layer' );
+			if ( 200 === (int) $result['status'] ) {
+				$out['checks']['robots_fetch'] = self::check( self::OK, sprintf( /* translators: %s: target. */ __( '%s: HTTP 200.', 'wp-agent-support-layer' ), $label ) );
+			} elseif ( self::is_redirect( $result ) ) {
+				$out['checks']['robots_fetch'] = self::check( self::WARNING, self::redirect_message( $label, $result ) );
+			} else {
+				$out['checks']['robots_fetch'] = self::check( self::ERROR, sprintf( /* translators: 1: target, 2: HTTP status, 3: error message. */ __( '%1$s: HTTP %2$s %3$s. This user-agent cannot read the crawl rules.', 'wp-agent-support-layer' ), $label, $result['status'], $result['error'] ) );
+			}
+		}
+
+		if ( isset( $checks['post_md'] ) ) {
+			$md = (array) $checks['post_md'];
+			if ( self::is_markdown( $md ) ) {
+				$out['checks']['markdown_url'] = self::check( self::OK, __( 'Markdown URL (.md) served.', 'wp-agent-support-layer' ) );
+			} elseif ( 200 === (int) $md['status'] ) {
+				$out['checks']['markdown_url'] = self::check( self::ERROR, __( 'The Markdown URL (.md) returned something other than text/markdown; a cache, CDN or rewrite rule is interfering for this user-agent.', 'wp-agent-support-layer' ) );
+			} elseif ( self::is_redirect( $md ) ) {
+				$out['checks']['markdown_url'] = self::check( self::WARNING, self::redirect_message( __( 'Markdown URL (.md)', 'wp-agent-support-layer' ), $md ) );
+			} else {
+				$out['checks']['markdown_url'] = self::check( self::ERROR, sprintf( /* translators: 1: HTTP status, 2: error message. */ __( 'Markdown URL (.md) -> HTTP %1$s %2$s. A WAF, rate limit or bot filter is blocking this user-agent on .md URLs.', 'wp-agent-support-layer' ), $md['status'], $md['error'] ) );
+			}
+		}
+
 		if ( isset( $checks['post_markdown'] ) ) {
 			$md = (array) $checks['post_markdown'];
 			if ( self::is_markdown( $md ) ) {

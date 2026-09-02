@@ -158,6 +158,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'GPTBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'PerplexityBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'post_markdown', $raw['crawlers']['GPTBot'] );
+		$this->assertSame( array( 'home', 'post_html', 'post_markdown', 'post_md', 'robots' ), array_keys( $raw['crawlers']['GPTBot'] ), 'The .md URL and robots.txt are probed with each crawler user-agent.' );
 		$this->assertSame( array( 'robots', 'llms', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
 
 		$agents = array_unique( array_column( $this->requests, 'ua' ) );
@@ -176,6 +177,40 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayNotHasKey( 'body', $raw['crawlers']['GPTBot']['home'] );
 	}
 
+	public function test_report_contains_markdown_url_check_per_crawler() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$report = $this->controller->run();
+		foreach ( array( 'GPTBot', 'PerplexityBot' ) as $agent ) {
+			$this->assertArrayHasKey( 'markdown_url', $report['crawlers'][ $agent ]['checks'] );
+			$this->assertArrayHasKey( 'robots_fetch', $report['crawlers'][ $agent ]['checks'] );
+			$this->assertSame( Report::OK, $report['crawlers'][ $agent ]['checks']['markdown_url']['status'] );
+			$this->assertSame( Report::OK, $report['crawlers'][ $agent ]['checks']['robots_fetch']['status'] );
+		}
+	}
+
+	public function test_ua_specific_block_on_md_is_reported_only_for_that_crawler() {
+		$post = self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$md   = Plugin::instance()->get( 'delivery' )->markdown_url( $post );
+		$waf  = static function ( $pre, $args, $url ) use ( $md ) {
+			if ( $md === $url && false !== strpos( (string) $args['user-agent'], 'PerplexityBot' ) ) {
+				return array(
+					'response' => array( 'code' => 403, 'message' => 'Forbidden' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+					'headers'  => array( 'content-type' => 'text/html' ),
+					'body'     => 'blocked',
+				);
+			}
+			return $pre;
+		};
+		add_filter( 'pre_http_request', $waf, 20, 3 );
+		$report = $this->controller->run();
+		remove_filter( 'pre_http_request', $waf, 20 );
+
+		$this->assertSame( Report::ERROR, $report['crawlers']['PerplexityBot']['checks']['markdown_url']['status'] );
+		$this->assertStringContainsString( '403', $report['crawlers']['PerplexityBot']['checks']['markdown_url']['message'] );
+		$this->assertSame( Report::OK, $report['crawlers']['GPTBot']['checks']['markdown_url']['status'] );
+		$this->assertSame( Report::OK, $report['site']['markdown_url']['status'], 'The site-wide probe with the plugin user-agent is unaffected.' );
+	}
+
 	public function test_probe_does_not_follow_redirects() {
 		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
 		$this->responses[ home_url( '/robots.txt' ) ] = array(
@@ -185,8 +220,10 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$raw = $this->probe->run();
 
 		$robots_requests = array_filter( $this->requests, static function ( $r ) { return home_url( '/robots.txt' ) === $r['url']; } ); // phpcs:ignore
-		$this->assertCount( 1, $robots_requests );
-		$this->assertSame( 0, reset( $robots_requests )['args']['redirection'] );
+		$this->assertCount( 3, $robots_requests, 'Once with the diagnostics user-agent, once per crawler; never a second time to follow the redirect.' );
+		foreach ( $robots_requests as $request ) {
+			$this->assertSame( 0, $request['args']['redirection'] );
+		}
 		foreach ( $this->requests as $request ) {
 			$this->assertStringNotContainsString( 'www.example.org', $request['url'] );
 		}
@@ -249,13 +286,13 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'robots', $run['site'] );
 		$this->assertNull( Report::load(), 'No report until the last batch.' );
 		$first_batch = count( $this->requests );
-		$this->assertSame( 6 + 3, $first_batch, 'Six site targets and the three requests of one crawler.' );
+		$this->assertSame( 6 + 5, $first_batch, 'Six site targets and the five requests of one crawler.' );
 
 		// Second request: resumes with the first pending crawler only and publishes the report.
 		$this->requests = array();
 		$location       = $this->handle_and_capture_redirect();
 		$this->assertStringContainsString( 'wpasl_notice=diagnostics', $location );
-		$this->assertCount( 3, $this->requests, 'Only the pending crawler was probed.' );
+		$this->assertCount( 5, $this->requests, 'Only the pending crawler was probed.' );
 		foreach ( $this->requests as $request ) {
 			$this->assertStringContainsString( 'PerplexityBot', $request['ua'] );
 		}

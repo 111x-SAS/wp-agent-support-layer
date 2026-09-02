@@ -186,7 +186,8 @@ final class CrawlerProbe {
 	}
 
 	/**
-	 * Probes the home page and the sample item (HTML and Markdown) as one crawler.
+	 * Probes, as one crawler, the home page, the sample item (HTML, negotiated Markdown and its .md URL) and
+	 * robots.txt, so user-agent specific rules of a WAF or CDN show up per crawler.
 	 *
 	 * @param string        $agent Agent token.
 	 * @param \WP_Post|null $post  Sample post, or null when the site has no eligible item.
@@ -200,7 +201,9 @@ final class CrawlerProbe {
 		if ( $post instanceof \WP_Post ) {
 			$checks['post_html']     = $this->fetch( get_permalink( $post ), $user_agent, 'text/html,*/*;q=0.8' );
 			$checks['post_markdown'] = $this->fetch( get_permalink( $post ), $user_agent, 'text/markdown, text/html;q=0.9, */*;q=0.8' );
+			$checks['post_md']       = $this->fetch( $this->delivery->markdown_url( $post ), $user_agent, 'text/markdown, */*;q=0.5' );
 		}
+		$checks['robots'] = $this->fetch( home_url( '/robots.txt' ), $user_agent, 'text/plain, */*;q=0.5' );
 		return $checks;
 	}
 

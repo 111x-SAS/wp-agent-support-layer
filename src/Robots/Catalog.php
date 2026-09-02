@@ -50,32 +50,152 @@ final class Catalog {
 	private static function builtin() {
 		return array(
 			// Training.
-			array( 'agent' => 'GPTBot', 'vendor' => 'OpenAI', 'group' => self::GROUP_TRAINING, 'docs' => 'https://platform.openai.com/docs/bots' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'ClaudeBot', 'vendor' => 'Anthropic', 'group' => self::GROUP_TRAINING, 'docs' => 'https://support.anthropic.com/en/articles/8896518' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'anthropic-ai', 'vendor' => 'Anthropic', 'group' => self::GROUP_TRAINING, 'docs' => 'https://support.anthropic.com/en/articles/8896518' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Google-Extended', 'vendor' => 'Google (Gemini)', 'group' => self::GROUP_TRAINING, 'docs' => 'https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Applebot-Extended', 'vendor' => 'Apple', 'group' => self::GROUP_TRAINING, 'docs' => 'https://support.apple.com/en-us/119829' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'CCBot', 'vendor' => 'Common Crawl', 'group' => self::GROUP_TRAINING, 'docs' => 'https://commoncrawl.org/ccbot' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Bytespider', 'vendor' => 'ByteDance', 'group' => self::GROUP_TRAINING, 'docs' => '' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'meta-externalagent', 'vendor' => 'Meta', 'group' => self::GROUP_TRAINING, 'docs' => 'https://developers.facebook.com/docs/sharing/webmasters/web-crawlers' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Amazonbot', 'vendor' => 'Amazon', 'group' => self::GROUP_TRAINING, 'docs' => 'https://developer.amazon.com/amazonbot' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'cohere-ai', 'vendor' => 'Cohere', 'group' => self::GROUP_TRAINING, 'docs' => 'https://docs.cohere.com/docs/cohere-web-crawlers' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'cohere-training-data-crawler', 'vendor' => 'Cohere', 'group' => self::GROUP_TRAINING, 'docs' => 'https://docs.cohere.com/docs/cohere-web-crawlers' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Diffbot', 'vendor' => 'Diffbot', 'group' => self::GROUP_TRAINING, 'docs' => 'https://docs.diffbot.com/docs/diffbot-crawler' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'omgili', 'vendor' => 'Webz.io', 'group' => self::GROUP_TRAINING, 'docs' => 'https://webz.io/bot.html' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'PetalBot', 'vendor' => 'Huawei', 'group' => self::GROUP_TRAINING, 'docs' => 'https://aspiegel.com/petalbot' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array(
+				'agent'  => 'GPTBot',
+				'vendor' => 'OpenAI',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://platform.openai.com/docs/bots',
+			),
+			array(
+				'agent'  => 'ClaudeBot',
+				'vendor' => 'Anthropic',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://support.anthropic.com/en/articles/8896518',
+			),
+			array(
+				'agent'  => 'anthropic-ai',
+				'vendor' => 'Anthropic',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://support.anthropic.com/en/articles/8896518',
+			),
+			array(
+				'agent'  => 'Google-Extended',
+				'vendor' => 'Google (Gemini)',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://developers.google.com/search/docs/crawling-indexing/overview-google-crawlers',
+			),
+			array(
+				'agent'  => 'Applebot-Extended',
+				'vendor' => 'Apple',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://support.apple.com/en-us/119829',
+			),
+			array(
+				'agent'  => 'CCBot',
+				'vendor' => 'Common Crawl',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://commoncrawl.org/ccbot',
+			),
+			array(
+				'agent'  => 'Bytespider',
+				'vendor' => 'ByteDance',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => '',
+			),
+			array(
+				'agent'  => 'meta-externalagent',
+				'vendor' => 'Meta',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://developers.facebook.com/docs/sharing/webmasters/web-crawlers',
+			),
+			array(
+				'agent'  => 'Amazonbot',
+				'vendor' => 'Amazon',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://developer.amazon.com/amazonbot',
+			),
+			array(
+				'agent'  => 'cohere-ai',
+				'vendor' => 'Cohere',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://docs.cohere.com/docs/cohere-web-crawlers',
+			),
+			array(
+				'agent'  => 'cohere-training-data-crawler',
+				'vendor' => 'Cohere',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://docs.cohere.com/docs/cohere-web-crawlers',
+			),
+			array(
+				'agent'  => 'Diffbot',
+				'vendor' => 'Diffbot',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://docs.diffbot.com/docs/diffbot-crawler',
+			),
+			array(
+				'agent'  => 'omgili',
+				'vendor' => 'Webz.io',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://webz.io/bot.html',
+			),
+			array(
+				'agent'  => 'PetalBot',
+				'vendor' => 'Huawei',
+				'group'  => self::GROUP_TRAINING,
+				'docs'   => 'https://aspiegel.com/petalbot',
+			),
 			// AI search.
-			array( 'agent' => 'OAI-SearchBot', 'vendor' => 'OpenAI', 'group' => self::GROUP_SEARCH, 'docs' => 'https://platform.openai.com/docs/bots' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'PerplexityBot', 'vendor' => 'Perplexity', 'group' => self::GROUP_SEARCH, 'docs' => 'https://docs.perplexity.ai/guides/bots' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Claude-SearchBot', 'vendor' => 'Anthropic', 'group' => self::GROUP_SEARCH, 'docs' => 'https://support.anthropic.com/en/articles/8896518' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'DuckAssistBot', 'vendor' => 'DuckDuckGo', 'group' => self::GROUP_SEARCH, 'docs' => 'https://duckduckgo.com/duckduckgo-help-pages/results/duckassistbot' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'YouBot', 'vendor' => 'You.com', 'group' => self::GROUP_SEARCH, 'docs' => 'https://about.you.com/youbot/' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array(
+				'agent'  => 'OAI-SearchBot',
+				'vendor' => 'OpenAI',
+				'group'  => self::GROUP_SEARCH,
+				'docs'   => 'https://platform.openai.com/docs/bots',
+			),
+			array(
+				'agent'  => 'PerplexityBot',
+				'vendor' => 'Perplexity',
+				'group'  => self::GROUP_SEARCH,
+				'docs'   => 'https://docs.perplexity.ai/guides/bots',
+			),
+			array(
+				'agent'  => 'Claude-SearchBot',
+				'vendor' => 'Anthropic',
+				'group'  => self::GROUP_SEARCH,
+				'docs'   => 'https://support.anthropic.com/en/articles/8896518',
+			),
+			array(
+				'agent'  => 'DuckAssistBot',
+				'vendor' => 'DuckDuckGo',
+				'group'  => self::GROUP_SEARCH,
+				'docs'   => 'https://duckduckgo.com/duckduckgo-help-pages/results/duckassistbot',
+			),
+			array(
+				'agent'  => 'YouBot',
+				'vendor' => 'You.com',
+				'group'  => self::GROUP_SEARCH,
+				'docs'   => 'https://about.you.com/youbot/',
+			),
 			// On-demand agents.
-			array( 'agent' => 'ChatGPT-User', 'vendor' => 'OpenAI', 'group' => self::GROUP_AGENT, 'docs' => 'https://platform.openai.com/docs/bots' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Claude-User', 'vendor' => 'Anthropic', 'group' => self::GROUP_AGENT, 'docs' => 'https://support.anthropic.com/en/articles/8896518' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'Perplexity-User', 'vendor' => 'Perplexity', 'group' => self::GROUP_AGENT, 'docs' => 'https://docs.perplexity.ai/guides/bots' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'MistralAI-User', 'vendor' => 'Mistral AI', 'group' => self::GROUP_AGENT, 'docs' => 'https://docs.mistral.ai/robots/' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-			array( 'agent' => 'meta-externalfetcher', 'vendor' => 'Meta', 'group' => self::GROUP_AGENT, 'docs' => 'https://developers.facebook.com/docs/sharing/webmasters/web-crawlers' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array(
+				'agent'  => 'ChatGPT-User',
+				'vendor' => 'OpenAI',
+				'group'  => self::GROUP_AGENT,
+				'docs'   => 'https://platform.openai.com/docs/bots',
+			),
+			array(
+				'agent'  => 'Claude-User',
+				'vendor' => 'Anthropic',
+				'group'  => self::GROUP_AGENT,
+				'docs'   => 'https://support.anthropic.com/en/articles/8896518',
+			),
+			array(
+				'agent'  => 'Perplexity-User',
+				'vendor' => 'Perplexity',
+				'group'  => self::GROUP_AGENT,
+				'docs'   => 'https://docs.perplexity.ai/guides/bots',
+			),
+			array(
+				'agent'  => 'MistralAI-User',
+				'vendor' => 'Mistral AI',
+				'group'  => self::GROUP_AGENT,
+				'docs'   => 'https://docs.mistral.ai/robots/',
+			),
+			array(
+				'agent'  => 'meta-externalfetcher',
+				'vendor' => 'Meta',
+				'group'  => self::GROUP_AGENT,
+				'docs'   => 'https://developers.facebook.com/docs/sharing/webmasters/web-crawlers',
+			),
 		);
 	}
 
@@ -98,7 +218,8 @@ final class Catalog {
 				continue;
 			}
 			$agent = trim( $crawler['agent'] );
-			if ( '' === $agent || preg_match( '/[\s#:]/', $agent ) ) {
+			// Whitespace, '#' and ':' break robots.txt; '.', '[' and ']' break PHP form keys ($_POST mangles them).
+			if ( '' === $agent || preg_match( '/[\s#:.\[\]]/', $agent ) ) {
 				continue;
 			}
 			$group           = isset( $crawler['group'] ) && isset( self::groups()[ $crawler['group'] ] ) ? $crawler['group'] : self::GROUP_TRAINING;

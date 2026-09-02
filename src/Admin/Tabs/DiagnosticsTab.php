@@ -232,6 +232,23 @@ final class DiagnosticsTab implements Tab {
 	}
 
 	/**
+	 * Text of the curl commands: one pair per crawler plus the discovery files.
+	 *
+	 * @param string $url URL of the sample item (or the home page).
+	 * @return string
+	 */
+	public function curl_commands( $url ) {
+		$text = '';
+		foreach ( Catalog::all() as $agent => $crawler ) {
+			$text .= sprintf( "# %s (%s)\n", $agent, $crawler['vendor'] );
+			$text .= sprintf( "curl -sI -A 'Mozilla/5.0 (compatible; %s/1.0)' -H 'Accept: text/html' '%s'\n", $agent, $url );
+			$text .= sprintf( "curl -sI -A 'Mozilla/5.0 (compatible; %s/1.0)' -H 'Accept: text/markdown' '%s'\n\n", $agent, $url );
+		}
+		$text .= sprintf( "# Discovery files\ncurl -s '%s'\ncurl -s '%s'\ncurl -s '%s'\ncurl -s '%s'\n", home_url( '/robots.txt' ), home_url( '/llms.txt' ), home_url( '/agent-skills.json' ), home_url( '/.well-known/api-catalog' ) );
+		return $text;
+	}
+
+	/**
 	 * Equivalent curl commands to repeat the checks from outside the server.
 	 *
 	 * @return void
@@ -242,16 +259,7 @@ final class DiagnosticsTab implements Tab {
 		?>
 		<h2><?php esc_html_e( 'Repeat the checks from outside', 'wp-agent-support-layer' ); ?></h2>
 		<p class="description"><?php esc_html_e( 'Run these from your computer to see exactly what each crawler receives through your CDN and firewall.', 'wp-agent-support-layer' ); ?></p>
-		<textarea readonly class="large-text code" rows="14">
-		<?php
-		foreach ( Catalog::all() as $agent => $crawler ) {
-			echo esc_textarea( sprintf( "# %s (%s)\n", $agent, $crawler['vendor'] ) );
-			echo esc_textarea( sprintf( "curl -sI -A 'Mozilla/5.0 (compatible; %s/1.0)' -H 'Accept: text/html' '%s'\n", $agent, $url ) );
-			echo esc_textarea( sprintf( "curl -sI -A 'Mozilla/5.0 (compatible; %s/1.0)' -H 'Accept: text/markdown' '%s'\n\n", $agent, $url ) );
-		}
-		echo esc_textarea( sprintf( "# Discovery files\ncurl -s '%s'\ncurl -s '%s'\ncurl -s '%s'\ncurl -s '%s'\n", home_url( '/robots.txt' ), home_url( '/llms.txt' ), home_url( '/agent-skills.json' ), home_url( '/.well-known/api-catalog' ) ) );
-		?>
-		</textarea>
+		<textarea readonly class="large-text code" rows="14"><?php echo esc_textarea( $this->curl_commands( $url ) ); ?></textarea>
 		<?php
 	}
 }

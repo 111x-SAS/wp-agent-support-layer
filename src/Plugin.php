@@ -148,7 +148,7 @@ final class Plugin {
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( '\\WP_CLI' ) ) {
-			\WP_CLI::add_command( 'wpasl', new Commands( $runner, $scheduler ) );
+			\WP_CLI::add_command( 'wpasl', new Commands( $runner, $scheduler, $settings ) );
 		}
 	}
 

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-02T03:36:20+00:00\n"
+"POT-Creation-Date: 2026-09-02T08:50:29+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
@@ -43,23 +43,23 @@ msgstr ""
 msgid "Exclude from the agent layer (Markdown, llms.txt, manifests)."
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:121
+#: src/Admin/ExcludeMetaBox.php:142
 #: src/Admin/Page.php:92
 #: src/Admin/Page.php:93
 #: src/Admin/Page.php:175
 msgid "Agent Support Layer"
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:140
+#: src/Admin/ExcludeMetaBox.php:161
 msgid "Exclude from the agent layer"
 msgstr ""
 
-#: src/Admin/ExcludeMetaBox.php:142
+#: src/Admin/ExcludeMetaBox.php:163
 msgid "Hides this item from the Markdown version, llms.txt and the agent manifest."
 msgstr ""
 
 #: src/Admin/GenerationStatus.php:87
-#: src/Diagnostics/DiagnosticsController.php:93
+#: src/Diagnostics/DiagnosticsController.php:194
 msgid "You do not have permission to do this."
 msgstr ""
 
@@ -189,13 +189,13 @@ msgstr ""
 
 #: src/Admin/Tabs/CrawlersTab.php:120
 #: src/Admin/Tabs/CrawlersTab.php:123
-#: src/Admin/Tabs/DiagnosticsTab.php:155
+#: src/Admin/Tabs/DiagnosticsTab.php:172
 msgid "Allow"
 msgstr ""
 
 #: src/Admin/Tabs/CrawlersTab.php:121
 #: src/Admin/Tabs/CrawlersTab.php:123
-#: src/Admin/Tabs/DiagnosticsTab.php:155
+#: src/Admin/Tabs/DiagnosticsTab.php:172
 msgid "Block"
 msgstr ""
 
@@ -219,128 +219,134 @@ msgstr ""
 msgid "Diagnostics completed."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:91
+#. translators: 1: crawlers done, 2: crawlers pending.
+#: src/Admin/Tabs/DiagnosticsTab.php:97
+#, php-format
+msgid "A simulation is in progress: %1$d crawler(s) done, %2$d pending. Run it again to continue where it stopped."
+msgstr ""
+
+#: src/Admin/Tabs/DiagnosticsTab.php:108
 msgid "Run crawler simulation"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:92
-msgid "Takes a few seconds; results are kept for one hour."
+#: src/Admin/Tabs/DiagnosticsTab.php:109
+msgid "Runs in short batches (the page reloads by itself); results are kept for one hour."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:113
+#: src/Admin/Tabs/DiagnosticsTab.php:130
 msgid "Last report"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:118
+#: src/Admin/Tabs/DiagnosticsTab.php:135
 msgid "Sample item:"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:120
+#: src/Admin/Tabs/DiagnosticsTab.php:137
 msgid "Infrastructure"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:122
+#: src/Admin/Tabs/DiagnosticsTab.php:139
 msgid "No CDN or proxy detected."
 msgstr ""
 
 #. translators: %s: CDN name.
-#: src/Admin/Tabs/DiagnosticsTab.php:122
+#: src/Admin/Tabs/DiagnosticsTab.php:139
 #, php-format
 msgid "%s detected in front of the site."
 msgstr ""
 
 #. translators: %s: Server header.
-#: src/Admin/Tabs/DiagnosticsTab.php:126
+#: src/Admin/Tabs/DiagnosticsTab.php:143
 #, php-format
 msgid "Server header: %s"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:130
+#: src/Admin/Tabs/DiagnosticsTab.php:147
 msgid "Cloudflare \"Markdown for Agents\" seems to convert pages at the edge. Keep only one converter (this plugin or Cloudflare) to avoid double processing."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:133
+#: src/Admin/Tabs/DiagnosticsTab.php:150
 msgid "Site checks"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:142
+#: src/Admin/Tabs/DiagnosticsTab.php:159
 msgid "Per crawler"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:146
+#: src/Admin/Tabs/DiagnosticsTab.php:163
 msgid "Crawler"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:147
-#: src/Diagnostics/Report.php:154
+#: src/Admin/Tabs/DiagnosticsTab.php:164
+#: src/Diagnostics/Report.php:155
 msgid "robots.txt"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:148
+#: src/Admin/Tabs/DiagnosticsTab.php:165
 msgid "Checks"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:176
+#: src/Admin/Tabs/DiagnosticsTab.php:193
 msgid "OK"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:177
+#: src/Admin/Tabs/DiagnosticsTab.php:194
 msgid "Warning"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:178
+#: src/Admin/Tabs/DiagnosticsTab.php:195
 msgid "Error"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:196
+#: src/Admin/Tabs/DiagnosticsTab.php:213
 msgid "List which AI crawlers you want to allow (see the Crawlers tab) and check that your WAF, bot-fight or \"AI scrapers\" rules do not block them by user-agent or by ASN."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:197
+#: src/Admin/Tabs/DiagnosticsTab.php:214
 msgid "Verify crawlers by IP range or reverse DNS as published by each vendor, rather than trusting the user-agent string alone."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:198
+#: src/Admin/Tabs/DiagnosticsTab.php:215
 msgid "Crawlers that ignore robots.txt (Bytespider has been reported to) can only be stopped at the firewall or CDN; block them there if you do not want them."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:199
+#: src/Admin/Tabs/DiagnosticsTab.php:216
 msgid "Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:200
+#: src/Admin/Tabs/DiagnosticsTab.php:217
 msgid "Ensure the CDN or page cache honours \"Vary: Accept\" for HTML URLs, or rely on the .md URLs which are cached independently."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:201
+#: src/Admin/Tabs/DiagnosticsTab.php:218
 msgid "Do not cache or transform robots.txt, llms.txt, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:202
+#: src/Admin/Tabs/DiagnosticsTab.php:219
 msgid "If Cloudflare \"Markdown for Agents\" is enabled, decide whether Cloudflare or this plugin converts pages, not both."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:203
+#: src/Admin/Tabs/DiagnosticsTab.php:220
 msgid "Confirm that the uploads/wp-agent-support-layer directory is not directly accessible (Apache .htaccess or an nginx deny rule)."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:204
+#: src/Admin/Tabs/DiagnosticsTab.php:221
 msgid "After changing security rules, run this simulation again and compare the per-crawler results."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:207
+#: src/Admin/Tabs/DiagnosticsTab.php:224
 msgid "Infrastructure checklist (WAF, rate limiting, IP filtering)"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:208
+#: src/Admin/Tabs/DiagnosticsTab.php:225
 msgid "This plugin cannot change your CDN or firewall. Review these points with your provider."
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:226
+#: src/Admin/Tabs/DiagnosticsTab.php:260
 msgid "Repeat the checks from outside"
 msgstr ""
 
-#: src/Admin/Tabs/DiagnosticsTab.php:227
+#: src/Admin/Tabs/DiagnosticsTab.php:261
 msgid "Run these from your computer to see exactly what each crawler receives through your CDN and firewall."
 msgstr ""
 
@@ -538,36 +544,82 @@ msgstr ""
 msgid "The AIPREF specification is still a draft; disable this if its syntax changes."
 msgstr ""
 
-#: src/Diagnostics/Report.php:155
-msgid "llms.txt"
+#: src/CLI/Commands.php:79
+msgid "The bundled HTML-to-Markdown library is missing: install a release build or run \"composer run build\" in the plugin directory."
+msgstr ""
+
+#. translators: %s: post type.
+#: src/CLI/Commands.php:87
+#, php-format
+msgid "Post type \"%s\" is not enabled in the plugin settings (Tools > Agent Support Layer > General)."
+msgstr ""
+
+#. translators: 1: items processed, 2: items remaining.
+#: src/CLI/Commands.php:99
+#, php-format
+msgid "Processed %1$d item(s); %2$d remaining in this cycle."
+msgstr ""
+
+#. translators: %d: items processed.
+#: src/CLI/Commands.php:105
+#, php-format
+msgid "Processed %d item(s) and regenerated the discovery files."
+msgstr ""
+
+#: src/CLI/Commands.php:131
+#: src/CLI/Commands.php:132
+msgid "never"
+msgstr ""
+
+#: src/CLI/Commands.php:133
+msgid "not scheduled"
+msgstr ""
+
+#: src/CLI/Commands.php:148
+msgid "Storage cleared. All items are pending again."
 msgstr ""
 
 #: src/Diagnostics/Report.php:156
-msgid "agent-skills.json"
+msgid "llms.txt"
 msgstr ""
 
 #: src/Diagnostics/Report.php:157
-msgid "API catalog"
+msgid "agent-skills.json"
 msgstr ""
 
 #: src/Diagnostics/Report.php:158
+msgid "API catalog"
+msgstr ""
+
+#: src/Diagnostics/Report.php:159
 msgid "Markdown URL of the sample item"
 msgstr ""
 
-#: src/Diagnostics/Report.php:178
+#. translators: 1: target, 2: HTTP status, 3: error message.
+#: src/Diagnostics/Report.php:170
+#: src/Diagnostics/Report.php:217
+#, php-format
+msgid "%1$s: HTTP %2$s %3$s"
+msgstr ""
+
+#. translators: 1: target, 2: Content-Type received, 3: Content-Type expected.
+#: src/Diagnostics/Report.php:172
+#, php-format
+msgid "%1$s: unexpected Content-Type \"%2$s\" (expected %3$s)."
+msgstr ""
+
+#. translators: 1: target, 2: Content-Type.
+#: src/Diagnostics/Report.php:174
+#, php-format
+msgid "%1$s: HTTP 200, %2$s."
+msgstr ""
+
+#: src/Diagnostics/Report.php:181
 msgid "Generated documents are publicly accessible by direct URL. Apache: keep the .htaccess in uploads/wp-agent-support-layer. Nginx: add \"location ^~ /wp-content/uploads/wp-agent-support-layer/ { deny all; }\"."
 msgstr ""
 
-#: src/Diagnostics/Report.php:179
+#: src/Diagnostics/Report.php:182
 msgid "Direct access to the generated documents is denied."
-msgstr ""
-
-#: src/Diagnostics/Report.php:201
-msgid "Blocked by robots.txt, as configured."
-msgstr ""
-
-#: src/Diagnostics/Report.php:202
-msgid "Allowed by robots.txt, as configured."
 msgstr ""
 
 #: src/Diagnostics/Report.php:209
@@ -578,32 +630,110 @@ msgstr ""
 msgid "Sample item (HTML)"
 msgstr ""
 
-#: src/Diagnostics/Report.php:224
+#. translators: %s: target.
+#: src/Diagnostics/Report.php:211
+#, php-format
+msgid "%s: HTTP 200."
+msgstr ""
+
+#. translators: 1: target, 2: HTTP status.
+#: src/Diagnostics/Report.php:215
+#, php-format
+msgid "%1$s: HTTP %2$d. A WAF, rate limit or bot filter is blocking this user-agent."
+msgstr ""
+
+#. translators: %s: header value.
+#: src/Diagnostics/Report.php:225
+#, php-format
+msgid "Content-Signal: %s"
+msgstr ""
+
+#. translators: %s: header value.
+#: src/Diagnostics/Report.php:226
 msgid "Content-Signal header missing on the HTML response (a cache or proxy may strip it)."
 msgstr ""
 
-#: src/Diagnostics/Report.php:229
+#. translators: %s: header value.
+#: src/Diagnostics/Report.php:230
+#, php-format
+msgid "X-Robots-Tag: %s"
+msgstr ""
+
+#. translators: %s: header value.
+#: src/Diagnostics/Report.php:231
 msgid "X-Robots-Tag noai missing on the HTML response."
 msgstr ""
 
-#: src/Diagnostics/Report.php:234
+#: src/Diagnostics/Report.php:236
 msgid "Markdown alternate link present."
 msgstr ""
 
-#: src/Diagnostics/Report.php:235
+#: src/Diagnostics/Report.php:237
 msgid "No link rel=\"alternate\" type=\"text/markdown\" found (theme without wp_head, or headers stripped)."
 msgstr ""
 
-#: src/Diagnostics/Report.php:241
+#: src/Diagnostics/Report.php:243
 msgid "Markdown served for Accept: text/markdown."
 msgstr ""
 
-#: src/Diagnostics/Report.php:243
+#: src/Diagnostics/Report.php:245
 msgid "It appears to be converted by Cloudflare \"Markdown for Agents\" instead of this plugin; keep only one of the two."
 msgstr ""
 
-#: src/Diagnostics/Report.php:248
+#: src/Diagnostics/Report.php:250
 msgid "HTML returned for Accept: text/markdown. A page cache or CDN that ignores \"Vary: Accept\" is probably interfering; agents can still use the .md URL."
+msgstr ""
+
+#. translators: 1: HTTP status, 2: error message.
+#: src/Diagnostics/Report.php:252
+#, php-format
+msgid "Accept: text/markdown -> HTTP %1$s %2$s"
+msgstr ""
+
+#: src/Diagnostics/Report.php:268
+#: src/Diagnostics/Report.php:300
+msgid "block"
+msgstr ""
+
+#: src/Diagnostics/Report.php:268
+#: src/Diagnostics/Report.php:300
+msgid "allow"
+msgstr ""
+
+#. translators: 1: HTTP status, 2: configured policy.
+#: src/Diagnostics/Report.php:275
+#, php-format
+msgid "robots.txt could not be read (HTTP %1$s), so the served rules were not verified; the configured policy is \"%2$s\"."
+msgstr ""
+
+#. translators: 1: crawler token, 2: configured policy.
+#: src/Diagnostics/Report.php:288
+#, php-format
+msgid "No rule for %1$s in the served robots.txt (configured policy: \"%2$s\"). A physical robots.txt or a cache may be serving stale rules."
+msgstr ""
+
+#. translators: 1: served verdict, 2: crawler token, 3: configured policy.
+#: src/Diagnostics/Report.php:299
+#, php-format
+msgid "The served robots.txt says \"%1$s\" for %2$s but the configured policy is \"%3$s\". A physical robots.txt or a cache may be serving stale rules."
+msgstr ""
+
+#: src/Diagnostics/Report.php:307
+msgid "Blocked by robots.txt, as configured."
+msgstr ""
+
+#: src/Diagnostics/Report.php:308
+msgid "Allowed by robots.txt, as configured."
+msgstr ""
+
+#. translators: 1: target label, 2: HTTP status, 3: Location header.
+#: src/Diagnostics/Report.php:393
+#, php-format
+msgid "%1$s: HTTP %2$d redirect to %3$s. The diagnostics never follow redirects; crawlers may not either. Serve the content on the canonical host."
+msgstr ""
+
+#: src/Diagnostics/Report.php:396
+msgid "(no Location header)"
 msgstr ""
 
 #. translators: %s: site name.
@@ -622,6 +752,30 @@ msgstr ""
 #: src/Llms/LlmsTxtBuilder.php:210
 #, php-format
 msgid "Truncated: this file reached its %1$s limit. The complete index is in %2$s."
+msgstr ""
+
+#: src/Llms/LlmsTxtBuilder.php:280
+msgid "Sitemap"
+msgstr ""
+
+#: src/Llms/LlmsTxtBuilder.php:280
+msgid "XML sitemap of the whole site."
+msgstr ""
+
+#: src/Llms/LlmsTxtBuilder.php:283
+msgid "Agent skills"
+msgstr ""
+
+#: src/Llms/LlmsTxtBuilder.php:283
+msgid "Capabilities an agent can use on this site (JSON-LD)."
+msgstr ""
+
+#: src/Llms/LlmsTxtBuilder.php:284
+msgid "OpenAPI"
+msgstr ""
+
+#: src/Llms/LlmsTxtBuilder.php:284
+msgid "OpenAPI 3.1 description of the public REST API."
 msgstr ""
 
 #: src/Manifest/CapabilityRegistry.php:61
@@ -746,11 +900,11 @@ msgstr ""
 msgid "Read-only endpoints of the WordPress REST API that agents may use without authentication."
 msgstr ""
 
-#: src/Manifest/ManifestRouter.php:126
+#: src/Manifest/ManifestRouter.php:127
 msgid "The agent manifests are disabled."
 msgstr ""
 
-#: src/Plugin.php:179
+#: src/Plugin.php:185
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr ""
 

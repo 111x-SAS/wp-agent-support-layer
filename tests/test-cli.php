@@ -30,8 +30,38 @@ class Test_CLI extends WP_UnitTestCase {
 	}
 
 	public function tear_down() {
+		Plugin::instance()->get( 'runner' )->set_item_generator( Plugin::instance()->get( 'builder' ) );
 		Plugin::instance()->get( 'runner' )->clear();
+		delete_option( WPASL\Settings::OPTION );
+		Plugin::instance()->get( 'settings' )->flush_cache();
 		parent::tear_down();
+	}
+
+	public function test_cli_generate_errors_for_disabled_post_type() {
+		self::factory()->post->create( array( 'post_type' => 'page' ) );
+		update_option( WPASL\Settings::OPTION, array( 'post_types' => array( 'post' ) ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+
+		try {
+			$this->commands->generate( array(), array( 'post-type' => 'page' ) );
+			$this->fail( 'Expected WP_CLI::error().' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( 'Post type "page" is not enabled', $e->getMessage() );
+		}
+		$this->assertStringStartsWith( 'Error:', end( WP_CLI::$log ) );
+		$this->assertSame( array(), Plugin::instance()->get( 'storage' )->list_files( 'md' ), 'Nothing was generated.' );
+		$this->assertStringNotContainsString( 'Success', implode( ' ', WP_CLI::$log ) );
+	}
+
+	public function test_cli_generate_errors_when_the_converter_is_missing() {
+		self::factory()->post->create();
+		Plugin::instance()->get( 'runner' )->set_item_generator( null );
+		try {
+			$this->commands->generate( array(), array( 'all' => true ) );
+			$this->fail( 'Expected WP_CLI::error().' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( 'HTML-to-Markdown library is missing', $e->getMessage() );
+		}
 	}
 
 	public function test_generate_all_processes_every_item_and_reports_the_total() {

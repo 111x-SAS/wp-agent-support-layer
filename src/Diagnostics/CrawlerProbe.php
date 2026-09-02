@@ -123,18 +123,18 @@ final class CrawlerProbe {
 	}
 
 	/**
-	 * Public URL of one stored document, to check that direct access is denied. Null when nothing is stored.
+	 * Public URL of the probe file kept in the storage, to check that direct access is denied. Null when
+	 * the storage directory cannot be created.
 	 *
 	 * @return string|null
 	 */
 	public function storage_direct_url() {
-		$files = $this->storage->list_files( '' );
-		if ( empty( $files ) ) {
+		if ( ! $this->storage->ensure() ) {
 			return null;
 		}
 		$uploads  = wp_upload_dir( null, false );
 		$relative = substr( $this->storage->base_dir(), strlen( $uploads['basedir'] ) );
-		return $uploads['baseurl'] . $relative . '/' . $files[0];
+		return $uploads['baseurl'] . $relative . '/' . Storage::PROBE_FILE;
 	}
 
 	/**

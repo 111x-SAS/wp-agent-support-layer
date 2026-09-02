@@ -10,6 +10,7 @@ use WPASL\Lifecycle;
 use WPASL\Plugin;
 use WPASL\Settings;
 use WPASL\Storage;
+use WPASL\Uninstaller;
 
 /**
  * Each site of a network keeps its own settings, storage and documents.
@@ -54,6 +55,46 @@ class Test_Multisite extends WP_UnitTestCase {
 		Plugin::instance()->get( 'runner' )->clear();
 		Storage::delete_all();
 		delete_option( Settings::OPTION );
+	}
+
+	public function test_uninstall_removes_storage_and_options_on_every_site() {
+		$site_b = self::factory()->blog->create();
+		Lifecycle::activate( true );
+
+		$post_a = self::factory()->post->create();
+		update_post_meta( $post_a, Uninstaller::EXCLUDE_META, true );
+		Plugin::instance()->get( 'runner' )->run_cycle();
+		$dir_a = ( new Storage() )->base_dir();
+		$this->assertDirectoryExists( $dir_a );
+
+		switch_to_blog( $site_b );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$post_b = self::factory()->post->create();
+		update_post_meta( $post_b, Uninstaller::EXCLUDE_META, true );
+		Plugin::instance()->get( 'runner' )->run_cycle();
+		$dir_b = ( new Storage() )->base_dir();
+		$this->assertDirectoryExists( $dir_b );
+		set_transient( 'wpasl_diagnostics_report', array( 'x' ), HOUR_IN_SECONDS );
+		restore_current_blog();
+		Plugin::instance()->get( 'settings' )->flush_cache();
+
+		Uninstaller::run();
+
+		foreach ( array( get_current_blog_id(), $site_b ) as $site_id ) {
+			switch_to_blog( $site_id );
+			$this->assertFalse( get_option( Settings::OPTION ), "Site {$site_id} settings removed." );
+			$this->assertFalse( get_option( Storage::TOKEN_OPTION ), "Site {$site_id} token removed." );
+			$this->assertFalse( get_transient( 'wpasl_diagnostics_report' ), "Site {$site_id} report removed." );
+			$this->assertFalse( wp_next_scheduled( \WPASL\Generation\Scheduler::HOOK ), "Site {$site_id} cron removed." );
+			$this->assertDirectoryDoesNotExist( Storage::root_dir(), "Site {$site_id} storage removed." );
+			restore_current_blog();
+		}
+		$this->assertSame( '', get_post_meta( $post_a, Uninstaller::EXCLUDE_META, true ) );
+		switch_to_blog( $site_b );
+		$this->assertSame( '', get_post_meta( $post_b, Uninstaller::EXCLUDE_META, true ) );
+		$this->assertInstanceOf( 'WP_Post', get_post( $post_b ), 'Content is untouched.' );
+		restore_current_blog();
+		Plugin::instance()->get( 'settings' )->flush_cache();
 	}
 
 	public function test_network_activation_sets_up_every_site() {

@@ -108,15 +108,26 @@ final class Scheduler {
 	}
 
 	/**
-	 * Schedules an immediate one-off run and asks WordPress to spawn cron.
+	 * Makes the recurring event due immediately and asks WordPress to spawn cron.
+	 *
+	 * WordPress refuses single events within ten minutes of an existing one for the same hook,
+	 * so the recurring event itself is moved to "now" and keeps recurring from there.
 	 *
 	 * @return void
 	 */
 	public function run_soon() {
 		$event = wp_get_scheduled_event( self::HOOK );
-		if ( ! $event || $event->timestamp > time() ) {
-			wp_schedule_single_event( time() - 1, self::HOOK );
+		if ( $event && $event->timestamp <= time() ) {
+			spawn_cron();
+			return;
 		}
+
+		$interval = $this->current_interval();
+		if ( null === $interval ) {
+			$interval = (string) $this->settings->get( 'schedule' );
+		}
+		$this->unschedule();
+		wp_schedule_event( time() - 1, $interval, self::HOOK );
 		spawn_cron();
 	}
 }

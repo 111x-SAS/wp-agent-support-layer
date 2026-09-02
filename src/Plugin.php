@@ -8,8 +8,13 @@
 namespace WPASL;
 
 use WPASL\Admin\ExcludeMetaBox;
+use WPASL\Admin\GenerationStatus;
 use WPASL\Admin\Page;
+use WPASL\CLI\Commands;
+use WPASL\Content\Eligibility;
+use WPASL\Generation\Runner;
 use WPASL\Generation\Scheduler;
+use WPASL\Generation\State;
 
 /**
  * Wires the plugin services into WordPress.
@@ -60,16 +65,22 @@ final class Plugin {
 		}
 		$this->booted = true;
 
-		$settings  = new Settings();
-		$storage   = new Storage();
-		$scheduler = new Scheduler( $settings );
+		$settings    = new Settings();
+		$storage     = new Storage();
+		$scheduler   = new Scheduler( $settings );
+		$eligibility = new Eligibility( $settings );
+		$runner      = new Runner( $settings, $storage, $eligibility, new State() );
+		$page        = new Page( $settings );
 
 		$this->services = array(
-			'settings'  => $settings,
-			'storage'   => $storage,
-			'scheduler' => $scheduler,
-			'page'      => new Page( $settings ),
-			'exclude'   => new ExcludeMetaBox( $settings ),
+			'settings'    => $settings,
+			'storage'     => $storage,
+			'scheduler'   => $scheduler,
+			'eligibility' => $eligibility,
+			'runner'      => $runner,
+			'page'        => $page,
+			'exclude'     => new ExcludeMetaBox( $settings ),
+			'status'      => new GenerationStatus( $runner, $scheduler, $page ),
 		);
 
 		/**
@@ -86,6 +97,10 @@ final class Plugin {
 			if ( method_exists( $service, 'register' ) ) {
 				$service->register();
 			}
+		}
+
+		if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( '\\WP_CLI' ) ) {
+			\WP_CLI::add_command( 'wpasl', new Commands( $runner, $scheduler ) );
 		}
 	}
 

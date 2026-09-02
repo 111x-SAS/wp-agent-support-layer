@@ -1,5 +1,3 @@
-# Copyright (C) 2026 Mao Rodriguez
-# This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
 "Project-Id-Version: WP Agent Support Layer 0.1.0\n"
@@ -11,6 +9,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2026-09-02T01:31:46+00:00\n"
 "PO-Revision-Date: 2026-09-01 20:00-0500\n"
+"Language: \n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
 
@@ -129,3 +128,67 @@ msgstr "WP Agent Support Layer requiere PHP %1$s o superior. Este sitio usa PHP 
 #, php-format
 msgid "WP Agent Support Layer requires WordPress %1$s or newer. This site runs WordPress %2$s."
 msgstr "WP Agent Support Layer requiere WordPress %1$s o superior. Este sitio usa WordPress %2$s."
+
+#: src/Admin/GenerationStatus.php:87
+msgid "You do not have permission to do this."
+msgstr "No tienes permiso para hacer esto."
+
+#: src/Admin/GenerationStatus.php:112
+msgid "Generation status"
+msgstr "Estado de la generación"
+
+#: src/Admin/GenerationStatus.php:114
+msgid "A generation run has been scheduled and will start in the background."
+msgstr "Se ha programado una ejecución de generación que comenzará en segundo plano."
+
+#: src/Admin/GenerationStatus.php:116
+msgid "A full regeneration has been scheduled and will run in the background over one or more batches."
+msgstr "Se ha programado una regeneración completa que se ejecutará en segundo plano en uno o varios lotes."
+
+#: src/Admin/GenerationStatus.php:119
+msgid "WP-Cron is disabled on this site (DISABLE_WP_CRON). Generation depends on a system cron calling wp-cron.php or on the \"wp wpasl generate\" WP-CLI command."
+msgstr "WP-Cron está desactivado en este sitio (DISABLE_WP_CRON). La generación depende de un cron del sistema que llame a wp-cron.php o del comando WP-CLI \"wp wpasl generate\"."
+
+#: src/Admin/GenerationStatus.php:123
+msgid "Eligible items"
+msgstr "Elementos elegibles"
+
+#: src/Admin/GenerationStatus.php:124
+msgid "With a generated document"
+msgstr "Con documento generado"
+
+#: src/Admin/GenerationStatus.php:125
+msgid "Pending"
+msgstr "Pendientes"
+
+#: src/Admin/GenerationStatus.php:126
+msgid "Last run"
+msgstr "Última ejecución"
+
+#: src/Admin/GenerationStatus.php:127
+msgid "Last completed cycle"
+msgstr "Último ciclo completado"
+
+#: src/Admin/GenerationStatus.php:128
+msgid "Next scheduled run"
+msgstr "Próxima ejecución programada"
+
+#: src/Admin/GenerationStatus.php:128
+msgid "Not scheduled"
+msgstr "No programada"
+
+#: src/Admin/GenerationStatus.php:134
+msgid "Regenerate now"
+msgstr "Regenerar ahora"
+
+#: src/Admin/GenerationStatus.php:135
+msgid "Regenerate everything"
+msgstr "Regenerar todo"
+
+#: src/Admin/GenerationStatus.php:136
+msgid "Both actions run in the background. \"Regenerate now\" processes the next batch; \"Regenerate everything\" starts a new cycle over all eligible items."
+msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa el siguiente lote; \"Regenerar todo\" inicia un nuevo ciclo sobre todos los elementos elegibles."
+
+#: src/Admin/GenerationStatus.php:149
+msgid "Never"
+msgstr "Nunca"

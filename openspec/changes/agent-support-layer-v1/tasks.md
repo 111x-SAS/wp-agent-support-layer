@@ -20,16 +20,16 @@
 
 ## 3. Motor de generación programada (scheduled-generation)
 
-- [ ] 3.1 Implementar el almacenamiento (`Storage`): directorio en uploads con `index.php` y `.htaccess`, rutas por post type e ID, `state.json`; verificar con tests de escritura, lectura, borrado y aislamiento por sitio en multisitio
-- [ ] 3.2 Implementar el evento recurrente `wpasl_generate`, la reprogramación al cambiar el intervalo y el unschedule; verificar con tests sobre `wp_next_scheduled`
-- [ ] 3.3 Implementar el `Runner` por lotes con cursor, límite de ítems y presupuesto de 20 s, y la regeneración de archivos de descubrimiento al cerrar ciclo; verificar con tests el caso de 120 ítems y lote 50
-- [ ] 3.4 Implementar la limpieza de no elegibles por ciclo y el borrado inmediato en `transition_post_status` y `deleted_post`; verificar con tests que enviar a papelera borra el archivo y no genera nada
-- [ ] 3.5 Implementar "Regenerar ahora" (evento único inmediato + `spawn_cron`) y el bloque de estado con advertencia de `DISABLE_WP_CRON`; verificar con tests que la petición admin no ejecuta la generación inline
-- [ ] 3.6 Implementar los comandos WP-CLI `generate`, `status` y `clear`; verificar ejecutándolos contra el entorno local de Docker
+- [x] 3.1 Implementar el almacenamiento (`Storage`): directorio en uploads con `index.php` y `.htaccess`, rutas por post type e ID, `state.json`; verificar con tests de escritura, lectura, borrado y aislamiento por sitio en multisitio
+- [x] 3.2 Implementar el evento recurrente `wpasl_generate`, la reprogramación al cambiar el intervalo y el unschedule; verificar con tests sobre `wp_next_scheduled`
+- [x] 3.3 Implementar el `Runner` por lotes con cursor, límite de ítems y presupuesto de 20 s, y la regeneración de archivos de descubrimiento al cerrar ciclo; verificar con tests el caso de 120 ítems y lote 50
+- [x] 3.4 Implementar la limpieza de no elegibles por ciclo y el borrado inmediato en `transition_post_status` y `deleted_post`; verificar con tests que enviar a papelera borra el archivo y no genera nada
+- [x] 3.5 Implementar "Regenerar ahora" (evento único inmediato + `spawn_cron`) y el bloque de estado con advertencia de `DISABLE_WP_CRON`; verificar con tests que la petición admin no ejecuta la generación inline
+- [x] 3.6 Implementar los comandos WP-CLI `generate`, `status` y `clear`; verificar ejecutándolos contra el entorno local de Docker
 
 ## 4. Entrega en Markdown (markdown-delivery)
 
-- [ ] 4.1 Implementar `Eligibility` (post type habilitado y público, `publish`, sin contraseña, no excluido); verificar con tests cada condición por separado
+- [x] 4.1 Implementar `Eligibility` (post type habilitado y público, `publish`, sin contraseña, no excluido); verificar con tests cada condición por separado
 - [ ] 4.2 Implementar `MarkdownConverterInterface` y el adaptador sobre la librería prefijada con limpieza de `script`, `style`, `form`, `iframe`, `noscript` y comentarios, y absolutización de URLs; verificar con tests de instantánea sobre HTML de muestra
 - [ ] 4.3 Implementar `DocumentBuilder` (front matter YAML, H1, cuerpo) a partir de `the_content` renderizado; verificar con tests que el front matter contiene todas las claves requeridas y que las taxonomías aparecen cuando existen
 - [ ] 4.4 Implementar la negociación por `Accept` en `template_redirect` con parser de `q`; verificar con tests los tres escenarios de la spec (prefiere Markdown, prefiere HTML, ambos con HTML preferido)

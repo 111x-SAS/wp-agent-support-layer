@@ -33,7 +33,7 @@
 
 ## 7. Media: veredicto de robots.txt desde el cuerpo servido (D6)
 
-- [ ] 7.1 Implementar `Report::robots_verdict($body, $agent)` (agrupación por `User-agent`, `Disallow: /` vs `Allow: /`, case-insensitive) y usarlo en `crawler_checks()` comparando con la política; verificar con `test_robots_verdict_matches_served_body`, `test_robots_verdict_warns_when_group_missing` y `test_robots_verdict_warns_when_body_differs_from_policy` en `tests/test-diagnostics.php`
+- [x] 7.1 Implementar `Report::robots_verdict($body, $agent)` (agrupación por `User-agent`, `Disallow: /` vs `Allow: /`, case-insensitive) y usarlo en `crawler_checks()` comparando con la política; verificar con `test_robots_verdict_matches_served_body`, `test_robots_verdict_warns_when_group_missing` y `test_robots_verdict_warns_when_body_differs_from_policy` en `tests/test-diagnostics.php`
 
 ## 8. Media: cola viva y artefactos por antigüedad (D7)
 

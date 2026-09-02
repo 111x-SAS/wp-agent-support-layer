@@ -117,6 +117,11 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$path    = (string) wp_parse_url( $url, PHP_URL_PATH );
 		if ( '/robots.txt' === $path ) {
 			$headers['content-type'] = 'text/plain; charset=utf-8';
+			return array(
+				'code'    => 200,
+				'headers' => $headers,
+				'body'    => Plugin::instance()->get( 'robots' )->generated_output(),
+			);
 		} elseif ( '/agent-skills.json' === $path ) {
 			$headers['content-type'] = 'application/ld+json; charset=utf-8';
 		} elseif ( '/.well-known/api-catalog' === $path ) {
@@ -362,6 +367,61 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertFalse( $report['infrastructure']['storage_exposed'] );
 
 		$this->assertSame( $report, Report::load(), 'Stored in the transient.' );
+	}
+
+	public function test_robots_verdict_matches_served_body() {
+		$body = "# comment\nUser-agent: *\nDisallow: /wp-admin/\n\nuser-agent: gptbot\nUSER-AGENT: CCBot\nDisallow: / # blocked\n\nUser-agent: PerplexityBot\nAllow: /\n\nUser-agent: Amazonbot\nDisallow: /private/\n\nUser-agent: Diffbot\nDisallow: /\nAllow: /\n";
+		$this->assertSame( 'block', Report::robots_verdict( $body, 'GPTBot' ) );
+		$this->assertSame( 'block', Report::robots_verdict( $body, 'ccbot' ) );
+		$this->assertSame( 'allow', Report::robots_verdict( $body, 'PerplexityBot' ) );
+		$this->assertSame( 'allow', Report::robots_verdict( $body, 'Amazonbot' ), 'A partial Disallow is not a site-wide block.' );
+		$this->assertSame( 'allow', Report::robots_verdict( $body, 'Diffbot' ), 'An explicit root Allow wins.' );
+		$this->assertNull( Report::robots_verdict( $body, 'ClaudeBot' ), 'The * group is not a verdict for a token.' );
+		$this->assertNull( Report::robots_verdict( '', 'GPTBot' ) );
+
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$report = $this->controller->run();
+		$this->assertSame( Report::OK, $report['crawlers']['GPTBot']['checks']['robots']['status'] );
+		$this->assertStringContainsString( 'Blocked by robots.txt', $report['crawlers']['GPTBot']['checks']['robots']['message'] );
+		$this->assertSame( Report::OK, $report['crawlers']['PerplexityBot']['checks']['robots']['status'] );
+		$this->assertStringContainsString( 'Allowed by robots.txt', $report['crawlers']['PerplexityBot']['checks']['robots']['message'] );
+	}
+
+	public function test_robots_verdict_warns_when_group_missing() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$this->responses[ home_url( '/robots.txt' ) ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/plain' ),
+			'body'    => "User-agent: *\nDisallow: /wp-admin/\n",
+		);
+		$report                                       = $this->controller->run();
+		$check                                        = $report['crawlers']['GPTBot']['checks']['robots'];
+		$this->assertSame( Report::WARNING, $check['status'] );
+		$this->assertStringContainsString( 'No rule for GPTBot in the served robots.txt', $check['message'] );
+		$this->assertStringContainsString( '"block"', $check['message'] );
+	}
+
+	public function test_robots_verdict_warns_when_body_differs_from_policy() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$this->responses[ home_url( '/robots.txt' ) ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/plain' ),
+			'body'    => "User-agent: GPTBot\nAllow: /\n\nUser-agent: PerplexityBot\nDisallow: /\n",
+		);
+		$report                                       = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['crawlers']['GPTBot']['checks']['robots']['status'] );
+		$this->assertStringContainsString( 'says "allow" for GPTBot but the configured policy is "block"', $report['crawlers']['GPTBot']['checks']['robots']['message'] );
+		$this->assertSame( Report::WARNING, $report['crawlers']['PerplexityBot']['checks']['robots']['status'] );
+		$this->assertStringContainsString( 'says "block" for PerplexityBot but the configured policy is "allow"', $report['crawlers']['PerplexityBot']['checks']['robots']['message'] );
+
+		// Unreadable robots.txt: warning, not an error attributed to the crawler.
+		$this->responses[ home_url( '/robots.txt' ) ] = array(
+			'code'    => 500,
+			'headers' => array(),
+		);
+		$report                                       = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['crawlers']['GPTBot']['checks']['robots']['status'] );
+		$this->assertStringContainsString( 'could not be read (HTTP 500)', $report['crawlers']['GPTBot']['checks']['robots']['message'] );
 	}
 
 	public function test_report_flags_html_returned_for_markdown_request() {

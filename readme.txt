@@ -102,6 +102,53 @@ Yes, with the `wpasl_agent_capabilities` filter. Only unauthenticated actions ar
 
 Yes. Settings and generated files are per site.
 
+== Filters and actions ==
+
+Every extension point, with the file that documents its parameters.
+
+**Content and eligibility**
+
+* `wpasl_is_eligible` (filter): veto an item from the agent layer (`src/Content/Eligibility.php`).
+* `wpasl_markdown_html`, `wpasl_markdown_front_matter`, `wpasl_markdown_document`, `wpasl_markdown_language` (filters): adjust the rendered HTML, the front matter, the final document and its language (`src/Markdown/DocumentBuilder.php`).
+
+**Generation**
+
+* `wpasl_run_time_budget` (filter): seconds allowed per scheduled run, default 20 (`src/Generation/Runner.php`).
+* `wpasl_max_failures` (filter): consecutive failures after which an item is retried only after the rest of the queue, default 3 (`src/Generation/Runner.php`).
+* `wpasl_generation_failed` (action): fired with the post, the reason (`no_generator`, `empty_document`, `storage_write`) and the attempt count when a document cannot be generated or stored (`src/Generation/Runner.php`).
+* `wpasl_cron_disabled` (filter): whether WP-Cron is considered disabled for the warning in the General tab (`src/Admin/GenerationStatus.php`).
+
+**Delivery**
+
+* `wpasl_before_serve` (action): fired with the context (`markdown`, `llms-txt`, `manifest`) and the post, if any, right before a document is sent (`src/Markdown/Delivery.php`).
+* `wpasl_terminate_after_serve` (filter): whether the request ends after a document is sent; tests set it to false (`src/Markdown/Delivery.php`).
+
+**robots.txt and llms.txt**
+
+* `wpasl_crawler_catalog` (filter): add or remove AI crawlers (`src/Robots/Catalog.php`).
+* `wpasl_llms_sections`, `wpasl_llms_optional_links`, `wpasl_llms_txt` (filters): the sections, the Optional links and the final text of llms.txt (`src/Llms/LlmsTxtBuilder.php`).
+* `wpasl_physical_robots_path`, `wpasl_physical_llms_path` (filters): paths checked for physical files (`src/Robots/RobotsTxt.php`, `src/Llms/LlmsTxtRouter.php`).
+
+**Manifests**
+
+* `wpasl_agent_capabilities` (filter): add capabilities to agent-skills.json; only unauthenticated actions are kept (`src/Manifest/CapabilityRegistry.php`, see docs/agent-skills.md).
+* `wpasl_agent_skills`, `wpasl_openapi`, `wpasl_api_catalog` (filters): the three documents before they are stored (`src/Manifest/ManifestBuilder.php`).
+
+**Diagnostics**
+
+* `wpasl_diagnostics_crawlers` (filter): the crawlers simulated (`src/Diagnostics/CrawlerProbe.php`).
+* `wpasl_diagnostics_time_budget` (filter): seconds of probing per admin request before the next batch, default 30 (`src/Diagnostics/DiagnosticsController.php`).
+
+**Admin page**
+
+* `wpasl_register_tabs` (action): add a settings tab; a tab with its own slug never touches the plugin settings (`src/Admin/Page.php`).
+* `wpasl_page_after_form` (action): print blocks after the settings form of a tab; the place for content that carries its own form, such as the generation status (`src/Admin/Page.php`).
+* `wpasl_general_tab_after` (action): print fields at the end of the General tab, inside the settings form; never print a form here (`src/Admin/Tabs/GeneralTab.php`).
+
+**Bootstrap**
+
+* `wpasl_services` (filter): replace or add services before they are registered; a replacement converter must implement `WPASL\Markdown\ConverterInterface`, including `set_base_url()` (`src/Plugin.php`).
+
 == Screenshots ==
 
 1. General tab: content types, schedule, batch size and generation status.

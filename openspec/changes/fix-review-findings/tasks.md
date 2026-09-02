@@ -37,9 +37,9 @@
 
 ## 8. Media: cola viva y artefactos por antigüedad (D7)
 
-- [ ] 8.1 En `Runner::run()` incorporar al frente de la cola los elegibles nunca generados que no estén en ella; verificar con `test_post_published_mid_cycle_is_processed_in_next_run` en `tests/test-runner.php`
-- [ ] 8.2 Regenerar artefactos cuando el último ciclo completo (y la última regeneración de artefactos) sea más antiguo que el intervalo aunque la cola no se vacíe, guardando `last_artifacts_regenerated`; verificar con `test_artifacts_regenerate_when_cycle_is_older_than_interval`
-- [ ] 8.3 En `Scheduler::on_settings_updated()` vaciar la cola cuando cambie `post_types` (`State::clear_queue()`); verificar con `test_changing_post_types_resets_queue`
+- [x] 8.1 En `Runner::run()` incorporar al frente de la cola los elegibles nunca generados que no estén en ella; verificar con `test_post_published_mid_cycle_is_processed_in_next_run` en `tests/test-runner.php`
+- [x] 8.2 Regenerar artefactos cuando el último ciclo completo (y la última regeneración de artefactos) sea más antiguo que el intervalo aunque la cola no se vacíe, guardando `last_artifacts_regenerated`; verificar con `test_artifacts_regenerate_when_cycle_is_older_than_interval`
+- [x] 8.3 En `Scheduler::on_settings_updated()` vaciar la cola cuando cambie `post_types` (`State::clear_queue()`); verificar con `test_changing_post_types_resets_queue`
 
 ## 9. Media: estado resistente a escrituras concurrentes (D8)
 

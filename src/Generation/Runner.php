@@ -62,6 +62,13 @@ final class Runner {
 	private $artifact_generators = array();
 
 	/**
+	 * Post types of the cycle being run by run_cycle(), or null for every enabled type.
+	 *
+	 * @var string[]|null
+	 */
+	private $cycle_post_types = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings    $settings    Settings.
@@ -142,6 +149,9 @@ final class Runner {
 		if ( empty( $state['queue'] ) ) {
 			$state['queue']         = $this->build_queue( $state['generated'] );
 			$state['cycle_started'] = time();
+		} else {
+			// Items published during the cycle go first instead of waiting for the next cycle.
+			$state['queue'] = array_merge( $this->never_generated_ids( $state ), $state['queue'] );
 		}
 
 		$started   = microtime( true );
@@ -164,7 +174,10 @@ final class Runner {
 		if ( $cycle_completed ) {
 			$state['generated']            = $this->prune( $state['generated'] );
 			$state['last_cycle_completed'] = time();
-			$state['artifacts_generated']  = $this->regenerate_artifacts();
+		}
+		if ( $cycle_completed || $this->artifacts_are_stale( $state ) ) {
+			$state['artifacts_generated']        = $this->regenerate_artifacts();
+			$state['last_artifacts_regenerated'] = time();
 		}
 
 		$state['last_run']       = time();
@@ -191,11 +204,16 @@ final class Runner {
 			$this->state->save( $state );
 		}
 
-		$total = 0;
-		do {
-			$result = $this->run( PHP_INT_MAX, PHP_INT_MAX );
-			$total += $result['processed'];
-		} while ( ! $result['cycle_completed'] );
+		$this->cycle_post_types = $post_types;
+		$total                  = 0;
+		try {
+			do {
+				$result = $this->run( PHP_INT_MAX, PHP_INT_MAX );
+				$total += $result['processed'];
+			} while ( ! $result['cycle_completed'] );
+		} finally {
+			$this->cycle_post_types = null;
+		}
 
 		return $total;
 	}
@@ -368,6 +386,49 @@ final class Runner {
 			}
 		);
 		return $ids;
+	}
+
+	/**
+	 * Eligible ids that were never generated and are not queued yet.
+	 *
+	 * @param array<string, mixed> $state State.
+	 * @return int[]
+	 */
+	private function never_generated_ids( array $state ) {
+		if ( null === $this->item_generator ) {
+			return array();
+		}
+		$known = array_fill_keys( array_map( 'intval', $state['queue'] ), true ) + array_fill_keys( array_keys( $state['generated'] ), true );
+		$fresh = array();
+		foreach ( $this->eligibility->eligible_ids( $this->cycle_post_types ) as $post_id ) {
+			if ( ! isset( $known[ $post_id ] ) ) {
+				$fresh[] = $post_id;
+			}
+		}
+		return $fresh;
+	}
+
+	/**
+	 * Whether the discovery files are older than the configured interval (or were never generated), so a
+	 * long cycle on a large site never leaves them stale for more than one interval.
+	 *
+	 * @param array<string, mixed> $state State.
+	 * @return bool
+	 */
+	private function artifacts_are_stale( array $state ) {
+		$last = max( (int) $state['last_cycle_completed'], (int) $state['last_artifacts_regenerated'] );
+		return ( time() - $last ) > $this->interval_seconds();
+	}
+
+	/**
+	 * Configured regeneration interval in seconds.
+	 *
+	 * @return int
+	 */
+	private function interval_seconds() {
+		$schedules = wp_get_schedules();
+		$schedule  = (string) $this->settings->get( 'schedule' );
+		return isset( $schedules[ $schedule ] ) ? (int) $schedules[ $schedule ]['interval'] : DAY_IN_SECONDS;
 	}
 
 	/**

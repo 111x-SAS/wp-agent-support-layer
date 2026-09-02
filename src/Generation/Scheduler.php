@@ -24,12 +24,21 @@ final class Scheduler {
 	private $settings;
 
 	/**
+	 * State.
+	 *
+	 * @var State
+	 */
+	private $state;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Settings $settings Settings.
+	 * @param Settings   $settings Settings.
+	 * @param State|null $state    State; a fresh instance when omitted.
 	 */
-	public function __construct( Settings $settings ) {
+	public function __construct( Settings $settings, ?State $state = null ) {
 		$this->settings = $settings;
+		$this->state    = null === $state ? new State() : $state;
 	}
 
 	/**
@@ -42,7 +51,7 @@ final class Scheduler {
 	}
 
 	/**
-	 * Reschedules when the interval changes.
+	 * Reschedules when the interval changes and discards the queue when the post types change.
 	 *
 	 * @param mixed $old_value Previous option value.
 	 * @param mixed $value     New option value.
@@ -55,6 +64,22 @@ final class Scheduler {
 			$this->settings->flush_cache();
 			$this->schedule( $new );
 		}
+		if ( self::post_types_of( $old_value ) !== self::post_types_of( $value ) ) {
+			$this->state->clear_queue();
+		}
+	}
+
+	/**
+	 * Normalised post types of a raw settings value (defaults when absent).
+	 *
+	 * @param mixed $value Raw option value.
+	 * @return string[]
+	 */
+	private static function post_types_of( $value ) {
+		$types = is_array( $value ) && isset( $value['post_types'] ) ? (array) $value['post_types'] : Settings::defaults()['post_types'];
+		$types = array_values( array_unique( array_map( 'strval', $types ) ) );
+		sort( $types );
+		return $types;
 	}
 
 	/**

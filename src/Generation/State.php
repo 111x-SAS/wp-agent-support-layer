@@ -21,14 +21,27 @@ final class State {
 	 */
 	public static function defaults() {
 		return array(
-			'queue'                => array(),
-			'generated'            => array(),
-			'cycle_started'        => 0,
-			'last_run'             => 0,
-			'last_run_count'       => 0,
-			'last_cycle_completed' => 0,
-			'artifacts_generated'  => 0,
+			'queue'                      => array(),
+			'generated'                  => array(),
+			'cycle_started'              => 0,
+			'last_run'                   => 0,
+			'last_run_count'             => 0,
+			'last_cycle_completed'       => 0,
+			'artifacts_generated'        => 0,
+			'last_artifacts_regenerated' => 0,
 		);
+	}
+
+	/**
+	 * Discards the queue in progress so the next run rebuilds it (e.g. after the post types change).
+	 *
+	 * @return void
+	 */
+	public function clear_queue() {
+		$state                  = $this->load();
+		$state['queue']         = array();
+		$state['cycle_started'] = 0;
+		$this->save( $state );
 	}
 
 	/**

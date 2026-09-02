@@ -84,7 +84,15 @@ If `DISABLE_WP_CRON` is set, call `wp-cron.php` from a system cron or run `wp wp
 | `wpasl_diagnostics_crawlers` | Limit the crawlers simulated by the diagnostics. |
 | `wpasl_diagnostics_time_budget` | Seconds of probing per admin request before the diagnostics hand over to the next batch (default 30; each request also probes at least one crawler). |
 | `wpasl_run_time_budget` | Seconds allowed per generation run (default 20). |
-| `wpasl_services` | Replace or add services at boot. |
+| `wpasl_max_failures` | Failures after which an item is retried only after the rest of the queue (default 3). |
+| `wpasl_generation_failed` (action) | A document could not be generated or stored: post, reason and attempt count. |
+| `wpasl_cron_disabled` | Whether WP-Cron counts as disabled for the warning in the General tab. |
+| `wpasl_before_serve` (action), `wpasl_terminate_after_serve` | Runs before a document is sent; whether the request ends afterwards. |
+| `wpasl_register_tabs`, `wpasl_page_after_form`, `wpasl_general_tab_after` (actions) | Add a settings tab; print blocks after a tab's form (own forms go here); print fields inside the General tab's form. |
+| `wpasl_physical_robots_path`, `wpasl_physical_llms_path` | Paths checked for physical robots.txt / llms.txt files. |
+| `wpasl_services` | Replace or add services at boot (a custom converter implements `ConverterInterface`, including `set_base_url()`). |
+
+The full list, with the file that documents each one, is in the "Filters and actions" section of `readme.txt`.
 
 ## Development
 

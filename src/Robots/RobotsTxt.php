@@ -128,15 +128,12 @@ final class RobotsTxt {
 	 * @return string
 	 */
 	public function generated_output() {
-		$public = '1' === (string) get_option( 'blog_public' );
-		$site   = wp_parse_url( site_url() );
-		$path   = ! empty( $site['path'] ) ? $site['path'] : '';
+		// Mirrors do_robots() (wp-includes/functions.php): core emits the same two rules whether or not the
+		// site discourages search engines; $public only reaches the filter.
+		$public = (bool) get_option( 'blog_public' );
 		$core   = "User-agent: *\n";
-		if ( $public ) {
-			$core .= "Disallow: $path/wp-admin/\nAllow: $path/wp-admin/admin-ajax.php\n";
-		} else {
-			$core .= "Disallow: /\n";
-		}
+		$core  .= 'Disallow: ' . wp_parse_url( admin_url(), PHP_URL_PATH ) . "\n";
+		$core  .= 'Allow: ' . wp_parse_url( admin_url( 'admin-ajax.php' ), PHP_URL_PATH ) . "\n";
 		/** This filter is documented in wp-includes/functions.php */
 		return (string) apply_filters( 'robots_txt', $core, $public ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter.
 	}

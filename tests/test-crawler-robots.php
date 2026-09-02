@@ -164,10 +164,32 @@ class Test_Crawler_Robots extends WP_UnitTestCase {
 		$this->assertLessThan( strpos( $output, 'User-agent: GPTBot' ), strpos( $output, 'Content-Signal' ), 'Signals stay in the wildcard group before the crawler groups.' );
 	}
 
-	public function test_generated_output_matches_the_virtual_file() {
+	/**
+	 * Body WordPress serves at /robots.txt.
+	 *
+	 * @return string
+	 */
+	private function core_robots() {
+		ob_start();
+		do_robots();
+		return (string) ob_get_clean();
+	}
+
+	public function test_generated_output_equals_do_robots_when_public() {
+		update_option( 'blog_public', '1' );
 		$output = $this->robots->generated_output();
+		$this->assertSame( $this->core_robots(), $output );
 		$this->assertStringStartsWith( "User-agent: *\n", $output );
+		$this->assertStringContainsString( "Disallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\n", $output );
 		$this->assertStringContainsString( 'User-agent: GPTBot', $output );
+	}
+
+	public function test_generated_output_equals_do_robots_when_not_public() {
+		update_option( 'blog_public', '0' );
+		$output = $this->robots->generated_output();
+		$this->assertSame( $this->core_robots(), $output );
+		$this->assertStringNotContainsString( "User-agent: *\nDisallow: /\n", $output );
+		$this->assertStringContainsString( "Disallow: /wp-admin/\n", $output );
 	}
 
 	public function test_physical_file_detection() {

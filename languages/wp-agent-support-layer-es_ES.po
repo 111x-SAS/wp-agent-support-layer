@@ -192,3 +192,7 @@ msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa
 #: src/Admin/GenerationStatus.php:149
 msgid "Never"
 msgstr "Nunca"
+
+#: src/Plugin.php:149
+msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
+msgstr "WP Agent Support Layer: falta la librería HTML a Markdown incluida. Instala una versión de release o ejecuta \"composer run build\" en el directorio del plugin."

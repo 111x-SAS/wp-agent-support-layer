@@ -30,13 +30,13 @@
 ## 4. Entrega en Markdown (markdown-delivery)
 
 - [x] 4.1 Implementar `Eligibility` (post type habilitado y público, `publish`, sin contraseña, no excluido); verificar con tests cada condición por separado
-- [ ] 4.2 Implementar `MarkdownConverterInterface` y el adaptador sobre la librería prefijada con limpieza de `script`, `style`, `form`, `iframe`, `noscript` y comentarios, y absolutización de URLs; verificar con tests de instantánea sobre HTML de muestra
-- [ ] 4.3 Implementar `DocumentBuilder` (front matter YAML, H1, cuerpo) a partir de `the_content` renderizado; verificar con tests que el front matter contiene todas las claves requeridas y que las taxonomías aparecen cuando existen
-- [ ] 4.4 Implementar la negociación por `Accept` en `template_redirect` con parser de `q`; verificar con tests los tres escenarios de la spec (prefiere Markdown, prefiere HTML, ambos con HTML preferido)
-- [ ] 4.5 Implementar la resolución del sufijo `.md` y del parámetro `wpasl=md` en `parse_request` usando `url_to_postid`; verificar con tests el 200 para elegibles y el 404 para inexistentes
-- [ ] 4.6 Implementar las cabeceras de respuesta Markdown (`Content-Type`, `Vary`, `X-Markdown-Tokens`, `Link canonical`, `Cache-Control`) y `Vary: Accept` en HTML elegible; verificar con tests que 4000 bytes producen 1000 tokens
-- [ ] 4.7 Implementar `link rel="alternate"` en `wp_head` y la cabecera `Link` en `send_headers`; verificar con tests su presencia en elegibles y ausencia en no elegibles
-- [ ] 4.8 Implementar el relleno perezoso (generar y almacenar si falta) y verificar con tests que guardar una entrada no altera el documento almacenado
+- [x] 4.2 Implementar `MarkdownConverterInterface` y el adaptador sobre la librería prefijada con limpieza de `script`, `style`, `form`, `iframe`, `noscript` y comentarios, y absolutización de URLs; verificar con tests de instantánea sobre HTML de muestra
+- [x] 4.3 Implementar `DocumentBuilder` (front matter YAML, H1, cuerpo) a partir de `the_content` renderizado; verificar con tests que el front matter contiene todas las claves requeridas y que las taxonomías aparecen cuando existen
+- [x] 4.4 Implementar la negociación por `Accept` en `template_redirect` con parser de `q`; verificar con tests los tres escenarios de la spec (prefiere Markdown, prefiere HTML, ambos con HTML preferido)
+- [x] 4.5 Implementar la resolución del sufijo `.md` y del parámetro `wpasl=md` en `parse_request` usando `url_to_postid`; verificar con tests el 200 para elegibles y el 404 para inexistentes
+- [x] 4.6 Implementar las cabeceras de respuesta Markdown (`Content-Type`, `Vary`, `X-Markdown-Tokens`, `Link canonical`, `Cache-Control`) y `Vary: Accept` en HTML elegible; verificar con tests que 4000 bytes producen 1000 tokens
+- [x] 4.7 Implementar `link rel="alternate"` en `wp_head` y la cabecera `Link` en `send_headers`; verificar con tests su presencia en elegibles y ausencia en no elegibles
+- [x] 4.8 Implementar el relleno perezoso (generar y almacenar si falta) y verificar con tests que guardar una entrada no altera el documento almacenado
 
 ## 5. Señales de contenido (content-signals)
 

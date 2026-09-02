@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-02T01:43:43+00:00\n"
+"POT-Creation-Date: 2026-09-02T01:57:30+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
@@ -180,6 +180,10 @@ msgstr ""
 
 #: src/Admin/Tabs/GeneralTab.php:102
 msgid "Maximum number of items converted in one scheduled run. Large sites are processed over several runs."
+msgstr ""
+
+#: src/Plugin.php:149
+msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr ""
 
 #. translators: 1: required PHP version, 2: current PHP version.

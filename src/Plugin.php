@@ -15,6 +15,9 @@ use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
 use WPASL\Generation\Scheduler;
 use WPASL\Generation\State;
+use WPASL\Markdown\Delivery;
+use WPASL\Markdown\DocumentBuilder;
+use WPASL\Markdown\LeagueConverter;
 
 /**
  * Wires the plugin services into WordPress.
@@ -81,7 +84,16 @@ final class Plugin {
 			'page'        => $page,
 			'exclude'     => new ExcludeMetaBox( $settings ),
 			'status'      => new GenerationStatus( $runner, $scheduler, $page ),
+			'delivery'    => new Delivery( $settings, $storage, $eligibility, $runner ),
 		);
+
+		if ( LeagueConverter::is_available() ) {
+			$this->services['converter'] = new LeagueConverter();
+			$this->services['builder']   = new DocumentBuilder( $this->services['converter'] );
+			$runner->set_item_generator( $this->services['builder'] );
+		} else {
+			add_action( 'admin_notices', array( $this, 'missing_build_notice' ) );
+		}
 
 		/**
 		 * Filters the service map before the services are registered.
@@ -121,6 +133,21 @@ final class Plugin {
 	 */
 	public function get( $id ) {
 		return isset( $this->services[ $id ] ) ? $this->services[ $id ] : null;
+	}
+
+	/**
+	 * Warns when the prefixed dependencies were not built (development checkout without "composer run build").
+	 *
+	 * @return void
+	 */
+	public function missing_build_notice() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		printf(
+			'<div class="notice notice-error"><p>%s</p></div>',
+			esc_html__( 'WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run "composer run build" in the plugin directory.', 'wp-agent-support-layer' )
+		);
 	}
 
 	/**

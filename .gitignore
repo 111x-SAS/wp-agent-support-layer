@@ -1,0 +1,7 @@
+vendor/
+vendor-prefixed/
+node_modules/
+.DS_Store
+*.log
+/.phpunit.result.cache
+/tmp/

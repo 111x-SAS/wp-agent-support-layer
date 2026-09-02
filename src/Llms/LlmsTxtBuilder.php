@@ -132,7 +132,8 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 		$sections = array();
 		foreach ( $types as $type ) {
 			$args = array( 'posts_per_page' => $limit );
-			if ( is_post_type_hierarchical( $type ) ) {
+			// Only pages follow the menu order; every other post type (hierarchical or not) is listed by date.
+			if ( 'page' === $type ) {
 				$args['orderby'] = array(
 					'menu_order' => 'ASC',
 					'title'      => 'ASC',
@@ -194,9 +195,12 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 			$out .= "\n";
 		}
 
-		$out .= "## Optional\n\n";
-		foreach ( $this->optional_links() as $label => $link ) {
-			$out .= '- [' . $label . '](' . $link[0] . '): ' . $link[1] . "\n";
+		$optional = $this->optional_links();
+		if ( ! empty( $optional ) ) {
+			$out .= "## Optional\n\n";
+			foreach ( $optional as $label => $link ) {
+				$out .= '- [' . $label . '](' . $link[0] . '): ' . $link[1] . "\n";
+			}
 		}
 
 		/**

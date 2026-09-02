@@ -174,6 +174,30 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->assertLessThan( strpos( $txt, '[Alfa]' ), strpos( $txt, '[Zeta]' ) );
 	}
 
+	public function test_optional_section_is_omitted_without_links() {
+		$this->settings( array( 'manifest_enabled' => false ) );
+		add_filter( 'wp_sitemaps_enabled', '__return_false' );
+		self::factory()->post->create( array( 'post_title' => 'Sola' ) );
+		$txt = $this->builder->build();
+		remove_filter( 'wp_sitemaps_enabled', '__return_false' );
+
+		$this->assertStringNotContainsString( '## Optional', $txt );
+		$this->assertStringEndsWith( "\n", $txt );
+		$this->assertStringContainsString( '## Posts', $txt );
+	}
+
+	public function test_hierarchical_cpt_is_ordered_by_date() {
+		register_post_type( 'wpasl_doc', array( 'public' => true, 'hierarchical' => true, 'label' => 'Docs' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->settings( array( 'post_types' => array( 'page', 'wpasl_doc' ) ) );
+		$old = self::factory()->post->create( array( 'post_type' => 'wpasl_doc', 'post_date' => '2020-01-01 00:00:00', 'menu_order' => 1, 'post_title' => 'A' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$mid = self::factory()->post->create( array( 'post_type' => 'wpasl_doc', 'post_date' => '2021-01-01 00:00:00', 'menu_order' => 3, 'post_title' => 'C' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$new = self::factory()->post->create( array( 'post_type' => 'wpasl_doc', 'post_date' => '2022-01-01 00:00:00', 'menu_order' => 2, 'post_title' => 'B' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+
+		$sections = $this->builder->sections();
+		unregister_post_type( 'wpasl_doc' );
+		$this->assertSame( array( $new, $mid, $old ), $sections['wpasl_doc'], 'Hierarchical custom post types are listed by date, newest first.' );
+	}
+
 	public function test_excluded_and_non_eligible_items_are_not_listed() {
 		$excluded = self::factory()->post->create( array( 'post_title' => 'Excluida' ) );
 		update_post_meta( $excluded, ExcludeMetaBox::META, true );

@@ -105,7 +105,10 @@ final class GeneralTab implements Tab {
 		</table>
 		<?php
 		/**
-		 * Prints additional content at the end of the General tab (generation status, actions).
+		 * Prints additional content at the end of the General tab.
+		 *
+		 * Runs inside the Settings API <form>, so callbacks must not print their own
+		 * <form> element; use `wpasl_page_after_form` for blocks that need one.
 		 */
 		do_action( 'wpasl_general_tab_after' );
 	}

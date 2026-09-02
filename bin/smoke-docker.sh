@@ -67,6 +67,28 @@ TOKEN="$(W option get wpasl_storage_token)"
 FILE="$(R sh -c "ls /var/www/html/wp-content/uploads/wp-agent-support-layer/$TOKEN/md/post | head -1")"
 echo "== direct storage access (expect 403)"; curl -s -o /dev/null -w '%{http_code}\n' "$B/wp-content/uploads/wp-agent-support-layer/$TOKEN/md/post/$FILE"
 echo "== diagnostics (loopback inside the container)"; W eval 'add_filter("wpasl_diagnostics_crawlers", function($c){ return array_intersect_key($c, array_flip(array("GPTBot","PerplexityBot"))); }); $r = WPASL\Plugin::instance()->get("diagnostics")->run(); $bad = 0; foreach ($r["site"] as $k => $c) { if ("ok" !== $c["status"]) { $bad++; echo "site.$k: {$c["status"]} {$c["message"]}\n"; } } foreach ($r["crawlers"] as $a => $d) { foreach ($d["checks"] as $k => $c) { if ("ok" !== $c["status"]) { $bad++; echo "$a.$k: {$c["status"]} {$c["message"]}\n"; } } } echo "non-ok checks: $bad\n";'
+echo "== admin forms (General tab: Save Changes and Regenerate now as real browser POSTs)"
+CJ="$(mktemp)"
+curl -s -c "$CJ" -b "$CJ" -o /dev/null "$B/wp-login.php"
+curl -s -c "$CJ" -b "$CJ" -o /dev/null --data-urlencode 'log=admin' --data-urlencode 'pwd=admin' --data-urlencode 'wp-submit=Log In' --data-urlencode 'testcookie=1' --data-urlencode "redirect_to=$B/wp-admin/" "$B/wp-login.php"
+GENERAL_URL="$B/wp-admin/tools.php?page=wp-agent-support-layer&tab=general"
+GENERAL="$(curl -s -b "$CJ" "$GENERAL_URL")"
+form_count="$(printf '%s' "$GENERAL" | grep -o '<form' | wc -l | tr -d ' ')"
+echo "forms on the General tab: $form_count (expect 2: options.php + admin-post.php)"
+NONCE_SAVE="$(printf '%s' "$GENERAL" | grep -o 'id="_wpnonce" name="_wpnonce" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"$//')"
+NONCE_REGEN="$(printf '%s' "$GENERAL" | grep -o 'id="wpasl_regenerate_nonce" name="wpasl_regenerate_nonce" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"$//')"
+curl -s -b "$CJ" -o /dev/null -w 'POST options.php (batch_size=10) -> %{http_code} %{redirect_url}\n' \
+  --data-urlencode 'option_page=wpasl' --data-urlencode 'action=update' --data-urlencode "_wpnonce=$NONCE_SAVE" \
+  --data-urlencode '_wp_http_referer=/wp-admin/tools.php?page=wp-agent-support-layer&tab=general' \
+  --data-urlencode 'wpasl_settings[_tab]=general' --data-urlencode 'wpasl_settings[post_types][]=post' --data-urlencode 'wpasl_settings[post_types][]=page' \
+  --data-urlencode 'wpasl_settings[schedule]=daily' --data-urlencode 'wpasl_settings[batch_size]=10' "$B/wp-admin/options.php"
+echo "batch_size stored: $(W eval 'echo (int) get_option("wpasl_settings")["batch_size"];') (expect 10)"
+echo "settings saved notice: $(curl -s -b "$CJ" "$GENERAL_URL&settings-updated=true" | grep -c 'Settings saved.') (expect 1)"
+curl -s -b "$CJ" -o /dev/null -w 'POST admin-post.php (Regenerate now) -> %{http_code} %{redirect_url}\n' \
+  --data-urlencode 'action=wpasl_regenerate' --data-urlencode "wpasl_regenerate_nonce=$NONCE_REGEN" \
+  --data-urlencode '_wp_http_referer=/wp-admin/tools.php?page=wp-agent-support-layer&tab=general' "$B/wp-admin/admin-post.php"
+echo "cron events for wpasl_generate (expect the recurring one plus a one-off):"; W cron event list --hook=wpasl_generate --fields=hook,next_run_relative,recurrence
+rm -f "$CJ"
 echo "== static front page (Markdown URL with query arg and /.md)"
 FRONT="$(W post list --post_type=page --post_status=publish --field=ID | head -1)"
 W option update show_on_front page --quiet; W option update page_on_front "$FRONT" --quiet

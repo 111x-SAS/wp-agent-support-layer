@@ -192,6 +192,97 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '/value="page"\s+checked/', $html );
 	}
 
+	/**
+	 * Renders the settings page for an administrator and returns the HTML.
+	 *
+	 * @param string $tab Tab slug.
+	 * @return string
+	 */
+	private function render_page( $tab = 'general' ) {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$_GET['tab'] = $tab;
+		ob_start();
+		Plugin::instance()->get( 'page' )->render();
+		unset( $_GET['tab'] );
+		return ob_get_clean();
+	}
+
+	public function test_general_tab_renders_status_form_outside_settings_form() {
+		$html = $this->render_page( 'general' );
+
+		// Exactly two forms: the Settings API form and the manual-action form, none nested.
+		preg_match_all( '/<form\b[^>]*>|<\/form>/', $html, $tags );
+		$this->assertSame( array( 'open', 'close', 'open', 'close' ), array_map( array( $this, 'form_tag_kind' ), $tags[0] ) );
+
+		$settings_form = $this->form_html( $html, 'options.php' );
+		$this->assertStringContainsString( 'name="submit"', $settings_form );
+		$this->assertStringContainsString( 'name="wpasl_settings[_tab]" value="general"', $settings_form );
+		$this->assertStringNotContainsString( 'wpasl_regenerate_nonce', $settings_form );
+
+		$action_form = $this->form_html( $html, 'admin-post.php' );
+		$this->assertStringContainsString( 'wpasl_regenerate_nonce', $action_form );
+		$this->assertStringContainsString( 'name="action" value="wpasl_regenerate"', $action_form );
+		$this->assertStringContainsString( 'Regenerate everything', $action_form );
+		$this->assertStringNotContainsString( 'wpasl_settings[', $action_form );
+	}
+
+	public function test_general_tab_after_hook_still_fires_inside_form() {
+		$marker = '<!-- wpasl-third-party-marker -->';
+		$print  = static function () use ( $marker ) {
+			echo $marker; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		};
+		add_action( 'wpasl_general_tab_after', $print );
+		$html = $this->render_page( 'general' );
+		remove_action( 'wpasl_general_tab_after', $print );
+
+		$settings_form = $this->form_html( $html, 'options.php' );
+		$this->assertStringContainsString( $marker, $settings_form );
+		$this->assertStringContainsString( $marker, $html );
+	}
+
+	public function test_page_after_form_hook_receives_current_tab() {
+		$received = array();
+		$capture  = static function ( $current, $page ) use ( &$received ) {
+			$received[] = array( $current, $page );
+			echo '<!-- after-form -->';
+		};
+		add_action( 'wpasl_page_after_form', $capture, 10, 2 );
+		$html = $this->render_page( 'signals' );
+		remove_action( 'wpasl_page_after_form', $capture, 10 );
+
+		$this->assertCount( 1, $received );
+		$this->assertSame( 'signals', $received[0][0] );
+		$this->assertInstanceOf( Page::class, $received[0][1] );
+		$this->assertStringNotContainsString( 'wpasl_regenerate_nonce', $html );
+		$this->assertGreaterThan( strrpos( $html, '</form>' ), strpos( $html, '<!-- after-form -->' ) );
+	}
+
+	/**
+	 * @param string $tag A <form ...> or </form> tag.
+	 * @return string
+	 */
+	public function form_tag_kind( $tag ) {
+		return 0 === strpos( $tag, '</' ) ? 'close' : 'open';
+	}
+
+	/**
+	 * Returns the markup of the form whose action contains $action_fragment.
+	 *
+	 * @param string $html            Page HTML.
+	 * @param string $action_fragment Fragment of the action attribute.
+	 * @return string
+	 */
+	private function form_html( $html, $action_fragment ) {
+		preg_match_all( '/<form\b[^>]*>.*?<\/form>/s', $html, $forms );
+		foreach ( $forms[0] as $form ) {
+			if ( preg_match( '/<form\b[^>]*action="[^"]*' . preg_quote( $action_fragment, '/' ) . '[^"]*"/', $form ) ) {
+				return $form;
+			}
+		}
+		$this->fail( 'No form with action containing ' . $action_fragment );
+		return '';
+	}
+
 	public function test_option_is_registered_with_settings_api() {
 		Plugin::instance()->get( 'page' )->register_setting();
 		$registered = get_registered_settings();

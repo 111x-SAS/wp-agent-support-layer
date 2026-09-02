@@ -10,8 +10,8 @@
 
 ## 3. Alta: página de entradas servible (D4, hallazgo 2)
 
-- [ ] 3.1 En `Delivery` añadir `posts_page_id()` e `is_markdown_context()`; resolver en `handle_md_suffix()` la ruta de la página de entradas antes de `url_to_postid()`; usar `is_markdown_context()` en `maybe_serve()`, `send_html_headers()` y `print_alternate_link()`; verificar con `test_posts_page_is_served_by_md_suffix_accept_and_query_arg` en `tests/test-delivery.php` (`show_on_front=page`, `page_on_front=A`, `page_for_posts=B` → `/blog.md`, `/blog/` con `Accept: text/markdown` y `/blog/?wpasl=md` responden 200 con `# <título de B>`)
-- [ ] 3.2 Añadir `test_posts_page_html_announces_alternate_link` (el `<head>` de `/blog/` contiene `link rel="alternate" type="text/markdown"` y la cabecera `Link`) y, en `tests/test-llms-txt.php`, `test_every_emitted_markdown_url_is_servable` (cada URL de `llms.txt` responde 200 en Markdown, incluida la página de entradas)
+- [x] 3.1 En `Delivery` añadir `posts_page_id()` e `is_markdown_context()`; resolver en `handle_md_suffix()` la ruta de la página de entradas antes de `url_to_postid()`; usar `is_markdown_context()` en `maybe_serve()`, `send_html_headers()` y `print_alternate_link()`; verificar con `test_posts_page_is_served_by_md_suffix_accept_and_query_arg` en `tests/test-delivery.php` (`show_on_front=page`, `page_on_front=A`, `page_for_posts=B` → `/blog.md`, `/blog/` con `Accept: text/markdown` y `/blog/?wpasl=md` responden 200 con `# <título de B>`)
+- [x] 3.2 Añadir `test_posts_page_html_announces_alternate_link` (el `<head>` de `/blog/` contiene `link rel="alternate" type="text/markdown"` y la cabecera `Link`) y, en `tests/test-llms-txt.php`, `test_every_emitted_markdown_url_is_servable` (cada URL de `llms.txt` responde 200 en Markdown, incluida la página de entradas)
 
 ## 4. Media: confirmación al guardar (D2, hallazgo 3)
 

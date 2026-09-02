@@ -208,6 +208,9 @@ final class Delivery {
 
 		if ( '' === $relative ) {
 			$post_id = self::front_page_id();
+		} elseif ( self::posts_page_path() === $relative ) {
+			// url_to_postid() returns 0 for the posts page: core treats it as the home query, not singular.
+			$post_id = self::posts_page_id();
 		} else {
 			$post_id = url_to_postid( home_url( '/' . $relative . '/' ) );
 			if ( $post_id <= 0 ) {
@@ -247,16 +250,59 @@ final class Delivery {
 	}
 
 	/**
+	 * Id of the page configured as "Posts page", or 0 when there is none.
+	 *
+	 * @return int
+	 */
+	private static function posts_page_id() {
+		return 'page' === get_option( 'show_on_front' ) ? (int) get_option( 'page_for_posts' ) : 0;
+	}
+
+	/**
+	 * Path of the posts page relative to the site root, without slashes; '' when there is none.
+	 *
+	 * @return string
+	 */
+	private static function posts_page_path() {
+		$posts_page = self::posts_page_id();
+		if ( $posts_page <= 0 ) {
+			return '';
+		}
+		$permalink = get_permalink( $posts_page );
+		return $permalink ? self::relative_path( (string) wp_parse_url( $permalink, PHP_URL_PATH ) ) : '';
+	}
+
+	/**
+	 * Post of the current main query when it can have a Markdown version: a singular view, or the
+	 * posts page (which core reports as the home query with the page as queried object).
+	 *
+	 * @return \WP_Post|null
+	 */
+	private static function queried_markdown_post() {
+		if ( ! is_singular() && ! ( is_home() && self::posts_page_id() > 0 ) ) {
+			return null;
+		}
+		$post = get_queried_object();
+		if ( ! $post instanceof \WP_Post ) {
+			return null;
+		}
+		if ( ! is_singular() && self::posts_page_id() !== $post->ID ) {
+			return null;
+		}
+		return $post;
+	}
+
+	/**
 	 * Serves Markdown on the canonical URL when requested via Accept or the query variable.
 	 *
 	 * @return bool Whether a document was served.
 	 */
 	public function maybe_serve() {
-		if ( $this->md_request_post_id > 0 || ! is_singular() ) {
+		if ( $this->md_request_post_id > 0 ) {
 			return false;
 		}
-		$post = get_queried_object();
-		if ( ! $post instanceof \WP_Post || ! $this->eligibility->is_eligible( $post ) ) {
+		$post = self::queried_markdown_post();
+		if ( null === $post || ! $this->eligibility->is_eligible( $post ) ) {
 			return false;
 		}
 
@@ -275,11 +321,8 @@ final class Delivery {
 	 * @return void
 	 */
 	public function send_html_headers() {
-		if ( ! is_singular() ) {
-			return;
-		}
-		$post = get_queried_object();
-		if ( ! $post instanceof \WP_Post || ! $this->eligibility->is_eligible( $post ) ) {
+		$post = self::queried_markdown_post();
+		if ( null === $post || ! $this->eligibility->is_eligible( $post ) ) {
 			return;
 		}
 		// Never replace: other components may have sent their own Vary or Link headers.
@@ -307,11 +350,8 @@ final class Delivery {
 	 * @return void
 	 */
 	public function print_alternate_link() {
-		if ( ! is_singular() ) {
-			return;
-		}
-		$post = get_queried_object();
-		if ( ! $post instanceof \WP_Post || ! $this->eligibility->is_eligible( $post ) ) {
+		$post = self::queried_markdown_post();
+		if ( null === $post || ! $this->eligibility->is_eligible( $post ) ) {
 			return;
 		}
 		printf( '<link rel="alternate" type="text/markdown" href="%s" />' . "\n", esc_url( $this->markdown_url( $post ) ) );

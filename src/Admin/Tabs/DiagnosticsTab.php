@@ -85,11 +85,28 @@ final class DiagnosticsTab implements Tab {
 		<?php if ( 'diagnostics' === $notice ) : ?>
 			<div class="notice notice-success inline"><p><?php esc_html_e( 'Diagnostics completed.', 'wp-agent-support-layer' ); ?></p></div>
 		<?php endif; ?>
+		<?php
+		$pending = DiagnosticsController::pending_run();
+		if ( $pending ) :
+			?>
+			<div class="notice notice-warning inline"><p>
+			<?php
+			echo esc_html(
+				sprintf(
+					/* translators: 1: crawlers done, 2: crawlers pending. */
+					__( 'A simulation is in progress: %1$d crawler(s) done, %2$d pending. Run it again to continue where it stopped.', 'wp-agent-support-layer' ),
+					count( (array) $pending['crawlers'] ),
+					count( (array) $pending['pending'] )
+				)
+			);
+			?>
+			</p></div>
+		<?php endif; ?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<input type="hidden" name="action" value="<?php echo esc_attr( DiagnosticsController::ACTION ); ?>" />
 			<?php wp_nonce_field( DiagnosticsController::ACTION, DiagnosticsController::NONCE ); ?>
 			<?php submit_button( __( 'Run crawler simulation', 'wp-agent-support-layer' ), 'primary', 'submit', false ); ?>
-			<span class="description" style="margin-left:8px"><?php esc_html_e( 'Takes a few seconds; results are kept for one hour.', 'wp-agent-support-layer' ); ?></span>
+			<span class="description" style="margin-left:8px"><?php esc_html_e( 'Runs in short batches (the page reloads by itself); results are kept for one hour.', 'wp-agent-support-layer' ); ?></span>
 		</form>
 
 		<?php if ( $report ) : ?>

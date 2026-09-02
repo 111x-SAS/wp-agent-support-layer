@@ -31,6 +31,13 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	private $requests = array();
 
 	/**
+	 * Microseconds each fake request sleeps (simulates slow responses).
+	 *
+	 * @var int
+	 */
+	private $delay_us = 0;
+
+	/**
 	 * @var CrawlerProbe
 	 */
 	private $probe;
@@ -47,6 +54,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->controller = Plugin::instance()->get( 'diagnostics' );
 		$this->responses  = array();
 		$this->requests   = array();
+		$this->delay_us   = 0;
 		add_filter( 'pre_http_request', array( $this, 'fake_http' ), 10, 3 );
 		add_filter( 'wp_redirect', array( $this, 'capture_redirect' ) );
 		add_filter( 'wpasl_diagnostics_crawlers', array( $this, 'two_crawlers' ) );
@@ -60,6 +68,8 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		remove_filter( 'wpasl_diagnostics_crawlers', array( $this, 'two_crawlers' ) );
 		unset( $_REQUEST[ DiagnosticsController::NONCE ] );
 		delete_transient( Report::TRANSIENT );
+		delete_transient( DiagnosticsController::run_key() );
+		remove_all_filters( 'wpasl_diagnostics_time_budget' );
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		Plugin::instance()->get( 'runner' )->clear();
@@ -82,10 +92,14 @@ class Test_Diagnostics extends WP_UnitTestCase {
 			'url'    => $url,
 			'ua'     => $args['user-agent'],
 			'accept' => $args['headers']['Accept'],
+			'args'   => $args,
 		);
-		$accept           = $args['headers']['Accept'];
-		$key              = $url . '|' . ( 0 === strpos( $accept, 'text/markdown' ) ? 'md' : 'html' );
-		$spec             = isset( $this->responses[ $key ] ) ? $this->responses[ $key ] : ( isset( $this->responses[ $url ] ) ? $this->responses[ $url ] : $this->default_response( $url, $accept ) );
+		if ( $this->delay_us > 0 ) {
+			usleep( $this->delay_us );
+		}
+		$accept = $args['headers']['Accept'];
+		$key    = $url . '|' . ( 0 === strpos( $accept, 'text/markdown' ) ? 'md' : 'html' );
+		$spec   = isset( $this->responses[ $key ] ) ? $this->responses[ $key ] : ( isset( $this->responses[ $url ] ) ? $this->responses[ $url ] : $this->default_response( $url, $accept ) );
 		return array(
 			'response' => array(
 				'code'    => $spec['code'],
@@ -147,7 +161,184 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		foreach ( $this->requests as $request ) {
 			$this->assertSame( wp_parse_url( home_url(), PHP_URL_HOST ), wp_parse_url( $request['url'], PHP_URL_HOST ) );
 		}
-		$this->assertSame( 10, CrawlerProbe::TIMEOUT );
+		$this->assertSame( 5, CrawlerProbe::TIMEOUT );
+		foreach ( $this->requests as $request ) {
+			$this->assertSame( 5, $request['args']['timeout'] );
+			$this->assertSame( 0, $request['args']['redirection'] );
+			$this->assertSame( CrawlerProbe::MAX_RESPONSE_BYTES, $request['args']['limit_response_size'] );
+		}
+		$this->assertArrayHasKey( 'body', $raw['site']['robots'], 'The served robots.txt body is kept for the report.' );
+		$this->assertArrayNotHasKey( 'body', $raw['crawlers']['GPTBot']['home'] );
+	}
+
+	public function test_probe_does_not_follow_redirects() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$this->responses[ home_url( '/robots.txt' ) ] = array(
+			'code'    => 302,
+			'headers' => array( 'location' => 'https://www.example.org/robots.txt' ),
+		);
+		$raw = $this->probe->run();
+
+		$robots_requests = array_filter( $this->requests, static function ( $r ) { return home_url( '/robots.txt' ) === $r['url']; } ); // phpcs:ignore
+		$this->assertCount( 1, $robots_requests );
+		$this->assertSame( 0, reset( $robots_requests )['args']['redirection'] );
+		foreach ( $this->requests as $request ) {
+			$this->assertStringNotContainsString( 'www.example.org', $request['url'] );
+		}
+		$this->assertSame( 302, $raw['site']['robots']['status'] );
+		$this->assertSame( 'https://www.example.org/robots.txt', $raw['site']['robots']['headers']['location'] );
+	}
+
+	public function test_report_flags_redirect_as_warning() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$this->responses[ home_url( '/robots.txt' ) ] = array(
+			'code'    => 301,
+			'headers' => array( 'location' => 'https://www.example.org/robots.txt' ),
+		);
+		$this->responses[ home_url( '/' ) ]           = array(
+			'code'    => 301,
+			'headers' => array( 'location' => 'https://www.example.org/' ),
+		);
+		$report                                       = $this->controller->run();
+
+		$this->assertSame( Report::WARNING, $report['site']['robots']['status'] );
+		$this->assertStringContainsString( 'HTTP 301 redirect to https://www.example.org/robots.txt', $report['site']['robots']['message'] );
+		$this->assertSame( Report::WARNING, $report['crawlers']['GPTBot']['checks']['home']['status'] );
+		$this->assertStringContainsString( 'redirect to https://www.example.org/', $report['crawlers']['GPTBot']['checks']['home']['message'] );
+	}
+
+	/**
+	 * Runs handle() and returns the redirect location it produced.
+	 *
+	 * @return string
+	 */
+	private function handle_and_capture_redirect() {
+		$_REQUEST[ DiagnosticsController::NONCE ] = wp_create_nonce( DiagnosticsController::ACTION );
+		try {
+			$this->controller->handle();
+		} catch ( WPDieException $e ) {
+			throw $e;
+		} catch ( Exception $e ) {
+			$this->assertStringStartsWith( 'redirect:', $e->getMessage() );
+			return substr( $e->getMessage(), strlen( 'redirect:' ) );
+		}
+		$this->fail( 'Expected a redirect.' );
+	}
+
+	public function test_diagnostics_splits_into_batches_and_resumes() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		add_filter( 'wpasl_diagnostics_time_budget', '__return_zero' );
+
+		// First request: site targets plus exactly one crawler, then a redirect to the next batch.
+		$location = $this->handle_and_capture_redirect();
+		$this->assertStringContainsString( 'admin-post.php', $location );
+		$this->assertStringContainsString( 'action=' . DiagnosticsController::ACTION, $location );
+		$this->assertStringContainsString( DiagnosticsController::NONCE . '=', $location );
+		$this->assertStringNotContainsString( 'wpasl_notice', $location );
+
+		$run = get_transient( DiagnosticsController::run_key() );
+		$this->assertIsArray( $run );
+		$this->assertSame( array( 'PerplexityBot' ), $run['pending'] );
+		$this->assertSame( array( 'GPTBot' ), array_keys( $run['crawlers'] ) );
+		$this->assertArrayHasKey( 'robots', $run['site'] );
+		$this->assertNull( Report::load(), 'No report until the last batch.' );
+		$first_batch = count( $this->requests );
+		$this->assertSame( 5 + 3, $first_batch, 'Five site targets and the three requests of one crawler.' );
+
+		// Second request: resumes with the first pending crawler only and publishes the report.
+		$this->requests = array();
+		$location       = $this->handle_and_capture_redirect();
+		$this->assertStringContainsString( 'wpasl_notice=diagnostics', $location );
+		$this->assertCount( 3, $this->requests, 'Only the pending crawler was probed.' );
+		foreach ( $this->requests as $request ) {
+			$this->assertStringContainsString( 'PerplexityBot', $request['ua'] );
+		}
+		$this->assertFalse( get_transient( DiagnosticsController::run_key() ) );
+
+		$report = Report::load();
+		$this->assertNotNull( $report );
+		$this->assertSame( array( 'GPTBot', 'PerplexityBot' ), array_keys( $report['crawlers'] ) );
+		$this->assertSame( Report::OK, $report['site']['robots']['status'] );
+	}
+
+	public function test_diagnostics_step_requires_capability_and_nonce() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		add_filter( 'wpasl_diagnostics_time_budget', '__return_zero' );
+		$this->handle_and_capture_redirect();
+		$this->assertNotNull( DiagnosticsController::pending_run() );
+		$this->requests = array();
+
+		// A chained GET without a valid nonce must not continue the run.
+		$_REQUEST[ DiagnosticsController::NONCE ] = 'bad';
+		try {
+			$this->controller->handle();
+			$this->fail( 'Expected wp_die for an invalid nonce.' );
+		} catch ( WPDieException $e ) {
+			$this->assertSame( array(), $this->requests );
+			$this->assertNotNull( DiagnosticsController::pending_run(), 'The run in progress is kept.' );
+		}
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
+		$_REQUEST[ DiagnosticsController::NONCE ] = wp_create_nonce( DiagnosticsController::ACTION );
+		try {
+			$this->controller->handle();
+			$this->fail( 'Expected wp_die for missing capability.' );
+		} catch ( WPDieException $e ) {
+			$this->assertSame( array(), $this->requests );
+		}
+	}
+
+	public function test_diagnostics_request_duration_is_bounded() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		remove_filter( 'wpasl_diagnostics_crawlers', array( $this, 'two_crawlers' ) );
+		$this->assertGreaterThanOrEqual( 20, count( $this->probe->crawlers() ) );
+
+		// Every request "takes" 20 ms and each batch may spend 50 ms: a batch never fits more than one
+		// crawler beyond the budget, whatever the catalog size.
+		$this->delay_us = 20000;
+		add_filter( 'wpasl_diagnostics_time_budget', static function () { return 0.05; } ); // phpcs:ignore
+
+		$per_crawler = 3;
+		$site        = count( $this->probe->site_targets() );
+		$batches     = 0;
+		do {
+			$this->requests = array();
+			$started        = microtime( true );
+			$location       = $this->handle_and_capture_redirect();
+			$elapsed        = microtime( true ) - $started;
+			++$batches;
+
+			$allowance = ( 0 === $batches - 1 ? $site : 0 ) + $per_crawler; // budget already spent by site targets or the first crawler.
+			$this->assertLessThanOrEqual( $allowance + $per_crawler * 2, count( $this->requests ), "Batch {$batches} probed too many crawlers." );
+			$this->assertLessThan( 0.05 + ( $per_crawler + $site ) * 0.02 + 0.5, $elapsed, "Batch {$batches} took {$elapsed}s." );
+		} while ( false === strpos( $location, 'wpasl_notice' ) && $batches < 50 );
+
+		$this->assertGreaterThan( 3, $batches, 'A slow site is split into several batches.' );
+		$report = Report::load();
+		$this->assertNotNull( $report );
+		$this->assertSame( count( $this->probe->crawlers() ), count( $report['crawlers'] ), 'Every crawler ends up in the report.' );
+	}
+
+	public function test_tab_shows_in_progress_notice() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		add_filter( 'wpasl_diagnostics_time_budget', '__return_zero' );
+		$this->handle_and_capture_redirect();
+
+		$tabs = Plugin::instance()->get( 'page' )->tabs();
+		ob_start();
+		$tabs['diagnostics']->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'A simulation is in progress: 1 crawler(s) done, 1 pending.', $html );
+
+		$this->handle_and_capture_redirect();
+		ob_start();
+		$tabs['diagnostics']->render();
+		$html = ob_get_clean();
+		$this->assertStringNotContainsString( 'in progress', $html );
 	}
 
 	public function test_report_blocked_crawler_is_coherent_and_healthy_site_is_ok() {

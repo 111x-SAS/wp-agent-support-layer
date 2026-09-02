@@ -19,14 +19,34 @@ use WPASL\Storage;
  */
 final class CrawlerProbe {
 
-	const TIMEOUT = 10;
+	/**
+	 * Seconds allowed per request. Small so that a batch of crawlers never approaches proxy limits.
+	 */
+	const TIMEOUT = 5;
+
+	/**
+	 * Bytes read from any response at most.
+	 */
+	const MAX_RESPONSE_BYTES = 1048576;
+
+	/**
+	 * Bytes of body kept for the discovery files (robots.txt, llms.txt).
+	 */
+	const MAX_BODY_KEPT = 65536;
 
 	/**
 	 * Response headers worth keeping.
 	 *
 	 * @var string[]
 	 */
-	const HEADERS = array( 'content-type', 'content-signal', 'content-usage', 'x-robots-tag', 'link', 'vary', 'x-markdown-tokens', 'cache-control', 'cf-ray', 'cf-cache-status', 'server', 'x-cache', 'via', 'x-served-by' );
+	const HEADERS = array( 'content-type', 'content-signal', 'content-usage', 'x-robots-tag', 'link', 'vary', 'x-markdown-tokens', 'cache-control', 'location', 'cf-ray', 'cf-cache-status', 'server', 'x-cache', 'via', 'x-served-by' );
+
+	/**
+	 * Site targets whose body is kept for the report.
+	 *
+	 * @var string[]
+	 */
+	const KEEP_BODY = array( 'robots', 'llms' );
 
 	/**
 	 * Eligibility.
@@ -118,43 +138,85 @@ final class CrawlerProbe {
 	}
 
 	/**
-	 * Runs the whole probe.
+	 * Crawlers to simulate, keyed by agent token.
 	 *
-	 * @return array<string, mixed> Raw results: "site" (key => result) and "crawlers" (agent => check => result).
+	 * @return array<string, array<string, string>>
 	 */
-	public function run() {
-		$post    = $this->sample_post();
-		$results = array(
-			'generated_at' => time(),
-			'sample_post'  => $post ? $post->ID : 0,
-			'site'         => array(),
-			'crawlers'     => array(),
-		);
-
-		foreach ( $this->site_targets() as $key => $url ) {
-			$results['site'][ $key ] = $this->fetch( $url, 'WP-Agent-Support-Layer-Diagnostics/' . WPASL_VERSION, 'storage' === $key ? '*/*' : 'text/markdown, application/json;q=0.9, text/html;q=0.8, */*;q=0.5' );
-		}
-
+	public function crawlers() {
 		/**
 		 * Filters the crawlers simulated by the diagnostics.
 		 *
 		 * @param array<string, array<string, string>> $crawlers Catalog entries keyed by agent token.
 		 */
-		$crawlers = apply_filters( 'wpasl_diagnostics_crawlers', Catalog::all() );
+		return (array) apply_filters( 'wpasl_diagnostics_crawlers', Catalog::all() );
+	}
 
-		foreach ( $crawlers as $agent => $crawler ) {
-			$user_agent = 'Mozilla/5.0 (compatible; ' . $agent . '/1.0; +https://example.invalid/' . rawurlencode( $agent ) . ')';
-			$checks     = array(
-				'home' => $this->fetch( home_url( '/' ), $user_agent, 'text/html,*/*;q=0.8' ),
+	/**
+	 * Starts a run: probes the site-wide targets and lists the crawlers still to simulate.
+	 *
+	 * @return array<string, mixed> Run state: generated_at, sample_post, site, crawlers (empty), pending.
+	 */
+	public function begin() {
+		$post = $this->sample_post();
+		return array(
+			'generated_at' => time(),
+			'sample_post'  => $post ? $post->ID : 0,
+			'site'         => $this->probe_site(),
+			'crawlers'     => array(),
+			'pending'      => array_keys( $this->crawlers() ),
+		);
+	}
+
+	/**
+	 * Probes the site-wide targets with the diagnostics user-agent.
+	 *
+	 * @return array<string, array<string, mixed>> Key => result.
+	 */
+	public function probe_site() {
+		$results = array();
+		foreach ( $this->site_targets() as $key => $url ) {
+			$results[ $key ] = $this->fetch(
+				$url,
+				'WP-Agent-Support-Layer-Diagnostics/' . WPASL_VERSION,
+				'storage' === $key ? '*/*' : 'text/markdown, application/json;q=0.9, text/html;q=0.8, */*;q=0.5',
+				in_array( $key, self::KEEP_BODY, true )
 			);
-			if ( $post ) {
-				$checks['post_html']     = $this->fetch( get_permalink( $post ), $user_agent, 'text/html,*/*;q=0.8' );
-				$checks['post_markdown'] = $this->fetch( get_permalink( $post ), $user_agent, 'text/markdown, text/html;q=0.9, */*;q=0.8' );
-			}
-			$results['crawlers'][ $agent ] = $checks;
 		}
-
 		return $results;
+	}
+
+	/**
+	 * Probes the home page and the sample item (HTML and Markdown) as one crawler.
+	 *
+	 * @param string        $agent Agent token.
+	 * @param \WP_Post|null $post  Sample post, or null when the site has no eligible item.
+	 * @return array<string, array<string, mixed>> Check => result.
+	 */
+	public function probe_crawler( $agent, $post ) {
+		$user_agent = 'Mozilla/5.0 (compatible; ' . $agent . '/1.0; +https://example.invalid/' . rawurlencode( $agent ) . ')';
+		$checks     = array(
+			'home' => $this->fetch( home_url( '/' ), $user_agent, 'text/html,*/*;q=0.8' ),
+		);
+		if ( $post instanceof \WP_Post ) {
+			$checks['post_html']     = $this->fetch( get_permalink( $post ), $user_agent, 'text/html,*/*;q=0.8' );
+			$checks['post_markdown'] = $this->fetch( get_permalink( $post ), $user_agent, 'text/markdown, text/html;q=0.9, */*;q=0.8' );
+		}
+		return $checks;
+	}
+
+	/**
+	 * Runs the whole probe in one go (WP-CLI and tests; the admin action runs it in batches).
+	 *
+	 * @return array<string, mixed> Raw results: "site" (key => result) and "crawlers" (agent => check => result).
+	 */
+	public function run() {
+		$run  = $this->begin();
+		$post = $run['sample_post'] ? get_post( $run['sample_post'] ) : null;
+		foreach ( $run['pending'] as $agent ) {
+			$run['crawlers'][ $agent ] = $this->probe_crawler( $agent, $post );
+		}
+		unset( $run['pending'] );
+		return $run;
 	}
 
 	/**
@@ -163,9 +225,10 @@ final class CrawlerProbe {
 	 * @param string $url        URL (must be on this site's host).
 	 * @param string $user_agent User-Agent header.
 	 * @param string $accept     Accept header.
+	 * @param bool   $keep_body  Whether to keep (a prefix of) the body in the result.
 	 * @return array<string, mixed>
 	 */
-	public function fetch( $url, $user_agent, $accept ) {
+	public function fetch( $url, $user_agent, $accept, $keep_body = false ) {
 		$result = array(
 			'url'         => $url,
 			'user_agent'  => $user_agent,
@@ -187,12 +250,14 @@ final class CrawlerProbe {
 		$response = wp_remote_get(
 			$url,
 			array(
-				'timeout'     => self::TIMEOUT,
-				'redirection' => 2,
-				'user-agent'  => $user_agent,
-				'headers'     => array( 'Accept' => $accept ),
+				'timeout'             => self::TIMEOUT,
+				// Never follow redirects: a redirect to "www." or a CDN host would leave the site.
+				'redirection'         => 0,
+				'limit_response_size' => self::MAX_RESPONSE_BYTES,
+				'user-agent'          => $user_agent,
+				'headers'             => array( 'Accept' => $accept ),
 				/** This filter is documented in wp-includes/class-wp-http-streams.php */
-				'sslverify'   => apply_filters( 'https_local_ssl_verify', false, $url ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter.
+				'sslverify'           => apply_filters( 'https_local_ssl_verify', false, $url ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter.
 			)
 		);
 
@@ -215,6 +280,9 @@ final class CrawlerProbe {
 		$body                  = (string) wp_remote_retrieve_body( $response );
 		$result['has_md_link'] = (bool) preg_match( '/<link[^>]+type=["\']text\/markdown["\']/i', $body );
 		$result['has_md_meta'] = (bool) preg_match( '/<meta[^>]+name=["\']robots["\'][^>]+noai/i', $body );
+		if ( $keep_body ) {
+			$result['body'] = substr( $body, 0, self::MAX_BODY_KEPT );
+		}
 
 		return $result;
 	}

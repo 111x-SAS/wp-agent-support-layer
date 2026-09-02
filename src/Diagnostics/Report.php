@@ -163,7 +163,9 @@ final class Report {
 			}
 			$result = (array) $site[ $key ];
 			$type   = isset( $result['headers']['content-type'] ) ? $result['headers']['content-type'] : '';
-			if ( 200 !== (int) $result['status'] ) {
+			if ( self::is_redirect( $result ) ) {
+				$checks[ $key ] = self::check( self::WARNING, self::redirect_message( $spec[1], $result ) );
+			} elseif ( 200 !== (int) $result['status'] ) {
 				$checks[ $key ] = self::check( self::ERROR, sprintf( '%1$s: HTTP %2$s %3$s', $spec[1], $result['status'], $result['error'] ) );
 			} elseif ( false === stripos( $type, $spec[0] ) ) {
 				$checks[ $key ] = self::check( self::WARNING, sprintf( '%1$s: unexpected Content-Type "%2$s" (expected %3$s).', $spec[1], $type, $spec[0] ) );
@@ -209,6 +211,8 @@ final class Report {
 			$label  = 'home' === $key ? __( 'Home page', 'wp-agent-support-layer' ) : __( 'Sample item (HTML)', 'wp-agent-support-layer' );
 			if ( 200 === (int) $result['status'] ) {
 				$out['checks'][ $key ] = self::check( self::OK, $label . ': HTTP 200.' );
+			} elseif ( self::is_redirect( $result ) ) {
+				$out['checks'][ $key ] = self::check( self::WARNING, self::redirect_message( $label, $result ) );
 			} elseif ( in_array( (int) $result['status'], array( 403, 429, 503 ), true ) ) {
 				$out['checks'][ $key ] = self::check( self::ERROR, sprintf( '%1$s: HTTP %2$d. A WAF, rate limit or bot filter is blocking this user-agent.', $label, $result['status'] ) );
 			} else {
@@ -252,6 +256,35 @@ final class Report {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Whether a result is a redirect (never followed by the probe).
+	 *
+	 * @param array<string, mixed> $result Result.
+	 * @return bool
+	 */
+	private static function is_redirect( array $result ) {
+		$status = (int) ( isset( $result['status'] ) ? $result['status'] : 0 );
+		return $status >= 300 && $status < 400;
+	}
+
+	/**
+	 * Warning text for a redirected target.
+	 *
+	 * @param string               $label  Target label.
+	 * @param array<string, mixed> $result Result.
+	 * @return string
+	 */
+	private static function redirect_message( $label, array $result ) {
+		$location = isset( $result['headers']['location'] ) ? (string) $result['headers']['location'] : '';
+		return sprintf(
+			/* translators: 1: target label, 2: HTTP status, 3: Location header. */
+			__( '%1$s: HTTP %2$d redirect to %3$s. The diagnostics never follow redirects; crawlers may not either. Serve the content on the canonical host.', 'wp-agent-support-layer' ),
+			$label,
+			(int) $result['status'],
+			'' === $location ? __( '(no Location header)', 'wp-agent-support-layer' ) : $location
+		);
 	}
 
 	/**

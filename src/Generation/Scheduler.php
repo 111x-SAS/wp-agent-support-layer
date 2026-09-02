@@ -17,6 +17,13 @@ final class Scheduler {
 	const HOOK = 'wpasl_generate';
 
 	/**
+	 * Arguments of the one-off "Regenerate now" event (distinct from the recurring event's empty args).
+	 *
+	 * @var string[]
+	 */
+	const MANUAL_ARGS = array( 'manual' );
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -110,6 +117,7 @@ final class Scheduler {
 	 */
 	public function unschedule() {
 		wp_clear_scheduled_hook( self::HOOK );
+		wp_clear_scheduled_hook( self::HOOK, self::MANUAL_ARGS );
 	}
 
 	/**
@@ -128,31 +136,21 @@ final class Scheduler {
 	 * @return int|null
 	 */
 	public function next_run() {
-		$next = wp_next_scheduled( self::HOOK );
-		return false === $next ? null : (int) $next;
+		$candidates = array_filter( array( wp_next_scheduled( self::HOOK ), wp_next_scheduled( self::HOOK, self::MANUAL_ARGS ) ) );
+		return empty( $candidates ) ? null : (int) min( $candidates );
 	}
 
 	/**
-	 * Makes the recurring event due immediately and asks WordPress to spawn cron.
-	 *
-	 * WordPress refuses single events within ten minutes of an existing one for the same hook,
-	 * so the recurring event itself is moved to "now" and keeps recurring from there.
+	 * Schedules a one-off run now and asks WordPress to spawn cron. The recurring event is left untouched, so
+	 * its schedule anchor never drifts. Distinct args keep WordPress from deduplicating it against the
+	 * recurring event within its ten-minute window.
 	 *
 	 * @return void
 	 */
 	public function run_soon() {
-		$event = wp_get_scheduled_event( self::HOOK );
-		if ( $event && $event->timestamp <= time() ) {
-			spawn_cron();
-			return;
+		if ( false === wp_next_scheduled( self::HOOK, self::MANUAL_ARGS ) ) {
+			wp_schedule_single_event( time(), self::HOOK, self::MANUAL_ARGS );
 		}
-
-		$interval = $this->current_interval();
-		if ( null === $interval ) {
-			$interval = (string) $this->settings->get( 'schedule' );
-		}
-		$this->unschedule();
-		wp_schedule_event( time() - 1, $interval, self::HOOK );
 		spawn_cron();
 	}
 }

@@ -87,6 +87,34 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->assertStringContainsString( '](' . home_url( '/wp-sitemap.xml' ) . ')', $txt );
 	}
 
+	public function test_every_emitted_markdown_url_is_servable() {
+		$front = self::factory()->post->create_and_get( array( 'post_type' => 'page', 'post_name' => 'portada', 'post_title' => 'Portada' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$blog  = self::factory()->post->create_and_get( array( 'post_type' => 'page', 'post_name' => 'blog', 'post_title' => 'Blog' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		self::factory()->post->create_and_get( array( 'post_type' => 'page', 'post_name' => 'acerca', 'post_title' => 'Acerca' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		self::factory()->post->create_and_get( array( 'post_name' => 'primera', 'post_title' => 'Primera' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $front->ID );
+		update_option( 'page_for_posts', $blog->ID );
+		add_filter( 'wpasl_terminate_after_serve', '__return_false' );
+
+		$txt = $this->builder->build();
+		preg_match_all( '/\]\((' . preg_quote( home_url( '/' ), '/' ) . '[^)]*(?:\.md|wpasl=md))\)/', $txt, $m );
+		$urls = array_unique( $m[1] );
+		$this->assertContains( home_url( '/blog.md' ), $urls );
+		$this->assertContains( home_url( '/?wpasl=md' ), $urls );
+		$this->assertCount( 4, $urls );
+
+		$delivery = Plugin::instance()->get( 'delivery' );
+		foreach ( $urls as $url ) {
+			ob_start();
+			$this->go_to( $url );
+			$delivery->maybe_serve();
+			$out = ob_get_clean();
+			$this->assertStringStartsWith( "---\n", $out, $url . ' must serve a Markdown document' );
+			$this->assertSame( 1, substr_count( $out, "\n# " ), $url . ' served exactly one document' );
+		}
+	}
+
 	public function test_blockquote_falls_back_when_the_tagline_is_empty() {
 		update_option( 'blogdescription', '' );
 		$txt = $this->builder->build();

@@ -389,6 +389,82 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertSame( 1, substr_count( $out, "# Portada\n" ), 'Served exactly once.' );
 	}
 
+	/**
+	 * Configures a static front page plus a "Posts page" at /blog/ and returns the latter.
+	 *
+	 * @return \WP_Post
+	 */
+	private function make_posts_page() {
+		$this->make_static_front_page();
+		$blog = self::factory()->post->create_and_get(
+			array(
+				'post_type'    => 'page',
+				'post_name'    => 'blog',
+				'post_title'   => 'Blog',
+				'post_content' => '<p>Todas las entradas</p>',
+			)
+		);
+		update_option( 'page_for_posts', $blog->ID );
+		$this->assertSame( home_url( '/blog/' ), get_permalink( $blog ) );
+		return $blog;
+	}
+
+	public function test_posts_page_is_served_by_md_suffix_accept_and_query_arg() {
+		$blog = $this->make_posts_page();
+		$this->assertSame( home_url( '/blog.md' ), $this->delivery->markdown_url( $blog ) );
+
+		ob_start();
+		$this->go_to( home_url( '/blog.md' ) );
+		$out = ob_get_clean();
+		$this->assertStringStartsWith( "---\n", $out );
+		$this->assertStringContainsString( "# Blog\n", $out );
+		$this->assertStringContainsString( 'Todas las entradas', $out );
+
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		ob_start();
+		$this->go_to( home_url( '/blog/' ) );
+		$this->assertTrue( is_home() );
+		$this->assertFalse( is_singular() );
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+		$this->assertTrue( $served );
+		$this->assertStringContainsString( "# Blog\n", $out );
+
+		unset( $_SERVER['HTTP_ACCEPT'] );
+		ob_start();
+		$this->go_to( home_url( '/blog/?wpasl=md' ) );
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+		$this->assertTrue( $served );
+		$this->assertStringContainsString( "# Blog\n", $out );
+	}
+
+	public function test_posts_page_html_announces_alternate_link() {
+		$blog = $this->make_posts_page();
+		$this->go_to( home_url( '/blog/' ) );
+		$this->assertTrue( is_home() );
+
+		Http::reset();
+		$this->delivery->send_html_headers();
+		$sent = Http::effective_headers();
+		$this->assertArrayHasKey( 'link', $sent );
+		$this->assertContains( '<' . home_url( '/blog.md' ) . '>; rel="alternate"; type="text/markdown"', $sent['link'] );
+
+		ob_start();
+		$this->delivery->print_alternate_link();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( '<link rel="alternate" type="text/markdown" href="' . home_url( '/blog.md' ) . '" />', $html );
+
+		// The blog index of a site that lists posts on the front page has nothing to announce.
+		update_option( 'show_on_front', 'posts' );
+		$this->go_to( home_url( '/' ) );
+		$this->assertTrue( is_home() );
+		ob_start();
+		$this->delivery->print_alternate_link();
+		$this->assertSame( '', ob_get_clean() );
+		$this->assertGreaterThan( 0, $blog->ID );
+	}
+
 	public function test_non_eligible_content_is_never_served_as_markdown() {
 		$draft     = self::factory()->post->create_and_get( array( 'post_status' => 'draft', 'post_name' => 'borrador' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 		$protected = self::factory()->post->create_and_get( array( 'post_password' => 'x', 'post_name' => 'protegida' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound

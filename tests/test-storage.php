@@ -56,4 +56,26 @@ class Test_Storage extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Require all denied', $rules );
 		$this->assertStringContainsString( 'Deny from all', $rules );
 	}
+
+	public function test_storage_write_failure_is_logged() {
+		$storage = new Storage();
+		$storage->ensure();
+		$dir = dirname( $storage->path( 'md/post/1.md' ) );
+		wp_mkdir_p( $dir );
+		$log = tempnam( get_temp_dir(), 'wpasl-log' );
+		$ini = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		chmod( $dir, 0500 );
+		try {
+			$result = $storage->write( 'md/post/1.md', "# x\n" );
+		} finally {
+			chmod( $dir, 0755 );
+			ini_set( 'error_log', (string) $ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		}
+		$contents = (string) file_get_contents( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		unlink( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+
+		$this->assertFalse( $result );
+		$this->assertStringContainsString( 'Storage write failed: file_put_contents(' . $dir, $contents );
+		$this->assertFalse( $storage->exists( 'md/post/1.md' ) );
+	}
 }

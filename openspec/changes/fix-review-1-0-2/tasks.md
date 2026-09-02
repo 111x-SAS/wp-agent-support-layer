@@ -34,9 +34,9 @@
 
 ## 8. Media: fallos de generación visibles (D7, hallazgo 7)
 
-- [ ] 8.1 Añadir `failed` al estado (`State::save()` fusiona la clave), motivo en `write_document()`/`Storage::write()` con `error_log()`, contador, acción `wpasl_generation_failed`, umbral `wpasl_max_failures` en `never_generated_ids()`/`build_queue()` y reinicio tras éxito; verificar con `test_failed_items_are_counted_and_deprioritized` en `tests/test-runner.php` (generador stub que devuelve `false`: tras dos `run()` el estado tiene `failed[$id] === 2` y la acción se disparó; con tres fallos y un ítem sano, el siguiente `run()` procesa primero el sano) y `test_successful_generation_clears_failure_counter`
-- [ ] 8.2 Exponer `failed` en `Runner::status()`, fila "Failed items" en `GenerationStatus::render()` y línea en `wp wpasl status`; verificar con `test_status_shows_failed_items` en `tests/test-generation-status.php` y `test_status_command_lists_failed_items` en `tests/test-cli.php`
-- [ ] 8.3 Añadir `test_storage_write_failure_is_logged` en `tests/test-storage.php` (directorio de solo lectura o `wp_mkdir_p` forzado a fallar → `write()` devuelve `false` y el registro de errores contiene la ruta)
+- [x] 8.1 Añadir `failed` al estado (`State::save()` fusiona la clave), motivo en `write_document()`/`Storage::write()` con `error_log()`, contador, acción `wpasl_generation_failed`, umbral `wpasl_max_failures` en `never_generated_ids()`/`build_queue()` y reinicio tras éxito; verificar con `test_failed_items_are_counted_and_deprioritized` en `tests/test-runner.php` (generador stub que devuelve `false`: tras dos `run()` el estado tiene `failed[$id] === 2` y la acción se disparó; con tres fallos y un ítem sano, el siguiente `run()` procesa primero el sano) y `test_successful_generation_clears_failure_counter`
+- [x] 8.2 Exponer `failed` en `Runner::status()`, fila "Failed items" en `GenerationStatus::render()` y línea en `wp wpasl status`; verificar con `test_status_shows_failed_items` en `tests/test-generation-status.php` y `test_status_command_lists_failed_items` en `tests/test-cli.php`
+- [x] 8.3 Añadir `test_storage_write_failure_is_logged` en `tests/test-storage.php` (directorio de solo lectura o `wp_mkdir_p` forzado a fallar → `write()` devuelve `false` y el registro de errores contiene la ruta)
 
 ## 9. Media: escrituras del estado acotadas (D8, hallazgo 8)
 

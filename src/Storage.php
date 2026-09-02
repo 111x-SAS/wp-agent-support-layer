@@ -146,17 +146,35 @@ final class Storage {
 	public function write( $relative, $contents ) {
 		$path = $this->path( $relative );
 		if ( ! wp_mkdir_p( dirname( $path ) ) ) {
+			self::log_failure( 'wp_mkdir_p', dirname( $path ) );
 			return false;
 		}
 		$tmp = $path . '.' . wp_generate_password( 8, false ) . '.tmp';
-		if ( false === file_put_contents( $tmp, $contents ) ) {
+		// phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- The failure is reported below with its cause.
+		if ( false === @file_put_contents( $tmp, $contents ) ) {
+			self::log_failure( 'file_put_contents', $tmp );
 			return false;
 		}
-		if ( ! @rename( $tmp, $path ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- The failure is handled on the next line.
+		if ( ! @rename( $tmp, $path ) ) { // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- The failure is reported on the next line.
 			@unlink( $tmp ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Best-effort cleanup; a failure here is not actionable.
+			self::log_failure( 'rename', $path );
 			return false;
 		}
 		return true;
+	}
+
+	/**
+	 * Writes a storage failure to the PHP error log (permissions, full disk, open_basedir...).
+	 *
+	 * @param string $operation Failed operation.
+	 * @param string $path      Path involved.
+	 * @return void
+	 */
+	private static function log_failure( $operation, $path ) {
+		$error = error_get_last();
+		$cause = is_array( $error ) && ! empty( $error['message'] ) ? ' ' . $error['message'] : '';
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational failure that must reach the server log.
+		error_log( sprintf( '[wp-agent-support-layer] Storage write failed: %s(%s).%s', $operation, $path, $cause ) );
 	}
 
 	/**

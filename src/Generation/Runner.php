@@ -69,6 +69,13 @@ final class Runner {
 	private $cycle_post_types = null;
 
 	/**
+	 * Reason of the last write_document() failure: no_generator, empty_document or storage_write.
+	 *
+	 * @var string
+	 */
+	private $last_error = '';
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings    $settings    Settings.
@@ -152,11 +159,15 @@ final class Runner {
 		$state = $this->state->load();
 
 		if ( empty( $state['queue'] ) ) {
-			$state['queue']         = $this->build_queue( $state['generated'], $this->cycle_post_types );
+			$state['queue']         = $this->build_queue( $state['generated'], $this->cycle_post_types, $state['failed'] );
 			$state['cycle_started'] = time();
 		} else {
-			// Items published during the cycle go first instead of waiting for the next cycle.
-			$state['queue'] = array_merge( $this->never_generated_ids( $state ), $state['queue'] );
+			// Items published during the cycle go first instead of waiting for the next cycle; items that keep
+			// failing go last so they never monopolize a batch.
+			$fresh          = $this->never_generated_ids( $state );
+			$retry          = array_values( array_intersect( $fresh, $this->exhausted_ids( $state ) ) );
+			$fresh          = array_values( array_diff( $fresh, $retry ) );
+			$state['queue'] = array_merge( $fresh, $state['queue'], $retry );
 		}
 
 		$started   = microtime( true );
@@ -165,8 +176,14 @@ final class Runner {
 		while ( ! empty( $state['queue'] ) && $processed < $limit ) {
 			$post_id = (int) array_shift( $state['queue'] );
 			$post    = get_post( $post_id );
-			if ( $post && $this->eligibility->is_eligible( $post ) && $this->write_document( $post ) ) {
-				$state['generated'][ $post_id ] = time();
+			if ( $post && $this->eligibility->is_eligible( $post ) ) {
+				if ( $this->write_document( $post ) ) {
+					$state['generated'][ $post_id ] = time();
+					unset( $state['failed'][ $post_id ] );
+				} else {
+					$state['failed'][ $post_id ] = ( isset( $state['failed'][ $post_id ] ) ? (int) $state['failed'][ $post_id ] : 0 ) + 1;
+					$this->report_failure( $post, $this->last_error, $state['failed'][ $post_id ] );
+				}
 			}
 			++$processed;
 
@@ -181,6 +198,9 @@ final class Runner {
 			$state['generated']            = $this->prune( $before );
 			$state['_removed']             = array_keys( array_diff_key( $before, $state['generated'] ) );
 			$state['last_cycle_completed'] = time();
+			if ( ! empty( $state['failed'] ) ) {
+				$state['failed'] = array_intersect_key( $state['failed'], array_fill_keys( $this->eligibility->eligible_ids(), true ) );
+			}
 		}
 		if ( $cycle_completed || $this->artifacts_are_stale( $state ) ) {
 			$state['artifacts_generated']        = $this->regenerate_artifacts();
@@ -211,7 +231,7 @@ final class Runner {
 	public function run_cycle( $post_types = null ) {
 		$state = $this->state->load();
 		if ( null !== $post_types ) {
-			$state['queue'] = $this->build_queue( $state['generated'], $post_types );
+			$state['queue'] = $this->build_queue( $state['generated'], $post_types, $state['failed'] );
 			$this->state->save( $state );
 			if ( empty( $state['queue'] ) ) {
 				// Nothing of these types to do: never fall back to an unrestricted queue.
@@ -330,9 +350,11 @@ final class Runner {
 		$state['queue'] = array();
 		if ( null === $post_types ) {
 			$state['generated'] = array();
+			$state['failed']    = array();
 		} else {
 			$ids                = array_fill_keys( $this->eligibility->eligible_ids( $post_types ), true );
 			$state['generated'] = array_diff_key( $state['generated'], $ids );
+			$state['failed']    = array_diff_key( (array) $state['failed'], $ids );
 		}
 		$this->state->save( $state, false );
 	}
@@ -351,6 +373,7 @@ final class Runner {
 			'eligible'             => $eligible,
 			'generated'            => $stored,
 			'pending'              => max( 0, $eligible - $stored ),
+			'failed'               => count( (array) $state['failed'] ),
 			'queued'               => count( $state['queue'] ),
 			'last_run'             => (int) $state['last_run'],
 			'last_run_count'       => (int) $state['last_run_count'],
@@ -388,26 +411,92 @@ final class Runner {
 	}
 
 	/**
-	 * Builds the work queue: eligible ids, least recently generated first.
+	 * Builds the work queue: eligible ids, least recently generated first; items that failed too many
+	 * times go last.
 	 *
 	 * @param array<int,int> $generated  Generation times by post id.
 	 * @param string[]|null  $post_types Restrict to these post types.
+	 * @param array<int,int> $failed     Failure counts by post id.
 	 * @return int[]
 	 */
-	private function build_queue( array $generated, $post_types = null ) {
+	private function build_queue( array $generated, $post_types = null, array $failed = array() ) {
 		if ( null === $this->item_generator ) {
 			return array();
 		}
-		$ids = $this->eligibility->eligible_ids( $post_types );
+		$ids       = $this->eligibility->eligible_ids( $post_types );
+		$max       = $this->max_failures();
+		$exhausted = array();
+		foreach ( $failed as $post_id => $count ) {
+			if ( (int) $count >= $max ) {
+				$exhausted[ (int) $post_id ] = true;
+			}
+		}
 		usort(
 			$ids,
-			static function ( $a, $b ) use ( $generated ) {
+			static function ( $a, $b ) use ( $generated, $exhausted ) {
+				$fa = isset( $exhausted[ $a ] ) ? 1 : 0;
+				$fb = isset( $exhausted[ $b ] ) ? 1 : 0;
+				if ( $fa !== $fb ) {
+					return $fa - $fb;
+				}
 				$ta = isset( $generated[ $a ] ) ? $generated[ $a ] : 0;
 				$tb = isset( $generated[ $b ] ) ? $generated[ $b ] : 0;
 				return $ta === $tb ? $a - $b : $ta - $tb;
 			}
 		);
 		return $ids;
+	}
+
+	/**
+	 * Ids whose failure count reached the threshold.
+	 *
+	 * @param array<string, mixed> $state State.
+	 * @return int[]
+	 */
+	private function exhausted_ids( array $state ) {
+		$max = $this->max_failures();
+		$ids = array();
+		foreach ( (array) $state['failed'] as $post_id => $count ) {
+			if ( (int) $count >= $max ) {
+				$ids[] = (int) $post_id;
+			}
+		}
+		return $ids;
+	}
+
+	/**
+	 * Failures after which an item is retried only at the end of the queue.
+	 *
+	 * @return int
+	 */
+	private function max_failures() {
+		/**
+		 * Filters the number of consecutive failures after which an item stops being prioritized.
+		 *
+		 * @param int $max Failures. Default 3.
+		 */
+		return max( 1, (int) apply_filters( 'wpasl_max_failures', 3 ) );
+	}
+
+	/**
+	 * Surfaces a generation failure: action for integrators and a line in the PHP error log.
+	 *
+	 * @param \WP_Post $post     Post.
+	 * @param string   $reason   Reason (no_generator, empty_document, storage_write).
+	 * @param int      $attempts Consecutive failures so far.
+	 * @return void
+	 */
+	private function report_failure( \WP_Post $post, $reason, $attempts ) {
+		/**
+		 * Fires when the document of an item could not be generated or stored.
+		 *
+		 * @param \WP_Post $post     Post.
+		 * @param string   $reason   Reason: no_generator, empty_document or storage_write.
+		 * @param int      $attempts Consecutive failures so far.
+		 */
+		do_action( 'wpasl_generation_failed', $post, $reason, $attempts );
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational failure that must reach the server log.
+		error_log( sprintf( '[wp-agent-support-layer] Could not generate the Markdown document of %s #%d (%s), attempt %d.', $post->post_type, $post->ID, $reason, $attempts ) );
 	}
 
 	/**
@@ -460,14 +549,21 @@ final class Runner {
 	 * @return bool
 	 */
 	private function write_document( \WP_Post $post ) {
+		$this->last_error = '';
 		if ( null === $this->item_generator ) {
+			$this->last_error = 'no_generator';
 			return false;
 		}
 		$document = $this->item_generator->generate( $post );
 		if ( ! is_string( $document ) ) {
+			$this->last_error = 'empty_document';
 			return false;
 		}
-		return $this->storage->write( self::document_path( $post->post_type, $post->ID ), $document );
+		if ( ! $this->storage->write( self::document_path( $post->post_type, $post->ID ), $document ) ) {
+			$this->last_error = 'storage_write';
+			return false;
+		}
+		return true;
 	}
 
 	/**

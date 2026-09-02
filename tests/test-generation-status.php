@@ -107,6 +107,19 @@ class Test_Generation_Status extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'name="' . GenerationStatus::NONCE . '"', $html );
 	}
 
+	public function test_status_shows_failed_items() {
+		$state           = new WPASL\Generation\State();
+		$data            = $state->load();
+		$data['failed']  = array( 11 => 3, 12 => 1 );
+		$state->save( $data, false );
+
+		ob_start();
+		$this->status->render();
+		$html = ob_get_clean();
+		$this->assertMatchesRegularExpression( '/Failed items<\/th><td>2 /', $html );
+		$this->assertSame( 2, Plugin::instance()->get( 'runner' )->status()['failed'] );
+	}
+
 	public function test_render_without_warning_when_cron_enabled() {
 		add_filter( 'wpasl_cron_disabled', '__return_false' );
 		ob_start();

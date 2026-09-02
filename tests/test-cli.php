@@ -88,6 +88,46 @@ class Test_CLI extends WP_UnitTestCase {
 		$this->assertCount( 2, $storage->list_files( 'md' ) );
 	}
 
+	public function test_generate_post_type_with_batch_only_processes_that_type() {
+		self::factory()->post->create();
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->commands->generate( array(), array( 'post-type' => 'page', 'batch' => true ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$storage = Plugin::instance()->get( 'storage' );
+		$this->assertTrue( $storage->exists( Runner::document_path( 'page', $page ) ) );
+		$this->assertCount( 1, $storage->list_files( 'md' ), 'The post was not processed.' );
+		$this->assertStringStartsWith( 'Success: Processed 1 item(s); 0 remaining', end( WP_CLI::$log ) );
+	}
+
+	public function test_generate_post_type_without_eligible_items_processes_nothing() {
+		self::factory()->post->create_many( 3 );
+		$storage = Plugin::instance()->get( 'storage' );
+
+		$this->commands->generate( array(), array( 'post-type' => 'page' ) );
+		$this->assertSame( array(), $storage->list_files( 'md' ) );
+		$this->assertStringStartsWith( 'Success: Processed 0 item(s)', end( WP_CLI::$log ) );
+
+		$this->commands->generate( array(), array( 'post-type' => 'page', 'batch' => true ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( array(), $storage->list_files( 'md' ) );
+		$this->assertStringStartsWith( 'Success: Processed 0 item(s); 0 remaining', end( WP_CLI::$log ) );
+	}
+
+	public function test_generate_all_with_post_type_keeps_other_types_generated() {
+		$post = self::factory()->post->create();
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->commands->generate( array(), array( 'all' => true ) );
+		$before = get_option( WPASL\Generation\State::OPTION );
+		$this->assertArrayHasKey( $post, $before['generated'] );
+		$this->assertArrayHasKey( $page, $before['generated'] );
+
+		$this->commands->generate( array(), array( 'all' => true, 'post-type' => 'page' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertStringStartsWith( 'Success: Processed 1 item(s)', end( WP_CLI::$log ) );
+		$after = get_option( WPASL\Generation\State::OPTION );
+		$this->assertArrayHasKey( $post, $after['generated'], 'Posts keep their generation mark.' );
+		$this->assertSame( $before['generated'][ $post ], $after['generated'][ $post ] );
+		$this->assertGreaterThanOrEqual( $before['generated'][ $page ], $after['generated'][ $page ] );
+		$this->assertSame( 0, Plugin::instance()->get( 'runner' )->status()['pending'] );
+	}
+
 	public function test_status_and_clear() {
 		self::factory()->post->create_many( 2 );
 		$this->commands->status( array(), array( 'format' => 'table' ) );

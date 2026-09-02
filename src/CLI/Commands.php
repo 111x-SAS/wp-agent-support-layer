@@ -90,11 +90,11 @@ final class Commands {
 		}
 
 		if ( ! empty( $assoc_args['all'] ) ) {
-			$this->runner->reset_cycle();
+			$this->runner->reset_cycle( $types );
 		}
 
 		if ( ! empty( $assoc_args['batch'] ) ) {
-			$result = $this->runner->run();
+			$result = $this->runner->run( null, null, $types );
 			/* translators: 1: items processed, 2: items remaining. */
 			\WP_CLI::success( sprintf( __( 'Processed %1$d item(s); %2$d remaining in this cycle.', 'wp-agent-support-layer' ), $result['processed'], $result['remaining'] ) );
 			return;

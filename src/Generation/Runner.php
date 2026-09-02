@@ -129,11 +129,15 @@ final class Runner {
 	/**
 	 * Processes one batch. Called by WP-Cron and WP-CLI.
 	 *
-	 * @param int|null   $limit  Max items; defaults to the batch size setting.
-	 * @param float|null $budget Max seconds; defaults to 20 (filterable).
+	 * @param int|null      $limit      Max items; defaults to the batch size setting.
+	 * @param float|null    $budget     Max seconds; defaults to 20 (filterable).
+	 * @param string[]|null $post_types Restrict the queue (rebuilt or topped up) to these post types.
 	 * @return array{processed:int, remaining:int, cycle_completed:bool}
 	 */
-	public function run( $limit = null, $budget = null ) {
+	public function run( $limit = null, $budget = null, $post_types = null ) {
+		if ( null !== $post_types ) {
+			$this->cycle_post_types = $post_types;
+		}
 		$limit = null === $limit ? (int) $this->settings->get( 'batch_size' ) : (int) $limit;
 		if ( null === $budget ) {
 			/**
@@ -148,7 +152,7 @@ final class Runner {
 		$state = $this->state->load();
 
 		if ( empty( $state['queue'] ) ) {
-			$state['queue']         = $this->build_queue( $state['generated'] );
+			$state['queue']         = $this->build_queue( $state['generated'], $this->cycle_post_types );
 			$state['cycle_started'] = time();
 		} else {
 			// Items published during the cycle go first instead of waiting for the next cycle.
@@ -187,6 +191,10 @@ final class Runner {
 		$state['last_run_count'] = $processed;
 		$this->state->save( $state );
 
+		if ( null !== $post_types ) {
+			$this->cycle_post_types = null;
+		}
+
 		return array(
 			'processed'       => $processed,
 			'remaining'       => count( $state['queue'] ),
@@ -205,6 +213,10 @@ final class Runner {
 		if ( null !== $post_types ) {
 			$state['queue'] = $this->build_queue( $state['generated'], $post_types );
 			$this->state->save( $state );
+			if ( empty( $state['queue'] ) ) {
+				// Nothing of these types to do: never fall back to an unrestricted queue.
+				return 0;
+			}
 		}
 
 		$this->cycle_post_types = $post_types;
@@ -310,12 +322,18 @@ final class Runner {
 	/**
 	 * Forces a full regeneration on the next runs.
 	 *
+	 * @param string[]|null $post_types Only forget the documents of these post types.
 	 * @return void
 	 */
-	public function reset_cycle() {
-		$state              = $this->state->load();
-		$state['queue']     = array();
-		$state['generated'] = array();
+	public function reset_cycle( $post_types = null ) {
+		$state          = $this->state->load();
+		$state['queue'] = array();
+		if ( null === $post_types ) {
+			$state['generated'] = array();
+		} else {
+			$ids                = array_fill_keys( $this->eligibility->eligible_ids( $post_types ), true );
+			$state['generated'] = array_diff_key( $state['generated'], $ids );
+		}
 		$this->state->save( $state, false );
 	}
 

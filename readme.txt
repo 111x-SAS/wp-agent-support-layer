@@ -4,7 +4,7 @@ Tags: ai, agents, markdown, llms.txt, robots.txt
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -111,6 +111,21 @@ Yes. Settings and generated files are per site.
 
 == Changelog ==
 
+= 1.0.2 =
+* Markdown documents always carry the whole content, whichever code path generated them (`<!--more-->` and `<!--nextpage-->` no longer truncate cron, WP-CLI or `.md` output).
+* Servable Markdown URL for the static front page (`/?wpasl=md`, `/.md`) and for post types without rewrite rules.
+* Listing eligible items runs a bounded number of database queries; the General tab and `wp wpasl status` no longer query per item.
+* The exclusion flag is no longer readable through the REST API by users without edit permission.
+* Diagnostics run in short batches chained by redirects (no request longer than ~45 s, safe behind Cloudflare), never follow redirects (reported as warnings) and limit response size.
+* The robots.txt verdict of the report is checked against the robots.txt actually served, with warnings for missing or stale rules.
+* Items published mid-cycle are generated on the next run; discovery files are refreshed at least once per interval on large sites; changing the post types rebuilds the queue.
+* Generation state merges concurrent writes (lazy fill during a cron run is no longer lost).
+* Settings sanitization is idempotent (the llms-full.txt limit could become 100 MB when the option was created).
+* `X-Content-Type-Options: nosniff` on Markdown and JSON responses; no `X-Robots-Tag` on Markdown; the HTML `Link` header no longer replaces others.
+* Relative URLs with `../` and scheme-relative URLs are resolved against the document URL and the site scheme.
+* Settings and storage token are autoloaded (one-off upgrade routine); storage always contains a probe file for the exposure check; sitemap link follows the permalink structure; crawler tokens with `.`, `[` or `]` are rejected; `wp wpasl generate --post-type` fails for disabled types; "Regenerate now" no longer shifts the recurring schedule.
+* Remaining interface strings are translatable; Spanish translation updated.
+
 = 1.0.1 =
 * Crawler catalog: official documentation link for cohere-ai and new `cohere-training-data-crawler` token.
 * Crawlers tab shows "No public documentation" for crawlers without a vendor page (Bytespider).
@@ -128,6 +143,9 @@ Yes. Settings and generated files are per site.
 * English interface with Spanish (es_ES) translation.
 
 == Upgrade Notice ==
+
+= 1.0.2 =
+Fixes from the 1.0.1 code review: full-content Markdown, static front page URL, faster eligibility queries, batched diagnostics safe behind Cloudflare, REST exposure of the exclusion flag, and several smaller corrections. No settings change required.
 
 = 1.0.1 =
 Catalog and documentation refinements; no behaviour change.

@@ -71,11 +71,11 @@
 ## 14. Tests faltantes de la revisión y cobertura
 
 - [x] 14.1 Añadir `test_uninstall_removes_storage_and_options_on_every_site` en `tests/test-multisite.php` y verificar con `vendor/bin/phpunit -c tests/multisite.xml.dist`
-- [ ] 14.2 Actualizar `docs/spec-coverage.md`: mapear los escenarios nuevos de las seis delta specs a sus tests y restaurar a **A** las seis filas que la revisión marcó como parciales; verificar que cada test citado existe con `grep -c "function <nombre>" tests/*.php`
+- [x] 14.2 Actualizar `docs/spec-coverage.md`: mapear los escenarios nuevos de las seis delta specs a sus tests y restaurar a **A** las seis filas que la revisión marcó como parciales; verificar que cada test citado existe con `grep -c "function <nombre>" tests/*.php`
 
 ## 15. Verificación y release 1.0.2
 
-- [ ] 15.1 Ejecutar `vendor/bin/phpunit`, `vendor/bin/phpunit -c tests/multisite.xml.dist` y `vendor/bin/phpcs` y verificar que todo pasa en verde; ejecutar `bin/smoke-docker.sh` para PHP 7.4 y 8.3 y verificar activación limpia
-- [ ] 15.2 Ejecutar `bin/crawl-check.sh` contra el sitio local con portada estática configurada y verificar que la URL Markdown de la portada responde 200 y que el diagnóstico completo termina con todas las peticiones del navegador por debajo de 100 s (guardar la evidencia en `docs/evidence/`)
-- [ ] 15.3 Subir la versión a 1.0.2 en `wp-agent-support-layer.php` (cabecera y `WPASL_VERSION`), `readme.txt` (`Stable tag` y changelog con los hallazgos corregidos) y `README.md`; verificar con `grep -rn "1\.0\.1" --include='*.php' --include='*.txt' --include='*.md' . | grep -v vendor | grep -v changelog` que no queda ninguna referencia a 1.0.1 fuera del historial
+- [x] 15.1 Ejecutar `vendor/bin/phpunit`, `vendor/bin/phpunit -c tests/multisite.xml.dist` y `vendor/bin/phpcs` y verificar que todo pasa en verde; ejecutar `bin/smoke-docker.sh` para PHP 7.4 y 8.3 y verificar activación limpia
+- [x] 15.2 Ejecutar `bin/crawl-check.sh` contra el sitio local con portada estática configurada y verificar que la URL Markdown de la portada responde 200 y que el diagnóstico completo termina con todas las peticiones del navegador por debajo de 100 s (guardar la evidencia en `docs/evidence/`)
+- [x] 15.3 Subir la versión a 1.0.2 en `wp-agent-support-layer.php` (cabecera y `WPASL_VERSION`), `readme.txt` (`Stable tag` y changelog con los hallazgos corregidos) y `README.md`; verificar con `grep -rn "1\.0\.1" --include='*.php' --include='*.txt' --include='*.md' . | grep -v vendor | grep -v changelog` que no queda ninguna referencia a 1.0.1 fuera del historial
 - [ ] 15.4 Commit por hito (Conventional Commits, autor Mao Rodriguez) y verificar con `git log --oneline main..HEAD` que cada grupo de tareas tiene su commit

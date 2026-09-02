@@ -158,8 +158,22 @@ final class Settings {
 			return $current;
 		}
 
-		$tab  = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
-		$keys = isset( self::TAB_KEYS[ $tab ] ) ? self::TAB_KEYS[ $tab ] : array_keys( self::defaults() );
+		$tab = isset( $input['_tab'] ) ? sanitize_key( $input['_tab'] ) : '';
+		if ( '' !== $tab && ! isset( self::TAB_KEYS[ $tab ] ) ) {
+			// A tab registered by a third party (wpasl_register_tabs) owns none of our keys.
+			return $current;
+		}
+		if ( '' === $tab ) {
+			// No tab (programmatic update_option or a partial form): touch only the submitted keys. Absent keys
+			// keep their stored value instead of being read as unchecked boxes.
+			$submitted = array_keys( $input );
+			if ( isset( $input[ self::LLMS_FULL_MAX_FIELD_MB ] ) ) {
+				$submitted[] = 'llms_full_max_bytes';
+			}
+			$keys = array_values( array_intersect( array_keys( self::defaults() ), $submitted ) );
+		} else {
+			$keys = self::TAB_KEYS[ $tab ];
+		}
 
 		$clean = $current;
 		foreach ( $keys as $key ) {

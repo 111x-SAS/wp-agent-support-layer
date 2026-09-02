@@ -37,9 +37,11 @@ final class Lifecycle {
 	/**
 	 * Activates the current site.
 	 *
+	 * @param bool $flush_rewrite_rules Whether to flush the rewrite rules (not needed for a site created
+	 *                                  after activation: the plugin registers no rules).
 	 * @return void
 	 */
-	public static function activate_site() {
+	public static function activate_site( $flush_rewrite_rules = true ) {
 		$settings = new Settings();
 		if ( false === get_option( Settings::OPTION, false ) ) {
 			add_option( Settings::OPTION, Settings::defaults(), '', true );
@@ -51,7 +53,9 @@ final class Lifecycle {
 		$scheduler = new Scheduler( $settings );
 		$scheduler->schedule();
 
-		flush_rewrite_rules();
+		if ( $flush_rewrite_rules ) {
+			flush_rewrite_rules();
+		}
 	}
 
 	/**

@@ -99,4 +99,16 @@ class Test_Scheduler extends WP_UnitTestCase {
 		}
 		return $count;
 	}
+
+	public function test_maybe_upgrade_reschedules_missing_event() {
+		$this->scheduler->schedule();
+		wp_clear_scheduled_hook( Scheduler::HOOK );
+		$this->assertNull( $this->scheduler->current_interval() );
+		update_option( Plugin::VERSION_OPTION, WPASL_VERSION );
+
+		Plugin::instance()->maybe_upgrade();
+
+		$this->assertNotFalse( wp_next_scheduled( Scheduler::HOOK ) );
+		$this->assertSame( 'daily', $this->scheduler->current_interval() );
+	}
 }

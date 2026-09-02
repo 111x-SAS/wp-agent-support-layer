@@ -113,4 +113,35 @@ class Test_Multisite extends WP_UnitTestCase {
 		Storage::delete_all();
 		delete_option( Settings::OPTION );
 	}
+
+	public function test_site_created_after_network_activation_is_configured() {
+		update_site_option( 'active_sitewide_plugins', array( plugin_basename( WPASL_FILE ) => time() ) );
+		Lifecycle::activate( true );
+
+		$site = self::factory()->blog->create();
+		switch_to_blog( $site );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$this->assertNotFalse( get_option( Settings::OPTION, false ), 'Defaults stored on creation.' );
+		$this->assertNotFalse( wp_next_scheduled( WPASL\Generation\Scheduler::HOOK ), 'Recurring event scheduled on creation.' );
+		$this->assertDirectoryExists( ( new Storage() )->base_dir() );
+		Storage::delete_all();
+		delete_option( Settings::OPTION );
+		wp_clear_scheduled_hook( WPASL\Generation\Scheduler::HOOK );
+		restore_current_blog();
+		Plugin::instance()->get( 'settings' )->flush_cache();
+
+		Lifecycle::deactivate( true );
+		Storage::delete_all();
+		delete_option( Settings::OPTION );
+		delete_site_option( 'active_sitewide_plugins' );
+	}
+
+	public function test_site_created_without_network_activation_is_untouched() {
+		delete_site_option( 'active_sitewide_plugins' );
+		$site = self::factory()->blog->create();
+		switch_to_blog( $site );
+		$this->assertFalse( get_option( Settings::OPTION, false ) );
+		$this->assertFalse( wp_next_scheduled( WPASL\Generation\Scheduler::HOOK ) );
+		restore_current_blog();
+	}
 }

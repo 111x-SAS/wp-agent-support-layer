@@ -73,6 +73,64 @@ class Test_Eligibility extends WP_UnitTestCase {
 		remove_filter( 'wpasl_is_eligible', '__return_false' );
 	}
 
+	public function test_eligible_ids_query_count_is_bounded() {
+		global $wpdb;
+		$ids = self::factory()->post->create_many( 60 );
+		wp_cache_flush();
+
+		$before   = $wpdb->num_queries;
+		$eligible = $this->eligibility->eligible_ids();
+		$queries  = $wpdb->num_queries - $before;
+
+		$this->assertSame( 60, count( $eligible ) );
+		$this->assertEqualSets( $ids, $eligible );
+		$this->assertLessThan( 10, $queries, "eligible_ids() ran {$queries} queries for 60 items." );
+	}
+
+	public function test_eligible_ids_with_filter_primes_caches_in_batches() {
+		global $wpdb;
+		$ids      = self::factory()->post->create_many( 60 );
+		$excluded = self::factory()->post->create();
+		update_post_meta( $excluded, ExcludeMetaBox::META, true );
+		$vetoed = self::factory()->post->create();
+		add_filter(
+			'wpasl_is_eligible',
+			static function ( $eligible, $post ) use ( $vetoed ) {
+				return $post->ID === $vetoed ? false : $eligible;
+			},
+			10,
+			2
+		);
+		wp_cache_flush();
+
+		$before   = $wpdb->num_queries;
+		$eligible = $this->eligibility->eligible_ids();
+		$queries  = $wpdb->num_queries - $before;
+		remove_all_filters( 'wpasl_is_eligible' );
+
+		$this->assertEqualSets( $ids, $eligible );
+		$this->assertNotContains( $excluded, $eligible );
+		$this->assertNotContains( $vetoed, $eligible );
+		$this->assertLessThan( 10, $queries, "eligible_ids() with a filter ran {$queries} queries for 62 items." );
+	}
+
+	public function test_count_matches_eligible_ids() {
+		self::factory()->post->create_many( 5 );
+		self::factory()->post->create( array( 'post_status' => 'draft' ) );
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		update_post_meta( self::factory()->post->create(), ExcludeMetaBox::META, true );
+
+		$this->assertSame( 6, $this->eligibility->count() );
+		$this->assertSame( count( $this->eligibility->eligible_ids() ), $this->eligibility->count() );
+		$this->assertSame( 1, $this->eligibility->count( array( 'page' ) ) );
+		$this->assertSame( 0, $this->eligibility->count( array( 'attachment' ) ) );
+
+		add_filter( 'wpasl_is_eligible', '__return_false' );
+		$this->assertSame( 0, $this->eligibility->count() );
+		remove_filter( 'wpasl_is_eligible', '__return_false' );
+		$this->assertSame( $page, $this->eligibility->eligible_ids( array( 'page' ) )[0] );
+	}
+
 	public function test_eligible_ids_applies_every_rule() {
 		$ok        = self::factory()->post->create();
 		$page      = self::factory()->post->create( array( 'post_type' => 'page' ) );

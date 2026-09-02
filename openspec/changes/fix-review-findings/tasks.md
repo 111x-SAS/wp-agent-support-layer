@@ -16,8 +16,8 @@
 
 ## 4. Alta: consultas acotadas al listar elegibles (D3)
 
-- [ ] 4.1 En `Eligibility::query()` devolver los ids directamente cuando no haya callbacks en `wpasl_is_eligible`, y precargar cachés con `_prime_post_caches()` en trozos de 500 antes de re-filtrar cuando los haya; verificar con `test_eligible_ids_query_count_is_bounded` en `tests/test-eligibility.php` (60 posts → diferencia de `$wpdb->num_queries` menor que 10) y `test_eligible_ids_with_filter_primes_caches_in_batches`
-- [ ] 4.2 Añadir `Eligibility::count()` con consulta de conteo y usarla en `Runner::status()`; calcular `generated`/`pending` sin `get_post()`; verificar con `test_status_uses_count_query` en `tests/test-generation-status.php` (mismos totales que antes y cota de consultas)
+- [x] 4.1 En `Eligibility::query()` devolver los ids directamente cuando no haya callbacks en `wpasl_is_eligible`, y precargar cachés con `_prime_post_caches()` en trozos de 500 antes de re-filtrar cuando los haya; verificar con `test_eligible_ids_query_count_is_bounded` en `tests/test-eligibility.php` (60 posts → diferencia de `$wpdb->num_queries` menor que 10) y `test_eligible_ids_with_filter_primes_caches_in_batches`
+- [x] 4.2 Añadir `Eligibility::count()` con consulta de conteo y usarla en `Runner::status()`; calcular `generated`/`pending` sin `get_post()`; verificar con `test_status_uses_count_query` en `tests/test-generation-status.php` (mismos totales que antes y cota de consultas)
 
 ## 5. Media: exclusión no legible por REST (D4)
 

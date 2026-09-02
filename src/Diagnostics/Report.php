@@ -61,8 +61,9 @@ final class Report {
 			'site'           => $this->site_checks( $raw ),
 			'crawlers'       => array(),
 		);
+		$robots = isset( $raw['site']['robots'] ) ? (array) $raw['site']['robots'] : array();
 		foreach ( (array) ( isset( $raw['crawlers'] ) ? $raw['crawlers'] : array() ) as $agent => $checks ) {
-			$report['crawlers'][ $agent ] = $this->crawler_checks( $agent, (array) $checks, $report['infrastructure'] );
+			$report['crawlers'][ $agent ] = $this->crawler_checks( $agent, (array) $checks, $report['infrastructure'], $robots );
 		}
 		return $report;
 	}
@@ -190,18 +191,15 @@ final class Report {
 	 * @param string               $agent  Agent token.
 	 * @param array<string, mixed> $checks Raw results.
 	 * @param array<string, mixed> $infra  Infrastructure findings.
+	 * @param array<string, mixed> $robots Raw result of the served /robots.txt.
 	 * @return array<string, mixed>
 	 */
-	private function crawler_checks( $agent, array $checks, array $infra ) {
+	private function crawler_checks( $agent, array $checks, array $infra, array $robots = array() ) {
 		$policy = $this->policy->for_agent( $agent );
 		$out    = array(
 			'policy' => $policy,
-			'checks' => array(),
+			'checks' => array( 'robots' => $this->robots_check( $agent, $policy, $robots ) ),
 		);
-
-		$out['checks']['robots'] = Policy::BLOCK === $policy
-			? self::check( self::OK, __( 'Blocked by robots.txt, as configured.', 'wp-agent-support-layer' ) )
-			: self::check( self::OK, __( 'Allowed by robots.txt, as configured.', 'wp-agent-support-layer' ) );
 
 		foreach ( array( 'home', 'post_html' ) as $key ) {
 			if ( ! isset( $checks[ $key ] ) ) {
@@ -256,6 +254,118 @@ final class Report {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Compares the configured policy with the verdict of the robots.txt that is actually served.
+	 *
+	 * @param string               $agent  Agent token.
+	 * @param string               $policy Configured policy (allow or block).
+	 * @param array<string, mixed> $robots Raw result of the served /robots.txt.
+	 * @return array{status:string, message:string}
+	 */
+	private function robots_check( $agent, $policy, array $robots ) {
+		$configured = Policy::BLOCK === $policy ? __( 'block', 'wp-agent-support-layer' ) : __( 'allow', 'wp-agent-support-layer' );
+
+		if ( 200 !== (int) ( isset( $robots['status'] ) ? $robots['status'] : 0 ) || ! isset( $robots['body'] ) ) {
+			return self::check(
+				self::WARNING,
+				sprintf(
+					/* translators: 1: HTTP status, 2: configured policy. */
+					__( 'robots.txt could not be read (HTTP %1$s), so the served rules were not verified; the configured policy is "%2$s".', 'wp-agent-support-layer' ),
+					isset( $robots['status'] ) ? $robots['status'] : 0,
+					$configured
+				)
+			);
+		}
+
+		$served = self::robots_verdict( (string) $robots['body'], $agent );
+		if ( null === $served ) {
+			return self::check(
+				self::WARNING,
+				sprintf(
+					/* translators: 1: crawler token, 2: configured policy. */
+					__( 'No rule for %1$s in the served robots.txt (configured policy: "%2$s"). A physical robots.txt or a cache may be serving stale rules.', 'wp-agent-support-layer' ),
+					$agent,
+					$configured
+				)
+			);
+		}
+		if ( $served !== $policy ) {
+			return self::check(
+				self::WARNING,
+				sprintf(
+					/* translators: 1: served verdict, 2: crawler token, 3: configured policy. */
+					__( 'The served robots.txt says "%1$s" for %2$s but the configured policy is "%3$s". A physical robots.txt or a cache may be serving stale rules.', 'wp-agent-support-layer' ),
+					Policy::BLOCK === $served ? __( 'block', 'wp-agent-support-layer' ) : __( 'allow', 'wp-agent-support-layer' ),
+					$agent,
+					$configured
+				)
+			);
+		}
+		return Policy::BLOCK === $policy
+			? self::check( self::OK, __( 'Blocked by robots.txt, as configured.', 'wp-agent-support-layer' ) )
+			: self::check( self::OK, __( 'Allowed by robots.txt, as configured.', 'wp-agent-support-layer' ) );
+	}
+
+	/**
+	 * Verdict of a robots.txt body for one user-agent token: "block" when its group disallows the whole
+	 * site, "allow" when the group exists and does not, null when no group names the token.
+	 *
+	 * Groups follow RFC 9309: consecutive User-agent lines share the rules that follow them; a new
+	 * User-agent line after a rule starts a new group; "User-agent: *" never counts as the token's group.
+	 *
+	 * @param string $body  robots.txt body.
+	 * @param string $agent Agent token.
+	 * @return string|null
+	 */
+	public static function robots_verdict( $body, $agent ) {
+		$groups  = array();
+		$current = null;
+		foreach ( preg_split( '/\r\n|\r|\n/', (string) $body ) as $line ) {
+			$line = trim( (string) preg_replace( '/#.*$/', '', $line ) );
+			if ( '' === $line || ! preg_match( '/^([a-z-]+)\s*:\s*(.*)$/i', $line, $m ) ) {
+				continue;
+			}
+			$field = strtolower( $m[1] );
+			$value = trim( $m[2] );
+			if ( 'user-agent' === $field ) {
+				if ( null === $current || ! empty( $current['rules'] ) ) {
+					if ( null !== $current ) {
+						$groups[] = $current;
+					}
+					$current = array(
+						'agents' => array(),
+						'rules'  => array(),
+					);
+				}
+				$current['agents'][] = strtolower( $value );
+			} elseif ( null !== $current && in_array( $field, array( 'allow', 'disallow' ), true ) ) {
+				$current['rules'][] = array( $field, $value );
+			}
+		}//end foreach
+		if ( null !== $current ) {
+			$groups[] = $current;
+		}
+
+		$token   = strtolower( $agent );
+		$verdict = null;
+		foreach ( $groups as $group ) {
+			if ( ! in_array( $token, $group['agents'], true ) ) {
+				continue;
+			}
+			$verdict = Policy::ALLOW;
+			foreach ( $group['rules'] as $rule ) {
+				if ( 'allow' === $rule[0] && '/' === $rule[1] ) {
+					return Policy::ALLOW;
+					// An explicit root Allow wins (equal-length match, RFC 9309 5.2).
+				}
+				if ( 'disallow' === $rule[0] && '/' === $rule[1] ) {
+					$verdict = Policy::BLOCK;
+				}
+			}
+		}
+		return $verdict;
 	}
 
 	/**

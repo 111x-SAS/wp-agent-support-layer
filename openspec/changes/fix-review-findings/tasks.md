@@ -1,7 +1,7 @@
 ## 1. Preparación del entorno y línea base
 
-- [ ] 1.1 Copiar `docs/reviews/2026-09-02-review.md` desde el worktree `review-v1.0.1` a este worktree y verificar que existe en `docs/reviews/`
-- [ ] 1.2 Ejecutar `composer install`, `composer run build` y `bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1:3306 latest` (contenedor `wpasl-mysql`) y verificar que `vendor/bin/phpunit` y `vendor/bin/phpcs` pasan en verde antes de tocar código
+- [x] 1.1 Copiar `docs/reviews/2026-09-02-review.md` desde el worktree `review-v1.0.1` a este worktree y verificar que existe en `docs/reviews/`
+- [x] 1.2 Ejecutar `composer install`, `composer run build` y `bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1:3306 latest` (contenedor `wpasl-mysql`) y verificar que `vendor/bin/phpunit` y `vendor/bin/phpcs` pasan en verde antes de tocar código
 
 ## 2. Alta: documento Markdown completo (D1)
 

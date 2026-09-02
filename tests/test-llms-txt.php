@@ -301,6 +301,18 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->assertFalse( wp_next_scheduled( Scheduler::LLMS_FULL_HOOK ) );
 	}
 
+	public function test_non_canonical_root_paths_are_not_served() {
+		self::factory()->post->create();
+		foreach ( array( '/llms.txt/', '//llms.txt', '/llms-full.txt/' ) as $path ) {
+			$this->assertNull( LlmsTxtRouter::requested_file( $path ), $path );
+			ob_start();
+			$this->go_to( untrailingslashit( home_url() ) . $path ); // home_url() would collapse the double slash.
+			$this->assertSame( '', ob_get_clean(), $path . ' is left to core.' );
+		}
+		$this->assertSame( LlmsTxtBuilder::FILE, LlmsTxtRouter::requested_file( '/llms.txt' ) );
+		$this->assertSame( LlmsTxtBuilder::FILE, LlmsTxtRouter::requested_file( '/llms.txt?x=1' ) );
+	}
+
 	public function test_llms_full_disabled_is_404() {
 		ob_start();
 		$this->go_to( home_url( '/llms-full.txt' ) );

@@ -114,7 +114,8 @@ final class CapabilityRegistry {
 			$pretty
 				? __( 'Any public item is available as Markdown by appending ".md" to its URL, or by requesting its URL with "Accept: text/markdown".', 'wp-agent-support-layer' )
 				: __( 'Any public item is available as Markdown by adding "?wpasl=md" to its URL, or by requesting its URL with "Accept: text/markdown".', 'wp-agent-support-layer' ),
-			$pretty ? home_url( '/{path}.md' ) : home_url( '/?p={id}&wpasl=md' ),
+			// Reserved expansion (RFC 6570 {+var}): a hierarchical path keeps its slashes unencoded.
+			$pretty ? home_url( '/{+path}.md' ) : home_url( '/?p={id}&wpasl=md' ),
 			array(
 				$pretty
 					? $this->param( 'path', 'path', 'string', true, __( 'Path of the item, as in its canonical URL.', 'wp-agent-support-layer' ) )

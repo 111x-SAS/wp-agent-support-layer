@@ -81,7 +81,7 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertSame( rest_url( 'wp/v2/posts/{id}' ), $read['urlTemplate'] );
 		$this->assertTrue( $read['parameters'][0]['required'] );
 		$markdown = $caps[ array_search( 'read-markdown', $ids, true ) ];
-		$this->assertSame( home_url( '/{path}.md' ), $markdown['urlTemplate'] );
+		$this->assertSame( home_url( '/{+path}.md' ), $markdown['urlTemplate'] );
 		$this->assertSame( 'text/markdown', $markdown['responseType'] );
 	}
 
@@ -232,7 +232,45 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertIsArray( $data );
 		$this->assertSame( ManifestBuilder::openapi_url(), $data['linkset'][0]['service-desc'][0]['href'] );
 		$this->assertSame( 'application/openapi+json', $data['linkset'][0]['service-desc'][0]['type'] );
-		$this->assertSame( 'application/linkset+json; charset=utf-8', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'] );
+		$this->assertSame( 'application/linkset+json', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'], 'Exact RFC 9264 type, no parameters.' );
+		$this->assertSame( 'application/ld+json; charset=utf-8', $this->router->headers( ManifestRouter::SKILLS_PATH )['Content-Type'] );
+	}
+
+	public function test_non_canonical_root_paths_are_not_served() {
+		foreach ( array( '/agent-skills.json/', '//agent-skills.json', '/.well-known/api-catalog/', '/.well-known//api-catalog' ) as $path ) {
+			$this->assertNull( ManifestRouter::requested_path( $path ), $path );
+			ob_start();
+			$this->go_to( untrailingslashit( home_url() ) . $path ); // home_url() would collapse the double slash.
+			$this->assertSame( '', ob_get_clean(), $path . ' is left to core.' );
+		}
+		$this->assertSame( ManifestRouter::SKILLS_PATH, ManifestRouter::requested_path( '/agent-skills.json' ) );
+	}
+
+	public function test_read_markdown_template_uses_reserved_expansion() {
+		$capabilities = Plugin::instance()->get( 'manifest' )->agent_skills()['capabilities'];
+		$read         = array_values( array_filter( $capabilities, static function ( $c ) { return 'read-markdown' === $c['id']; } ) ); // phpcs:ignore
+		$this->assertCount( 1, $read );
+		$template = $read[0]['urlTemplate'];
+		$this->assertSame( home_url( '/{+path}.md' ), $template );
+		// RFC 6570: reserved expansion keeps "/" of a hierarchical path; simple expansion would encode it.
+		$this->assertSame( home_url( '/parent/child.md' ), str_replace( '{+path}', 'parent/child', $template ) );
+		$this->assertSame( 'path', $read[0]['parameters'][0]['name'] );
+	}
+
+	public function test_openapi_servers_url_has_no_query_string_with_plain_permalinks() {
+		$this->set_permalink_structure( '' );
+		$doc    = $this->builder->openapi();
+		$server = $doc['servers'][0]['url'];
+		$this->assertStringNotContainsString( '?', $server );
+		$this->assertSame( untrailingslashit( home_url() ), $server );
+		$this->assertArrayHasKey( '/?rest_route=/wp/v2/posts', $doc['paths'] );
+		// rest_url() adds index.php for an nginx quirk; "/?rest_route=" is the documented plain-permalink form and resolves the same.
+		$this->assertSame( home_url( '/?rest_route=/wp/v2/posts' ), $server . '/?rest_route=/wp/v2/posts', 'Server + path key reaches the route.' );
+
+		$this->set_permalink_structure( '/%postname%/' );
+		$doc = $this->builder->openapi();
+		$this->assertSame( untrailingslashit( rest_url() ), $doc['servers'][0]['url'] );
+		$this->assertArrayHasKey( '/wp/v2/posts', $doc['paths'] );
 	}
 
 	public function test_contact_email_change_is_reflected_on_next_request() {

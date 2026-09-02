@@ -164,8 +164,24 @@ final class ManifestRouter {
 		if ( '' !== $base_path && 0 === strpos( $path, $base_path ) ) {
 			$path = substr( $path, strlen( $base_path ) );
 		}
-		$path = trim( $path, '/' );
+		// Exact path only: "/agent-skills.json/" or "//agent-skills.json" are left to core (404) so caches and
+		// crawlers never store several copies of the same document.
+		$path = self::exact_relative_path( $path );
 		return in_array( $path, array( self::SKILLS_PATH, self::CATALOG_PATH ), true ) ? $path : null;
+	}
+
+	/**
+	 * Relative path of a request when it is canonical (single leading slash, no trailing or double slash),
+	 * or '' otherwise.
+	 *
+	 * @param string $path Request path with the site's base path already stripped.
+	 * @return string
+	 */
+	public static function exact_relative_path( $path ) {
+		if ( '' === $path || '/' !== $path[0] || '/' === substr( $path, -1 ) || false !== strpos( $path, '//' ) ) {
+			return '';
+		}
+		return substr( $path, 1 );
 	}
 
 	/**
@@ -211,7 +227,8 @@ final class ManifestRouter {
 	 */
 	public function headers( $path ) {
 		return array(
-			'Content-Type'                => ( self::CATALOG_PATH === $path ? 'application/linkset+json' : 'application/ld+json' ) . '; charset=utf-8',
+			// RFC 9264 registers application/linkset+json without parameters and RFC 9727 requires that exact type.
+			'Content-Type'                => self::CATALOG_PATH === $path ? 'application/linkset+json' : 'application/ld+json; charset=utf-8',
 			'Cache-Control'               => 'public, max-age=' . $this->delivery->max_age(),
 			'Access-Control-Allow-Origin' => '*',
 			'X-Content-Type-Options'      => 'nosniff',

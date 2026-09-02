@@ -65,11 +65,11 @@
 
 ## 15. Baja: cabeceras, rutas y manifiestos (D14, D15, hallazgos 15 a 19, 24 y 25)
 
-- [ ] 15.1 Añadir la clave `sent` al log de `Http` y el parámetro `$only_sent` a `effective_headers()`; verificar con `test_log_marks_headers_not_sent` en un `tests/test-http.php` nuevo y que `tests/test-delivery.php` sigue pasando
-- [ ] 15.2 Servir el catálogo con `Content-Type: application/linkset+json` sin `charset` y ajustar `test_api_catalog_route`; emitir `Link: <…/.well-known/api-catalog>; rel="api-catalog"` en HTML y Markdown cuando `manifest_enabled`; verificar con `test_html_and_markdown_announce_api_catalog_link` y `test_no_api_catalog_link_when_manifest_disabled` en `tests/test-content-signals.php`
-- [ ] 15.3 Restringir `X-Robots-Tag: noai` a HTML (contexto `WP` sin `feed`, `robots`, `sitemap` ni `sitemap-stylesheet`); verificar con `test_robots_feed_and_sitemap_have_no_noai_header` en `tests/test-content-signals.php` (`go_to('/robots.txt')`, `/feed/`, `/wp-sitemap.xml` → `Content-Signal` presente, sin `X-Robots-Tag` del plugin)
-- [ ] 15.4 Comparar paths exactos en `LlmsTxtRouter` y `ManifestRouter`; verificar con `test_non_canonical_root_paths_are_not_served` en `tests/test-llms-txt.php` y `tests/test-agent-manifest.php` (`/llms.txt/`, `//llms.txt`, `/agent-skills.json/`, `/.well-known/api-catalog/` → no interceptados)
-- [ ] 15.5 Plantilla `read-markdown` con `{+path}` y `servers`/`paths` válidos con enlaces simples; verificar con `test_read_markdown_template_uses_reserved_expansion` y `test_openapi_servers_url_has_no_query_string_with_plain_permalinks` en `tests/test-agent-manifest.php`
+- [x] 15.1 Añadir la clave `sent` al log de `Http` y el parámetro `$only_sent` a `effective_headers()`; verificar con `test_log_marks_headers_not_sent` en un `tests/test-http.php` nuevo y que `tests/test-delivery.php` sigue pasando
+- [x] 15.2 Servir el catálogo con `Content-Type: application/linkset+json` sin `charset` y ajustar `test_api_catalog_route`; emitir `Link: <…/.well-known/api-catalog>; rel="api-catalog"` en HTML y Markdown cuando `manifest_enabled`; verificar con `test_html_and_markdown_announce_api_catalog_link` y `test_no_api_catalog_link_when_manifest_disabled` en `tests/test-content-signals.php`
+- [x] 15.3 Restringir `X-Robots-Tag: noai` a HTML (contexto `WP` sin `feed`, `robots`, `sitemap` ni `sitemap-stylesheet`); verificar con `test_robots_feed_and_sitemap_have_no_noai_header` en `tests/test-content-signals.php` (`go_to('/robots.txt')`, `/feed/`, `/wp-sitemap.xml` → `Content-Signal` presente, sin `X-Robots-Tag` del plugin)
+- [x] 15.4 Comparar paths exactos en `LlmsTxtRouter` y `ManifestRouter`; verificar con `test_non_canonical_root_paths_are_not_served` en `tests/test-llms-txt.php` y `tests/test-agent-manifest.php` (`/llms.txt/`, `//llms.txt`, `/agent-skills.json/`, `/.well-known/api-catalog/` → no interceptados)
+- [x] 15.5 Plantilla `read-markdown` con `{+path}` y `servers`/`paths` válidos con enlaces simples; verificar con `test_read_markdown_template_uses_reserved_expansion` y `test_openapi_servers_url_has_no_query_string_with_plain_permalinks` en `tests/test-agent-manifest.php`
 
 ## 16. Baja: diagnóstico (D16, hallazgos 20 y 21)
 

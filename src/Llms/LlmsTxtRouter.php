@@ -9,6 +9,7 @@ namespace WPASL\Llms;
 
 use WPASL\Generation\Scheduler;
 use WPASL\Http;
+use WPASL\Manifest\ManifestRouter;
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\LlmsTab;
 use WPASL\Markdown\Delivery;
@@ -156,7 +157,7 @@ final class LlmsTxtRouter {
 		if ( '' !== $base_path && 0 === strpos( $path, $base_path ) ) {
 			$path = substr( $path, strlen( $base_path ) );
 		}
-		$path = trim( $path, '/' );
+		$path = ManifestRouter::exact_relative_path( $path );
 		return in_array( $path, array( LlmsTxtBuilder::FILE, LlmsTxtBuilder::FULL_FILE ), true ) ? $path : null;
 	}
 

@@ -199,8 +199,8 @@ class Test_Settings extends WP_UnitTestCase {
 	}
 
 	public function test_third_party_tab_saves_without_wiping_settings() {
-		$stored   = $this->store_non_defaults();
-		$tab      = new class() implements WPASL\Admin\Tab {
+		$stored = $this->store_non_defaults();
+		$tab    = new class() implements WPASL\Admin\Tab {
 			public function slug() {
 				return 'acme';
 			}

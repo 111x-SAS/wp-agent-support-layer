@@ -217,9 +217,9 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->delivery->send_html_headers();
 
 		$headers = Http::effective_headers();
-		$this->assertCount( 2, $headers['link'] );
-		$this->assertSame( '</style.css>; rel="preload"; as="style"', $headers['link'][0] );
-		$this->assertStringContainsString( 'rel="alternate"; type="text/markdown"', $headers['link'][1] );
+		$this->assertSame( '</style.css>; rel="preload"; as="style"', $headers['link'][0], 'The pre-existing Link header survives.' );
+		$this->assertCount( 1, preg_grep( '/rel="alternate"; type="text\/markdown"/', $headers['link'] ) );
+		$this->assertCount( 1, preg_grep( '/rel="api-catalog"/', $headers['link'] ), 'Content signals add the API catalog link, also without replacing.' );
 		$this->assertContains( 'Accept', $headers['vary'] );
 	}
 

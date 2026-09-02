@@ -368,6 +368,66 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertSame( 0, $this->runner->status()['failed'] );
 	}
 
+	/**
+	 * Counts writes of the state option during a callback.
+	 *
+	 * @param callable $callback Callback.
+	 * @return int
+	 */
+	private function count_state_writes( callable $callback ) {
+		$writes  = 0;
+		$counter = static function ( $value ) use ( &$writes ) {
+			++$writes;
+			return $value;
+		};
+		add_filter( 'pre_update_option_' . State::OPTION, $counter );
+		add_filter( 'pre_add_option_' . State::OPTION, $counter );
+		$callback();
+		remove_filter( 'pre_update_option_' . State::OPTION, $counter );
+		remove_filter( 'pre_add_option_' . State::OPTION, $counter );
+		return $writes;
+	}
+
+	public function test_trashing_non_enabled_post_type_does_not_write_state() {
+		update_option( Settings::OPTION, array( 'post_types' => array( 'post' ) ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		self::factory()->post->create();
+		$this->runner->run_cycle();
+		$page   = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$before = get_option( State::OPTION );
+
+		$writes = $this->count_state_writes(
+			static function () use ( $page ) {
+				wp_trash_post( $page );
+			}
+		);
+
+		$this->assertSame( 0, $writes );
+		$this->assertSame( $before, get_option( State::OPTION ) );
+	}
+
+	public function test_run_with_full_llms_writes_state_once() {
+		$ids = self::factory()->post->create_many( 100 );
+		update_option( Settings::OPTION, array( 'llms_full_enabled' => true, 'llms_limit' => 100 ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$this->assertTrue( Plugin::instance()->get( 'llms' )->full_enabled() );
+
+		// A run that processes nothing itself still refreshes the (never generated) discovery files, and
+		// llms-full.txt lazily generates every missing document.
+		$runner = $this->runner;
+		$writes = $this->count_state_writes(
+			static function () use ( $runner ) {
+				$runner->run( 0 );
+			}
+		);
+
+		$this->assertSame( 1, $writes );
+		$state = ( new State() )->load();
+		$this->assertCount( 100, array_intersect_key( $state['generated'], array_fill_keys( $ids, true ) ) );
+		$this->assertSame( 100, $this->items->calls );
+		$this->assertTrue( $this->storage->exists( 'llms-full.txt' ) );
+	}
+
 	public function test_reset_cycle_without_types_forgets_everything() {
 		$post = self::factory()->post->create();
 		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );

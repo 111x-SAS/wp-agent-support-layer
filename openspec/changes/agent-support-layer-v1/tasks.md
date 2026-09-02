@@ -1,11 +1,11 @@
 ## 1. Scaffolding, toolchain y CI (Fase 2, requiere aprobación al cierre)
 
-- [ ] 1.1 Instalar Composer y WP-CLI con Homebrew y verificar `composer --version` y `wp --version`
-- [ ] 1.2 Crear el esqueleto del plugin (`wp-agent-support-layer.php` con cabeceras, `readme.txt`, `LICENSE` GPL-2.0-or-later, `uninstall.php`, `.editorconfig`, `.gitignore`, `.distignore`, `languages/`) y verificar que WordPress lo lista como plugin activable
-- [ ] 1.3 Crear `composer.json` con autoload PSR-4 `WPASL\`, dependencia `league/html-to-markdown` y dev-deps (PHPUnit 9.6, yoast/phpunit-polyfills ^4, WPCS ^3, PHPCompatibilityWP, Strauss, Plugin Check) y verificar `composer install` en PHP 8.5 local y `composer validate`
-- [ ] 1.4 Configurar Strauss para prefijar `league/html-to-markdown` en `vendor-prefixed/` bajo `WPASL\Vendor` y verificar que `composer run build` genera las clases prefijadas
-- [ ] 1.5 Ejecutar `wp scaffold plugin-tests --ci=github` y adaptar `phpunit.xml.dist`, `tests/bootstrap.php` y `bin/install-wp-tests.sh`; verificar que la suite de humo pasa localmente contra MySQL en Docker
-- [ ] 1.6 Configurar `.phpcs.xml.dist` con WordPress, WordPress-Extra, WordPress-Docs, PHPCompatibilityWP (`testVersion 7.4-`), text domain y prefijos permitidos; verificar `vendor/bin/phpcs` sin errores sobre el esqueleto
+- [x] 1.1 Instalar Composer y WP-CLI con Homebrew y verificar `composer --version` y `wp --version`
+- [x] 1.2 Crear el esqueleto del plugin (`wp-agent-support-layer.php` con cabeceras, `readme.txt`, `LICENSE` GPL-2.0-or-later, `uninstall.php`, `.editorconfig`, `.gitignore`, `.distignore`, `languages/`) y verificar que WordPress lo lista como plugin activable
+- [x] 1.3 Crear `composer.json` con autoload PSR-4 `WPASL\`, dependencia `league/html-to-markdown` y dev-deps (PHPUnit 9.6, yoast/phpunit-polyfills ^4, WPCS ^3, PHPCompatibilityWP, Strauss, Plugin Check) y verificar `composer install` en PHP 8.5 local y `composer validate`
+- [x] 1.4 Configurar Strauss para prefijar `league/html-to-markdown` en `vendor-prefixed/` bajo `WPASL\Vendor` y verificar que `composer run build` genera las clases prefijadas
+- [x] 1.5 Ejecutar `wp scaffold plugin-tests --ci=github` y adaptar `phpunit.xml.dist`, `tests/bootstrap.php` y `bin/install-wp-tests.sh`; verificar que la suite de humo pasa localmente contra MySQL en Docker
+- [x] 1.6 Configurar `.phpcs.xml.dist` con WordPress, WordPress-Extra, WordPress-Docs, PHPCompatibilityWP (`testVersion 7.4-`), text domain y prefijos permitidos; verificar `vendor/bin/phpcs` sin errores sobre el esqueleto
 - [ ] 1.7 Crear `.github/workflows/ci.yml` con jobs `test` (matriz PHP 7.4/8.0/8.2/8.3, servicio MySQL 8.0, `bin/install-wp-tests.sh`, PHPUnit), `lint` (PHPCS) y `plugin-check`; verificar en GitHub que los tres jobs pasan en el primer push
 - [ ] 1.8 Crear `.github/workflows/release.yml` que construya el zip distribuible al publicar un tag y verificar el artefacto con un tag de prueba
 - [ ] 1.9 Crear el repositorio en GitHub, hacer el push inicial (OpenSpec + scaffolding) y verificar que la CI está en verde

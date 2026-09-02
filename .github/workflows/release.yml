@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,6 +24,7 @@ jobs:
           tools: composer:v2
 
       - name: Check that the tag matches the plugin version
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           HEADER=$(grep -E '^ \* Version:' wp-agent-support-layer.php | awk '{print $3}')
@@ -40,7 +42,8 @@ jobs:
           mkdir -p build/wp-agent-support-layer
           rsync -a --exclude-from=.distignore ./ build/wp-agent-support-layer/
           rm -rf build/wp-agent-support-layer/vendor
-          (cd build && zip -rq ../wp-agent-support-layer-${GITHUB_REF_NAME#v}.zip wp-agent-support-layer)
+          VERSION=$(grep -E '^ \* Version:' wp-agent-support-layer.php | awk '{print $3}')
+          (cd build && zip -rq ../wp-agent-support-layer-${VERSION}.zip wp-agent-support-layer)
           ls -la *.zip
 
       - name: Upload zip as workflow artifact
@@ -50,6 +53,7 @@ jobs:
           path: build/wp-agent-support-layer
 
       - name: Attach zip to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: wp-agent-support-layer-*.zip
@@ -58,7 +62,7 @@ jobs:
   deploy-wporg:
     name: Deploy to WordPress.org SVN
     needs: build
-    if: vars.WPORG_DEPLOY == 'true'
+    if: startsWith(github.ref, 'refs/tags/') && vars.WPORG_DEPLOY == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Download built plugin

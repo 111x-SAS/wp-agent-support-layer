@@ -6,3 +6,6 @@ node_modules/
 /.phpunit.result.cache
 /tmp/
 /bin/strauss.phar
+/.phpunit.result.cache
+wp-agent-support-layer-*.zip
+/build/

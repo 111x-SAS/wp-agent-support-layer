@@ -114,23 +114,43 @@ final class Eligibility {
 			'ignore_sticky_posts'    => true,
 			'update_post_meta_cache' => false,
 			'update_post_term_cache' => false,
-			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Exclusion flag is a single boolean meta.
-			'meta_query'             => array(
-				'relation' => 'OR',
-				array(
-					'key'     => ExcludeMetaBox::META,
-					'compare' => 'NOT EXISTS',
-				),
-				array(
-					'key'     => ExcludeMetaBox::META,
-					'value'   => '1',
-					'compare' => '!=',
-				),
-			),
 		);
+
+		$excluded = self::excluded_ids();
+		if ( ! empty( $excluded ) ) {
+			$defaults['post__not_in'] = $excluded; // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_post__not_in -- Small, explicit exclusion list.
+		}
 
 		$query = new \WP_Query( array_merge( $defaults, $args ) );
 		$ids   = array_map( 'intval', $query->posts );
 		return array_values( array_filter( $ids, array( $this, 'is_eligible' ) ) );
+	}
+
+	/**
+	 * Ids of posts flagged as excluded. One single-table query, cached per request.
+	 *
+	 * @return int[]
+	 */
+	public static function excluded_ids() {
+		global $wpdb;
+
+		$cache_key = 'wpasl_excluded_ids';
+		$ids       = wp_cache_get( $cache_key, 'wpasl' );
+		if ( false === $ids ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Single indexed lookup on postmeta; results are cached.
+			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = '1'", ExcludeMetaBox::META ) );
+			$ids = array_map( 'intval', (array) $ids );
+			wp_cache_set( $cache_key, $ids, 'wpasl', MINUTE_IN_SECONDS );
+		}
+		return $ids;
+	}
+
+	/**
+	 * Clears the excluded-ids cache (call when the exclusion meta changes).
+	 *
+	 * @return void
+	 */
+	public static function flush_excluded_cache() {
+		wp_cache_delete( 'wpasl_excluded_ids', 'wpasl' );
 	}
 }

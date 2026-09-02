@@ -42,6 +42,23 @@ final class ExcludeMetaBox {
 		add_action( 'init', array( $this, 'register_meta' ), 20 );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save' ), 10, 2 );
+		foreach ( array( 'added_post_meta', 'updated_post_meta', 'deleted_post_meta' ) as $hook ) {
+			add_action( $hook, array( $this, 'on_meta_change' ), 10, 3 );
+		}
+	}
+
+	/**
+	 * Clears the cached exclusion list when the flag changes.
+	 *
+	 * @param int|int[] $meta_id  Meta id(s).
+	 * @param int       $post_id  Post id.
+	 * @param string    $meta_key Meta key.
+	 * @return void
+	 */
+	public function on_meta_change( $meta_id, $post_id, $meta_key ) {
+		if ( self::META === $meta_key ) {
+			\WPASL\Content\Eligibility::flush_excluded_cache();
+		}
 	}
 
 	/**

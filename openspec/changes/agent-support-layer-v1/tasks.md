@@ -76,13 +76,13 @@
 
 ## 10. Cumplimiento WordPress.org y documentación
 
-- [ ] 10.1 Redactar `readme.txt` completo (descripción, instalación, FAQ, privacidad, changelog, `Stable tag`) y verificar con el validador de readme de WordPress.org
-- [ ] 10.2 Redactar `README.md` de GitHub (inglés con sección en español), guía de cachés/CDN y nota para nginx; verificar que los enlaces internos resuelven
-- [ ] 10.3 Ejecutar Plugin Check localmente y en CI y corregir todos los hallazgos; verificar que el job `plugin-check` pasa sin errores
-- [ ] 10.4 Verificar la instalación desde el zip de release en un WordPress 7.1 limpio con PHP 7.4 y con PHP 8.3 en Docker, recorriendo activación, generación, `.md`, `llms.txt`, manifiestos, diagnóstico y desinstalación
+- [x] 10.1 Redactar `readme.txt` completo (descripción, instalación, FAQ, privacidad, changelog, `Stable tag`) y verificar con el validador de readme de WordPress.org
+- [x] 10.2 Redactar `README.md` de GitHub (inglés con sección en español), guía de cachés/CDN y nota para nginx; verificar que los enlaces internos resuelven
+- [x] 10.3 Ejecutar Plugin Check localmente y en CI y corregir todos los hallazgos; verificar que el job `plugin-check` pasa sin errores
+- [x] 10.4 Verificar la instalación desde el zip de release en un WordPress 7.1 limpio con PHP 7.4 y con PHP 8.3 en Docker, recorriendo activación, generación, `.md`, `llms.txt`, manifiestos, diagnóstico y desinstalación
 
 ## 11. Verificación integral y cierre
 
-- [ ] 11.1 Ejecutar la suite completa en la matriz de CI y confirmar cobertura de todos los escenarios de las specs con un mapa escenario→test
-- [ ] 11.2 Ejecutar las pruebas de rastreo con `curl` y user-agents reales contra el entorno Docker y documentar los resultados como evidencia de la acción 8
+- [x] 11.1 Ejecutar la suite completa en la matriz de CI y confirmar cobertura de todos los escenarios de las specs con un mapa escenario→test
+- [x] 11.2 Ejecutar las pruebas de rastreo con `curl` y user-agents reales contra el entorno Docker y documentar los resultados como evidencia de la acción 8
 - [ ] 11.3 Etiquetar `v1.0.0`, generar el release en GitHub y preparar el envío a WordPress.org (a la espera de aprobación del slug)

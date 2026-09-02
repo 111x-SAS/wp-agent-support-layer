@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<phpunit
+	bootstrap="bootstrap.php"
+	backupGlobals="false"
+	colors="true"
+	convertErrorsToExceptions="true"
+	convertWarningsToExceptions="true"
+	convertNoticesToExceptions="true"
+	convertDeprecationsToExceptions="true"
+	>
+	<php>
+		<const name="WP_TESTS_MULTISITE" value="1" />
+		<env name="WP_TESTS_PHPUNIT_POLYFILLS_PATH" value="../vendor/yoast/phpunit-polyfills"/>
+	</php>
+	<testsuites>
+		<testsuite name="wp-agent-support-layer-multisite">
+			<directory prefix="test-" suffix=".php">./</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>

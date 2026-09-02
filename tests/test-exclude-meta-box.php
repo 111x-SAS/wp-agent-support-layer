@@ -22,7 +22,7 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 
 	public function test_meta_is_registered_only_for_enabled_post_types() {
 		register_post_type( 'wpasl_book', array( 'public' => true ) );
-		$box = Plugin::instance()->get( 'exclude' );
+		$box = Plugin::instance()->get( 'exclude_meta_box' );
 		$box->register_meta();
 
 		$this->assertTrue( registered_meta_key_exists( 'post', ExcludeMetaBox::META, 'post' ) );
@@ -33,7 +33,7 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 
 	public function test_meta_box_is_added_only_for_enabled_post_types() {
 		global $wp_meta_boxes;
-		$box = Plugin::instance()->get( 'exclude' );
+		$box = Plugin::instance()->get( 'exclude_meta_box' );
 
 		$wp_meta_boxes = array();
 		$box->add_meta_box( 'post' );
@@ -47,7 +47,7 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 	public function test_save_with_valid_nonce_sets_and_clears_meta() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
 		$post_id = self::factory()->post->create();
-		$box     = Plugin::instance()->get( 'exclude' );
+		$box     = Plugin::instance()->get( 'exclude_meta_box' );
 
 		$_POST[ ExcludeMetaBox::NONCE ] = wp_create_nonce( ExcludeMetaBox::NONCE );
 		$_POST[ ExcludeMetaBox::META ]  = '1';
@@ -62,7 +62,7 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 	public function test_save_without_nonce_is_ignored() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
 		$post_id = self::factory()->post->create();
-		$box     = Plugin::instance()->get( 'exclude' );
+		$box     = Plugin::instance()->get( 'exclude_meta_box' );
 
 		$_POST[ ExcludeMetaBox::META ] = '1';
 		$box->save( $post_id, get_post( $post_id ) );
@@ -72,7 +72,7 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 	public function test_save_by_user_without_permission_is_ignored() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
 		$post_id = self::factory()->post->create();
-		$box     = Plugin::instance()->get( 'exclude' );
+		$box     = Plugin::instance()->get( 'exclude_meta_box' );
 
 		$_POST[ ExcludeMetaBox::NONCE ] = wp_create_nonce( ExcludeMetaBox::NONCE );
 		$_POST[ ExcludeMetaBox::META ]  = '1';
@@ -81,7 +81,7 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 	}
 
 	public function test_meta_is_exposed_in_rest_for_editors_only() {
-		$box = Plugin::instance()->get( 'exclude' );
+		$box = Plugin::instance()->get( 'exclude_meta_box' );
 		$box->register_meta();
 		$post_id = self::factory()->post->create();
 

@@ -11,6 +11,7 @@
 /.distignore
 /.phpcs.xml.dist
 /phpunit.xml.dist
+/tests/multisite.xml.dist
 /composer.json
 /composer.lock
 /README.md

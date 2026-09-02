@@ -86,16 +86,16 @@ final class Plugin {
 		$page        = new Page( $settings );
 
 		$this->services           = array(
-			'settings'    => $settings,
-			'storage'     => $storage,
-			'scheduler'   => $scheduler,
-			'eligibility' => $eligibility,
-			'runner'      => $runner,
-			'page'        => $page,
-			'exclude'     => new ExcludeMetaBox( $settings ),
-			'status'      => new GenerationStatus( $runner, $scheduler, $page ),
-			'delivery'    => new Delivery( $settings, $storage, $eligibility, $runner ),
-			'signals'     => new ContentSignals( $settings ),
+			'settings'         => $settings,
+			'storage'          => $storage,
+			'scheduler'        => $scheduler,
+			'eligibility'      => $eligibility,
+			'runner'           => $runner,
+			'page'             => $page,
+			'exclude_meta_box' => new ExcludeMetaBox( $settings ),
+			'status'           => new GenerationStatus( $runner, $scheduler, $page ),
+			'delivery'         => new Delivery( $settings, $storage, $eligibility, $runner ),
+			'signals'          => new ContentSignals( $settings ),
 		);
 		$this->services['robots'] = new RobotsTxt( $settings, $this->services['signals'] );
 
@@ -186,6 +186,7 @@ final class Plugin {
 	 * @return void
 	 */
 	public function load_textdomain() {
+		// Bundled translations in /languages (WordPress.org language packs take precedence when present).
 		load_plugin_textdomain( 'wp-agent-support-layer', false, dirname( plugin_basename( WPASL_FILE ) ) . '/languages' );
 	}
 }

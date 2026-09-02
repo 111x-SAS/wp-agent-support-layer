@@ -3,7 +3,7 @@
  * Plugin Name:       WP Agent Support Layer
  * Plugin URI:        https://github.com/111x-SAS/wp-agent-support-layer
  * Description:       Makes your site discoverable, readable and operable by AI agents and crawlers: Markdown delivery, Content Signals, AI crawler rules in robots.txt, llms.txt and agent manifests.
- * Version:           0.1.0
+ * Version:           1.0.0
  * Requires at least: 7.0
  * Requires PHP:      7.4
  * Author:            Mao Rodriguez
@@ -33,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WPASL_VERSION', '0.1.0' );
+define( 'WPASL_VERSION', '1.0.0' );
 define( 'WPASL_FILE', __FILE__ );
 define( 'WPASL_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPASL_URL', plugin_dir_url( __FILE__ ) );

@@ -189,6 +189,20 @@ final class Page {
 			<?php else : ?>
 				<?php $tab->render(); ?>
 			<?php endif; ?>
+			<?php
+			/**
+			 * Fires after the tab content, outside the Settings API form.
+			 *
+			 * Use this hook to print blocks that carry their own <form> (status panels,
+			 * manual actions). Anything printed here is a top-level element of the page.
+			 *
+			 * @since 1.0.3
+			 *
+			 * @param string $current Slug of the rendered tab.
+			 * @param Page   $page    The settings page.
+			 */
+			do_action( 'wpasl_page_after_form', $current, $this );
+			?>
 		</div>
 		<?php
 	}

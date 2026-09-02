@@ -58,8 +58,25 @@ final class GenerationStatus {
 	 * @return void
 	 */
 	public function register() {
-		add_action( 'wpasl_general_tab_after', array( $this, 'render' ) );
+		add_action( 'wpasl_page_after_form', array( $this, 'render_after_form' ) );
 		add_action( 'admin_post_' . self::ACTION, array( $this, 'handle' ) );
+	}
+
+	/**
+	 * Prints the status block after the settings form of the General tab.
+	 *
+	 * The block carries its own <form action="admin-post.php">, so it must never be
+	 * printed inside the Settings API form (nested forms are dropped by browsers and
+	 * the settings form would be submitted with action=wpasl_regenerate).
+	 *
+	 * @param string $current Slug of the rendered tab.
+	 * @return void
+	 */
+	public function render_after_form( $current ) {
+		if ( 'general' !== $current ) {
+			return;
+		}
+		$this->render();
 	}
 
 	/**

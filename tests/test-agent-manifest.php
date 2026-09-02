@@ -212,7 +212,16 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertSame( 200, $response->get_status() );
 		$data = $response->get_data();
 		$this->assertSame( '3.1.0', $data['openapi'] );
-		$this->assertStringStartsWith( 'public, max-age=', $response->get_headers()['Cache-Control'] );
+		$headers = $response->get_headers();
+		$this->assertStringStartsWith( 'public, max-age=', $headers['Cache-Control'] );
+		$this->assertSame( 'search=yes, ai-input=yes, ai-train=no', $headers['Content-Signal'] );
+		$this->assertSame( 'train-ai=n, search=y', $headers['Content-Usage'] );
+
+		update_option( Settings::OPTION, array( 'content_usage_header' => false ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$headers = rest_get_server()->dispatch( new WP_REST_Request( 'GET', '/wpasl/v1/openapi' ) )->get_headers();
+		$this->assertArrayHasKey( 'Content-Signal', $headers );
+		$this->assertArrayNotHasKey( 'Content-Usage', $headers );
 	}
 
 	public function test_api_catalog_route() {

@@ -12,6 +12,7 @@ use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\ManifestsTab;
 use WPASL\Markdown\Delivery;
 use WPASL\Settings;
+use WPASL\Signals\ContentSignals;
 use WPASL\Storage;
 
 /**
@@ -51,18 +52,27 @@ final class ManifestRouter {
 	private $delivery;
 
 	/**
+	 * Content signals (headers of the REST response, which bypasses send_headers).
+	 *
+	 * @var ContentSignals|null
+	 */
+	private $signals;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Settings        $settings Settings.
-	 * @param Storage         $storage  Storage.
-	 * @param ManifestBuilder $builder  Builder.
-	 * @param Delivery        $delivery Delivery.
+	 * @param Settings            $settings Settings.
+	 * @param Storage             $storage  Storage.
+	 * @param ManifestBuilder     $builder  Builder.
+	 * @param Delivery            $delivery Delivery.
+	 * @param ContentSignals|null $signals  Content signals.
 	 */
-	public function __construct( Settings $settings, Storage $storage, ManifestBuilder $builder, Delivery $delivery ) {
+	public function __construct( Settings $settings, Storage $storage, ManifestBuilder $builder, Delivery $delivery, ?ContentSignals $signals = null ) {
 		$this->settings = $settings;
 		$this->storage  = $storage;
 		$this->builder  = $builder;
 		$this->delivery = $delivery;
+		$this->signals  = $signals;
 	}
 
 	/**
@@ -133,6 +143,12 @@ final class ManifestRouter {
 		}
 		$response = new \WP_REST_Response( $data, 200 );
 		$response->header( 'Cache-Control', 'public, max-age=' . $this->delivery->max_age() );
+		if ( $this->signals ) {
+			// The REST API ends the request before WP::send_headers(), so the signals are added here.
+			foreach ( $this->signals->headers( false ) as $name => $value ) {
+				$response->header( $name, $value );
+			}
+		}
 		return $response;
 	}
 

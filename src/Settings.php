@@ -28,6 +28,11 @@ final class Settings {
 	);
 
 	/**
+	 * Form field (megabytes) that feeds the llms_full_max_bytes setting.
+	 */
+	const LLMS_FULL_MAX_FIELD_MB = 'llms_full_max_bytes_mb';
+
+	/**
 	 * Allowed cron intervals.
 	 *
 	 * @var string[]
@@ -158,7 +163,14 @@ final class Settings {
 
 		$clean = $current;
 		foreach ( $keys as $key ) {
-			$clean[ $key ] = $this->sanitize_key_value( $key, isset( $input[ $key ] ) ? $input[ $key ] : null );
+			$value = isset( $input[ $key ] ) ? $input[ $key ] : null;
+			if ( self::LLMS_FULL_MAX_FIELD_MB === $key . '_mb' && isset( $input[ self::LLMS_FULL_MAX_FIELD_MB ] ) ) {
+				// The form submits megabytes; the option stores bytes. Converting only from the form field keeps
+				// sanitize() idempotent (WordPress sanitizes twice when the option is created).
+				$mb    = absint( $input[ self::LLMS_FULL_MAX_FIELD_MB ] );
+				$value = $mb > 0 ? min( 100, $mb ) * MB_IN_BYTES : null;
+			}
+			$clean[ $key ] = $this->sanitize_key_value( $key, $value );
 		}
 
 		$this->cache = null;
@@ -193,8 +205,8 @@ final class Settings {
 				return $number > 0 ? min( 1000, $number ) : $defaults['llms_limit'];
 
 			case 'llms_full_max_bytes':
-				$mb = max( 1, min( 100, absint( $value ) ) );
-				return $mb * MB_IN_BYTES;
+				$bytes = absint( $value );
+				return $bytes > 0 ? min( 100 * MB_IN_BYTES, $bytes ) : $defaults['llms_full_max_bytes'];
 
 			case 'signal_search':
 			case 'signal_ai_input':

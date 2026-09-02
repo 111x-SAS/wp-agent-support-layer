@@ -266,15 +266,15 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		ob_start();
 		$tabs['llms']->render();
 		$html = ob_get_clean();
-		$this->assertStringContainsString( 'wpasl_settings[llms_full_max_bytes]', $html );
-		$this->assertMatchesRegularExpression( '/name="wpasl_settings\[llms_full_max_bytes\]" value="5"/', $html );
+		$this->assertStringContainsString( 'wpasl_settings[llms_full_max_bytes_mb]', $html );
+		$this->assertMatchesRegularExpression( '/name="wpasl_settings\[llms_full_max_bytes_mb\]" value="5"/', $html );
 
 		$clean = Plugin::instance()->get( 'settings' )->sanitize(
 			array(
-				'_tab'                => 'llms',
-				'llms_full_max_bytes' => '2',
-				'llms_limit'          => '0',
-				'llms_description'    => '<b>x</b>',
+				'_tab'                   => 'llms',
+				'llms_full_max_bytes_mb' => '2',
+				'llms_limit'             => '0',
+				'llms_description'       => '<b>x</b>',
 			)
 		);
 		$this->assertSame( 2 * MB_IN_BYTES, $clean['llms_full_max_bytes'] );

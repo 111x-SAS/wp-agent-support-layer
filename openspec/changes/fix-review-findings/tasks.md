@@ -47,7 +47,7 @@
 
 ## 10. Media: sanitización idempotente (D9)
 
-- [ ] 10.1 Renombrar el campo del formulario a `llms_full_max_mb` en `LlmsTab`, convertir en `Settings::sanitize()` solo desde ese campo y acotar `llms_full_max_bytes` en bytes cuando llegue ya convertido; actualizar los tests de `tests/test-llms-txt.php` al nuevo nombre y verificar con `test_sanitize_is_idempotent_for_every_field` en `tests/test-settings.php` (`sanitize(sanitize($input)) === sanitize($input)`, incluido el caso `add_option` sobre opción borrada) y `test_llms_full_max_out_of_range_clamps_to_100_mb`
+- [x] 10.1 Renombrar el campo del formulario a `llms_full_max_mb` en `LlmsTab`, convertir en `Settings::sanitize()` solo desde ese campo y acotar `llms_full_max_bytes` en bytes cuando llegue ya convertido; actualizar los tests de `tests/test-llms-txt.php` al nuevo nombre y verificar con `test_sanitize_is_idempotent_for_every_field` en `tests/test-settings.php` (`sanitize(sanitize($input)) === sanitize($input)`, incluido el caso `add_option` sobre opción borrada) y `test_llms_full_max_out_of_range_clamps_to_100_mb`
 
 ## 11. Baja: cabeceras, URLs, autoload e i18n (D11.10 a D11.14)
 

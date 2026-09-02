@@ -193,7 +193,7 @@ msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa
 msgid "Never"
 msgstr "Nunca"
 
-#: src/Plugin.php:151
+#: src/Plugin.php:153
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr "WP Agent Support Layer: falta la librería HTML a Markdown incluida. Instala una versión de release o ejecuta \"composer run build\" en el directorio del plugin."
 
@@ -248,3 +248,97 @@ msgstr "Enviar también la cabecera experimental \"Content-Usage\" del IETF AIPR
 #: src/Admin/Tabs/SignalsTab.php:109
 msgid "The AIPREF specification is still a draft; disable this if its syntax changes."
 msgstr "La especificación AIPREF sigue siendo un borrador; desactívalo si su sintaxis cambia."
+
+#: src/Admin/Tabs/CrawlersTab.php:61
+msgid "Crawlers"
+msgstr "Crawlers"
+
+#: src/Admin/Tabs/CrawlersTab.php:83
+msgid "Each AI crawler gets its own group in robots.txt. \"Default\" follows the Content Signals; choose Allow or Block to override a single crawler."
+msgstr "Cada crawler de IA tiene su propio grupo en robots.txt. \"Por defecto\" sigue los Content Signals; elige Permitir o Bloquear para sobrescribir un crawler concreto."
+
+#: src/Admin/Tabs/CrawlersTab.php:84
+msgid "Microsoft Copilot uses Bingbot and Google Gemini uses Google-Extended; they cannot be separated from regular search indexing beyond what those tokens allow."
+msgstr "Microsoft Copilot usa Bingbot y Google Gemini usa Google-Extended; no pueden separarse de la indexación de búsqueda habitual más allá de lo que permiten esos tokens."
+
+#: src/Admin/Tabs/CrawlersTab.php:86
+msgid "A physical robots.txt file exists in the site root. WordPress does not serve the generated rules; copy the text below into your file."
+msgstr "Existe un archivo robots.txt físico en la raíz del sitio. WordPress no sirve las reglas generadas; copia el texto de abajo en tu archivo."
+
+#: src/Admin/Tabs/CrawlersTab.php:91
+msgid "Current default: Block."
+msgstr "Valor por defecto actual: Bloquear."
+
+#: src/Admin/Tabs/CrawlersTab.php:91
+msgid "Current default: Allow."
+msgstr "Valor por defecto actual: Permitir."
+
+#: src/Admin/Tabs/CrawlersTab.php:95
+msgid "User-agent"
+msgstr "User-agent"
+
+#: src/Admin/Tabs/CrawlersTab.php:96
+msgid "Vendor"
+msgstr "Proveedor"
+
+#: src/Admin/Tabs/CrawlersTab.php:97
+msgid "Policy"
+msgstr "Política"
+
+#: src/Admin/Tabs/CrawlersTab.php:98
+msgid "Effective"
+msgstr "Efectiva"
+
+#: src/Admin/Tabs/CrawlersTab.php:112
+msgid "Documentation"
+msgstr "Documentación"
+
+#: src/Admin/Tabs/CrawlersTab.php:117
+msgid "Default"
+msgstr "Por defecto"
+
+#: src/Admin/Tabs/CrawlersTab.php:118
+#: src/Admin/Tabs/CrawlersTab.php:121
+msgid "Allow"
+msgstr "Permitir"
+
+#: src/Admin/Tabs/CrawlersTab.php:119
+#: src/Admin/Tabs/CrawlersTab.php:121
+msgid "Block"
+msgstr "Bloquear"
+
+#: src/Admin/Tabs/CrawlersTab.php:127
+msgid "Generated robots.txt"
+msgstr "robots.txt generado"
+
+#: src/Admin/Tabs/CrawlersTab.php:128
+msgid "Read-only preview of what WordPress serves at /robots.txt with the saved settings."
+msgstr "Vista previa de solo lectura de lo que WordPress sirve en /robots.txt con los ajustes guardados."
+
+#: src/Robots/Catalog.php:26
+msgid "Training crawlers"
+msgstr "Crawlers de entrenamiento"
+
+#: src/Robots/Catalog.php:27
+msgid "AI search crawlers"
+msgstr "Crawlers de búsqueda con IA"
+
+#: src/Robots/Catalog.php:28
+msgid "On-demand agents"
+msgstr "Agentes bajo demanda"
+
+#: src/Robots/Catalog.php:39
+msgid "Collect content to train or fine-tune models. Follows the \"AI training\" signal by default."
+msgstr "Recopilan contenido para entrenar o ajustar modelos. Siguen la señal \"Entrenamiento de IA\" por defecto."
+
+#: src/Robots/Catalog.php:40
+msgid "Index content for AI-powered search and answer engines. Follows the \"Search\" signal by default."
+msgstr "Indexan contenido para buscadores y motores de respuestas con IA. Siguen la señal \"Búsqueda\" por defecto."
+
+#: src/Robots/Catalog.php:41
+msgid "Fetch pages on behalf of a user during a conversation. Follows the \"AI input\" signal by default."
+msgstr "Obtienen páginas en nombre de un usuario durante una conversación. Siguen la señal \"Entrada para IA\" por defecto."
+
+#: src/Robots/RobotsTxt.php:156
+msgid "A physical robots.txt file exists in the site root, so WordPress does not serve the generated one. Copy the rules from the Crawlers tab into that file."
+msgstr "Existe un archivo robots.txt físico en la raíz del sitio, así que WordPress no sirve el generado. Copia las reglas de la pestaña Crawlers en ese archivo."

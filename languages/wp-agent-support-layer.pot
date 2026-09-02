@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-02T02:06:15+00:00\n"
+"POT-Creation-Date: 2026-09-02T02:13:42+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
@@ -134,6 +134,72 @@ msgstr ""
 msgid "Secondary menu"
 msgstr ""
 
+#: src/Admin/Tabs/CrawlersTab.php:61
+msgid "Crawlers"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:83
+msgid "Each AI crawler gets its own group in robots.txt. \"Default\" follows the Content Signals; choose Allow or Block to override a single crawler."
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:84
+msgid "Microsoft Copilot uses Bingbot and Google Gemini uses Google-Extended; they cannot be separated from regular search indexing beyond what those tokens allow."
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:86
+msgid "A physical robots.txt file exists in the site root. WordPress does not serve the generated rules; copy the text below into your file."
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:91
+msgid "Current default: Block."
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:91
+msgid "Current default: Allow."
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:95
+msgid "User-agent"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:96
+msgid "Vendor"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:97
+msgid "Policy"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:98
+msgid "Effective"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:112
+msgid "Documentation"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:117
+msgid "Default"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:118
+#: src/Admin/Tabs/CrawlersTab.php:121
+msgid "Allow"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:119
+#: src/Admin/Tabs/CrawlersTab.php:121
+msgid "Block"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:127
+msgid "Generated robots.txt"
+msgstr ""
+
+#: src/Admin/Tabs/CrawlersTab.php:128
+msgid "Read-only preview of what WordPress serves at /robots.txt with the saved settings."
+msgstr ""
+
 #: src/Admin/Tabs/GeneralTab.php:45
 msgid "General"
 msgstr ""
@@ -234,8 +300,36 @@ msgstr ""
 msgid "The AIPREF specification is still a draft; disable this if its syntax changes."
 msgstr ""
 
-#: src/Plugin.php:151
+#: src/Plugin.php:153
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
+msgstr ""
+
+#: src/Robots/Catalog.php:26
+msgid "Training crawlers"
+msgstr ""
+
+#: src/Robots/Catalog.php:27
+msgid "AI search crawlers"
+msgstr ""
+
+#: src/Robots/Catalog.php:28
+msgid "On-demand agents"
+msgstr ""
+
+#: src/Robots/Catalog.php:39
+msgid "Collect content to train or fine-tune models. Follows the \"AI training\" signal by default."
+msgstr ""
+
+#: src/Robots/Catalog.php:40
+msgid "Index content for AI-powered search and answer engines. Follows the \"Search\" signal by default."
+msgstr ""
+
+#: src/Robots/Catalog.php:41
+msgid "Fetch pages on behalf of a user during a conversation. Follows the \"AI input\" signal by default."
+msgstr ""
+
+#: src/Robots/RobotsTxt.php:156
+msgid "A physical robots.txt file exists in the site root, so WordPress does not serve the generated one. Copy the rules from the Crawlers tab into that file."
 msgstr ""
 
 #. translators: 1: required PHP version, 2: current PHP version.

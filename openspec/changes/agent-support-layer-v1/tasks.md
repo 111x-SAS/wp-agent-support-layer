@@ -47,10 +47,10 @@
 
 ## 6. Reglas para crawlers de IA (ai-crawler-robots)
 
-- [ ] 6.1 Implementar el `Catalog` con los user-agents iniciales, grupos, proveedor y documentación, y el filtro `wpasl_crawler_catalog`; verificar con test que un user-agent añadido por filtro aparece en el catálogo
-- [ ] 6.2 Implementar la política por crawler con defaults derivados de las señales y sobrescrituras; verificar con tests que con defaults GPTBot queda `block` y OAI-SearchBot `allow`, y que una sobrescritura individual se respeta
-- [ ] 6.3 Implementar la generación de grupos `User-agent`/`Allow|Disallow` y el comentario de `llms.txt` al final del robots.txt virtual sin alterar el núcleo; verificar con tests que las líneas del núcleo permanecen intactas
-- [ ] 6.4 Implementar la pestaña Crawlers (lista agrupada con radio allow/block) y la detección de `robots.txt` físico con área de texto para copiar; verificar con test que la detección se activa cuando el archivo existe
+- [x] 6.1 Implementar el `Catalog` con los user-agents iniciales, grupos, proveedor y documentación, y el filtro `wpasl_crawler_catalog`; verificar con test que un user-agent añadido por filtro aparece en el catálogo
+- [x] 6.2 Implementar la política por crawler con defaults derivados de las señales y sobrescrituras; verificar con tests que con defaults GPTBot queda `block` y OAI-SearchBot `allow`, y que una sobrescritura individual se respeta
+- [x] 6.3 Implementar la generación de grupos `User-agent`/`Allow|Disallow` y el comentario de `llms.txt` al final del robots.txt virtual sin alterar el núcleo; verificar con tests que las líneas del núcleo permanecen intactas
+- [x] 6.4 Implementar la pestaña Crawlers (lista agrupada con radio allow/block) y la detección de `robots.txt` físico con área de texto para copiar; verificar con test que la detección se activa cuando el archivo existe
 
 ## 7. llms.txt (llms-txt)
 

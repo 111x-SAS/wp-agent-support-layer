@@ -18,6 +18,7 @@ use WPASL\Generation\State;
 use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
 use WPASL\Markdown\LeagueConverter;
+use WPASL\Robots\RobotsTxt;
 use WPASL\Signals\ContentSignals;
 
 /**
@@ -76,7 +77,7 @@ final class Plugin {
 		$runner      = new Runner( $settings, $storage, $eligibility, new State() );
 		$page        = new Page( $settings );
 
-		$this->services = array(
+		$this->services           = array(
 			'settings'    => $settings,
 			'storage'     => $storage,
 			'scheduler'   => $scheduler,
@@ -88,6 +89,7 @@ final class Plugin {
 			'delivery'    => new Delivery( $settings, $storage, $eligibility, $runner ),
 			'signals'     => new ContentSignals( $settings ),
 		);
+		$this->services['robots'] = new RobotsTxt( $settings, $this->services['signals'] );
 
 		if ( LeagueConverter::is_available() ) {
 			$this->services['converter'] = new LeagueConverter();

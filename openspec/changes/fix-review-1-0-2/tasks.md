@@ -73,23 +73,23 @@
 
 ## 16. Baja: diagnóstico (D16, hallazgos 20 y 21)
 
-- [ ] 16.1 Añadir el helper de citado para shell en `DiagnosticsTab` y aplicarlo a URL y user-agent de los comandos `curl`; verificar con `test_curl_commands_are_shell_safe` en `tests/test-diagnostics.php` (user-agent con comilla simple por filtro → comando con `'\''`)
-- [ ] 16.2 Normalizar el informe en `Report::load()` contra `Report::defaults()` con comprobación de versión; verificar con `test_tab_renders_report_from_previous_version_without_notices` (transient sin `infrastructure.storage_exposed` ni comprobaciones nuevas → render sin avisos de PHP y comprobaciones marcadas como no disponibles)
+- [x] 16.1 Añadir el helper de citado para shell en `DiagnosticsTab` y aplicarlo a URL y user-agent de los comandos `curl`; verificar con `test_curl_commands_are_shell_safe` en `tests/test-diagnostics.php` (user-agent con comilla simple por filtro → comando con `'\''`)
+- [x] 16.2 Normalizar el informe en `Report::load()` contra `Report::defaults()` con comprobación de versión; verificar con `test_tab_renders_report_from_previous_version_without_notices` (transient sin `infrastructure.storage_exposed` ni comprobaciones nuevas → render sin avisos de PHP y comprobaciones marcadas como no disponibles)
 
 ## 17. Baja: llms.txt (hallazgos 22 y 23)
 
-- [ ] 17.1 Omitir `## Optional` sin enlaces y aplicar el orden por menú solo a `page`; verificar con `test_optional_section_is_omitted_without_links` y `test_hierarchical_cpt_is_ordered_by_date` en `tests/test-llms-txt.php`
+- [x] 17.1 Omitir `## Optional` sin enlaces y aplicar el orden por menú solo a `page`; verificar con `test_optional_section_is_omitted_without_links` y `test_hierarchical_cpt_is_ordered_by_date` en `tests/test-llms-txt.php`
 
 ## 18. Baja: entrega Markdown y conversión (hallazgos 27, 28, 30, 33, 35)
 
-- [ ] 18.1 Exigir límite de segmento en `Delivery::relative_path()`; verificar con `test_md_suffix_respects_base_path_segment_boundary` en `tests/test-delivery.php` (sitio en `/blog/`: `/blogx.md` → 404, `/blog/x.md` → 200)
-- [ ] 18.2 Conservar la barra de la raíz en `LeagueConverter::absolutize()` para referencias `?…` y corregir la aserción de `tests/test-converter.php:48` a `https://example.org/?p=1`; añadir `set_base_url()` a `ConverterInterface` y eliminar `method_exists` en `DocumentBuilder`; verificar con `test_converter_interface_requires_base_url` (conversor de prueba que implementa la interfaz completa recibe la URL base)
-- [ ] 18.3 Guardar y restaurar `$pages`, `$numpages`, `$multipage`, `$authordata` e `$id` en `DocumentBuilder`; verificar con `test_building_documents_restores_all_post_globals` en `tests/test-document-builder.php` (generar dos documentos fuera de una vista singular → los globals valen lo mismo que antes)
-- [ ] 18.4 Unificar el predicado de exclusión (`meta_value NOT IN ('', '0')` y el mismo criterio en `is_excluded()`); verificar con `test_non_canonical_exclusion_value_excludes_everywhere` en `tests/test-eligibility.php` (`update_post_meta( $id, '_wpasl_exclude', 'yes' )` → no elegible por petición ni en `eligible_ids()`)
+- [x] 18.1 Exigir límite de segmento en `Delivery::relative_path()`; verificar con `test_md_suffix_respects_base_path_segment_boundary` en `tests/test-delivery.php` (sitio en `/blog/`: `/blogx.md` → 404, `/blog/x.md` → 200)
+- [x] 18.2 Conservar la barra de la raíz en `LeagueConverter::absolutize()` para referencias `?…` y corregir la aserción de `tests/test-converter.php:48` a `https://example.org/?p=1`; añadir `set_base_url()` a `ConverterInterface` y eliminar `method_exists` en `DocumentBuilder`; verificar con `test_converter_interface_requires_base_url` (conversor de prueba que implementa la interfaz completa recibe la URL base)
+- [x] 18.3 Guardar y restaurar `$pages`, `$numpages`, `$multipage`, `$authordata` e `$id` en `DocumentBuilder`; verificar con `test_building_documents_restores_all_post_globals` en `tests/test-document-builder.php` (generar dos documentos fuera de una vista singular → los globals valen lo mismo que antes)
+- [x] 18.4 Unificar el predicado de exclusión (`meta_value NOT IN ('', '0')` y el mismo criterio en `is_excluded()`); verificar con `test_non_canonical_exclusion_value_excludes_everywhere` en `tests/test-eligibility.php` (`update_post_meta( $id, '_wpasl_exclude', 'yes' )` → no elegible por petición ni en `eligible_ids()`)
 
 ## 19. Baja: almacenamiento (hallazgos 31 y 32)
 
-- [ ] 19.1 Eliminar `*.tmp` con más de una hora en `Runner::prune()`; añadir `web.config` en `Storage::ensure()` e `index.php` en cada directorio creado por `Storage::write()`; verificar con `test_prune_removes_stale_tmp_files` en `tests/test-runner.php` y `test_write_creates_index_in_new_subdirectories` y `test_ensure_writes_web_config` en `tests/test-storage.php`
+- [x] 19.1 Eliminar `*.tmp` con más de una hora en `Runner::prune()`; añadir `web.config` en `Storage::ensure()` e `index.php` en cada directorio creado por `Storage::write()`; verificar con `test_prune_removes_stale_tmp_files` en `tests/test-runner.php` y `test_write_creates_index_in_new_subdirectories` y `test_ensure_writes_web_config` en `tests/test-storage.php`
 
 ## 20. Documentación, cobertura y release 1.0.3
 

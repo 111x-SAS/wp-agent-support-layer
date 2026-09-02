@@ -85,4 +85,4 @@
 
 - [x] 11.1 Ejecutar la suite completa en la matriz de CI y confirmar cobertura de todos los escenarios de las specs con un mapa escenario→test
 - [x] 11.2 Ejecutar las pruebas de rastreo con `curl` y user-agents reales contra el entorno Docker y documentar los resultados como evidencia de la acción 8
-- [ ] 11.3 Etiquetar `v1.0.0`, generar el release en GitHub y preparar el envío a WordPress.org (a la espera de aprobación del slug)
+- [x] 11.3 Etiquetar `v1.0.0`, generar el release en GitHub y preparar el envío a WordPress.org (a la espera de aprobación del slug)

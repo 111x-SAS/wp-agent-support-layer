@@ -16,6 +16,9 @@ class Test_Settings extends WP_UnitTestCase {
 
 	public function tear_down() {
 		delete_option( Settings::OPTION );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$GLOBALS['wp_settings_errors'] = array();
+		unset( $_GET['settings-updated'], $_GET['tab'] );
 		parent::tear_down();
 	}
 
@@ -162,6 +165,7 @@ class Test_Settings extends WP_UnitTestCase {
 			'contact_email'        => 'a@example.org',
 		);
 		update_option( Settings::OPTION, $stored );
+		Plugin::instance()->get( 'settings' )->flush_cache();
 		return $stored;
 	}
 
@@ -210,12 +214,10 @@ class Test_Settings extends WP_UnitTestCase {
 				echo '<input type="text" name="acme_field" value="x" />';
 			}
 		};
-		$register = static function ( $page ) use ( $tab ) {
-			$page->add_tab( $tab );
-		};
-		add_action( 'wpasl_register_tabs', $register );
+		// The shared Page already collected its tabs (wpasl_register_tabs ran once), so the third-party tab is
+		// added the same way that hook's callbacks do.
+		Plugin::instance()->get( 'page' )->add_tab( $tab );
 		$html = $this->render_page( 'acme' );
-		remove_action( 'wpasl_register_tabs', $register );
 
 		$this->assertStringContainsString( 'name="wpasl_settings[_tab]" value="acme"', $html );
 		$this->assertStringContainsString( 'name="acme_field"', $html );

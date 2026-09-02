@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-02T02:22:40+00:00\n"
+"POT-Creation-Date: 2026-09-02T02:31:56+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
@@ -302,6 +302,46 @@ msgstr ""
 msgid "When the limit is reached the file stops at the last complete item and ends with a note saying it was truncated."
 msgstr ""
 
+#: src/Admin/Tabs/ManifestsTab.php:50
+msgid "Manifests"
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:70
+msgid "JSON-LD manifest of the actions an agent can perform without authentication."
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:71
+msgid "OpenAPI 3.1 description of the public REST endpoints."
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:72
+msgid "RFC 9727 API catalog pointing to the OpenAPI document."
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:75
+msgid "The manifests only declare what the site really exposes: search, listing and reading of the enabled content types through the REST API, Markdown delivery and llms.txt. Nothing that requires authentication is ever listed."
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:83
+msgid "Publish manifests"
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:87
+msgid "Serve agent-skills.json, the OpenAPI document and the API catalog."
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:89
+msgid "When disabled, these URLs respond 404."
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:93
+msgid "Contact email"
+msgstr ""
+
+#: src/Admin/Tabs/ManifestsTab.php:96
+msgid "Published in the manifests as the technical contact. Defaults to the site admin email."
+msgstr ""
+
 #: src/Admin/Tabs/SignalsTab.php:49
 msgid "Signals"
 msgstr ""
@@ -372,7 +412,133 @@ msgstr ""
 msgid "Truncated: this file reached its %1$s limit. The complete index is in %2$s."
 msgstr ""
 
-#: src/Plugin.php:160
+#: src/Manifest/CapabilityRegistry.php:61
+msgid "Search content"
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:62
+msgid "Full-text search across public content. Returns titles, URLs and types."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:65
+#: src/Manifest/CapabilityRegistry.php:86
+msgid "Search terms."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:66
+msgid "Restrict to \"post\" (content), \"term\" or \"post-format\"."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:67
+msgid "Post type, e.g. \"post\" or \"page\"."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:68
+#: src/Manifest/CapabilityRegistry.php:88
+msgid "Results per page (1-100)."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:69
+#: src/Manifest/CapabilityRegistry.php:89
+msgid "Page number."
+msgstr ""
+
+#. translators: %s: post type plural label.
+#: src/Manifest/CapabilityRegistry.php:81
+#, php-format
+msgid "List %s"
+msgstr ""
+
+#. translators: %s: post type plural label.
+#: src/Manifest/CapabilityRegistry.php:83
+#, php-format
+msgid "Lists published %s with title, excerpt, date and link."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:87
+msgid "Filter by slug."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:90
+msgid "Sort field: date, title, modified, relevance."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:91
+msgid "\"asc\" or \"desc\"."
+msgstr ""
+
+#. translators: %s: post type singular label.
+#: src/Manifest/CapabilityRegistry.php:98
+#, php-format
+msgid "Read a %s"
+msgstr ""
+
+#. translators: %s: post type singular label.
+#: src/Manifest/CapabilityRegistry.php:100
+#, php-format
+msgid "Returns one published %s as JSON with rendered content."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:103
+#: src/Manifest/CapabilityRegistry.php:121
+msgid "Item id."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:113
+msgid "Read content as Markdown"
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:115
+msgid "Any public item is available as Markdown by appending \".md\" to its URL, or by requesting its URL with \"Accept: text/markdown\"."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:116
+msgid "Any public item is available as Markdown by adding \"?wpasl=md\" to its URL, or by requesting its URL with \"Accept: text/markdown\"."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:120
+msgid "Path of the item, as in its canonical URL."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:129
+msgid "Site index (llms.txt)"
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:130
+msgid "Curated Markdown index of the site with links to the Markdown version of each item."
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:138
+msgid "API description (OpenAPI 3.1)"
+msgstr ""
+
+#: src/Manifest/CapabilityRegistry.php:139
+msgid "Machine-readable description of the public REST endpoints listed here."
+msgstr ""
+
+#: src/Manifest/ManifestBuilder.php:213
+msgid "Successful response."
+msgstr ""
+
+#: src/Manifest/ManifestBuilder.php:218
+msgid "Not found."
+msgstr ""
+
+#. translators: %s: site name.
+#: src/Manifest/ManifestBuilder.php:229
+#, php-format
+msgid "%s public API"
+msgstr ""
+
+#: src/Manifest/ManifestBuilder.php:232
+msgid "Read-only endpoints of the WordPress REST API that agents may use without authentication."
+msgstr ""
+
+#: src/Manifest/ManifestRouter.php:126
+msgid "The agent manifests are disabled."
+msgstr ""
+
+#: src/Plugin.php:168
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr ""
 

@@ -61,11 +61,11 @@
 
 ## 8. Manifiestos de agente (agent-manifest)
 
-- [ ] 8.1 Implementar `CapabilityRegistry` con las capacidades derivadas (búsqueda, listado y lectura por post type con REST, Markdown, llms.txt, OpenAPI) y el filtro `wpasl_agent_capabilities`; verificar con tests que un post type sin REST no genera capacidades REST
-- [ ] 8.2 Implementar el `agent-skills.json` JSON-LD y su enrutado con `application/ld+json`, 404 cuando está deshabilitado; verificar con tests que el JSON es válido y contiene `@context` y contacto
-- [ ] 8.3 Implementar el generador OpenAPI 3.1 desde `rest_get_server()->get_routes()` limitado a GET públicos y su ruta REST `wpasl/v1/openapi`; verificar con tests que `openapi` es `3.1.0` y que solo hay operaciones `get`
-- [ ] 8.4 Implementar `/.well-known/api-catalog` como linkset RFC 9727; verificar con test el `Content-Type` y la relación `service-desc`
-- [ ] 8.5 Implementar la invalidación de los tres documentos al guardar ajustes relevantes; verificar con test que cambiar el correo de contacto se refleja en la siguiente petición
+- [x] 8.1 Implementar `CapabilityRegistry` con las capacidades derivadas (búsqueda, listado y lectura por post type con REST, Markdown, llms.txt, OpenAPI) y el filtro `wpasl_agent_capabilities`; verificar con tests que un post type sin REST no genera capacidades REST
+- [x] 8.2 Implementar el `agent-skills.json` JSON-LD y su enrutado con `application/ld+json`, 404 cuando está deshabilitado; verificar con tests que el JSON es válido y contiene `@context` y contacto
+- [x] 8.3 Implementar el generador OpenAPI 3.1 desde `rest_get_server()->get_routes()` limitado a GET públicos y su ruta REST `wpasl/v1/openapi`; verificar con tests que `openapi` es `3.1.0` y que solo hay operaciones `get`
+- [x] 8.4 Implementar `/.well-known/api-catalog` como linkset RFC 9727; verificar con test el `Content-Type` y la relación `service-desc`
+- [x] 8.5 Implementar la invalidación de los tres documentos al guardar ajustes relevantes; verificar con test que cambiar el correo de contacto se refleja en la siguiente petición
 
 ## 9. Diagnóstico (agent-diagnostics)
 

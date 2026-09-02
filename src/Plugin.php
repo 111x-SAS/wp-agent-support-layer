@@ -19,6 +19,9 @@ use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
 use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Llms\LlmsTxtRouter;
+use WPASL\Manifest\CapabilityRegistry;
+use WPASL\Manifest\ManifestBuilder;
+use WPASL\Manifest\ManifestRouter;
 use WPASL\Markdown\LeagueConverter;
 use WPASL\Robots\RobotsTxt;
 use WPASL\Signals\ContentSignals;
@@ -97,6 +100,11 @@ final class Plugin {
 		$this->services['llms']        = $llms_builder;
 		$this->services['llms_router'] = new LlmsTxtRouter( $settings, $storage, $llms_builder, $this->services['delivery'] );
 		$runner->add_artifact_generator( $llms_builder );
+
+		$manifest_builder                  = new ManifestBuilder( $settings, new CapabilityRegistry( $settings ), $this->services['signals'] );
+		$this->services['manifest']        = $manifest_builder;
+		$this->services['manifest_router'] = new ManifestRouter( $settings, $storage, $manifest_builder, $this->services['delivery'] );
+		$runner->add_artifact_generator( $manifest_builder );
 
 		if ( LeagueConverter::is_available() ) {
 			$this->services['converter'] = new LeagueConverter();

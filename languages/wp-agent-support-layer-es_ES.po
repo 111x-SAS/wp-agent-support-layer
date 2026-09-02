@@ -193,7 +193,7 @@ msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa
 msgid "Never"
 msgstr "Nunca"
 
-#: src/Plugin.php:160
+#: src/Plugin.php:168
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr "WP Agent Support Layer: falta la librería HTML a Markdown incluida. Instala una versión de release o ejecuta \"composer run build\" en el directorio del plugin."
 
@@ -414,3 +414,169 @@ msgstr "Markdown concatenado del contenido indexado en %s."
 #, php-format
 msgid "Truncated: this file reached its %1$s limit. The complete index is in %2$s."
 msgstr "Truncado: este archivo alcanzó su límite de %1$s. El índice completo está en %2$s."
+
+#: src/Admin/Tabs/ManifestsTab.php:50
+msgid "Manifests"
+msgstr "Manifiestos"
+
+#: src/Admin/Tabs/ManifestsTab.php:70
+msgid "JSON-LD manifest of the actions an agent can perform without authentication."
+msgstr "Manifiesto JSON-LD de las acciones que un agente puede realizar sin autenticación."
+
+#: src/Admin/Tabs/ManifestsTab.php:71
+msgid "OpenAPI 3.1 description of the public REST endpoints."
+msgstr "Descripción OpenAPI 3.1 de los endpoints REST públicos."
+
+#: src/Admin/Tabs/ManifestsTab.php:72
+msgid "RFC 9727 API catalog pointing to the OpenAPI document."
+msgstr "Catálogo de API RFC 9727 que apunta al documento OpenAPI."
+
+#: src/Admin/Tabs/ManifestsTab.php:75
+msgid "The manifests only declare what the site really exposes: search, listing and reading of the enabled content types through the REST API, Markdown delivery and llms.txt. Nothing that requires authentication is ever listed."
+msgstr "Los manifiestos solo declaran lo que el sitio expone realmente: búsqueda, listado y lectura de los tipos de contenido habilitados a través de la API REST, entrega en Markdown y llms.txt. Nunca se lista nada que requiera autenticación."
+
+#: src/Admin/Tabs/ManifestsTab.php:83
+msgid "Publish manifests"
+msgstr "Publicar manifiestos"
+
+#: src/Admin/Tabs/ManifestsTab.php:87
+msgid "Serve agent-skills.json, the OpenAPI document and the API catalog."
+msgstr "Servir agent-skills.json, el documento OpenAPI y el catálogo de API."
+
+#: src/Admin/Tabs/ManifestsTab.php:89
+msgid "When disabled, these URLs respond 404."
+msgstr "Cuando está desactivado, estas URLs responden 404."
+
+#: src/Admin/Tabs/ManifestsTab.php:93
+msgid "Contact email"
+msgstr "Correo de contacto"
+
+#: src/Admin/Tabs/ManifestsTab.php:96
+msgid "Published in the manifests as the technical contact. Defaults to the site admin email."
+msgstr "Se publica en los manifiestos como contacto técnico. Por defecto, el correo del administrador del sitio."
+
+#: src/Manifest/CapabilityRegistry.php:61
+msgid "Search content"
+msgstr "Buscar contenido"
+
+#: src/Manifest/CapabilityRegistry.php:62
+msgid "Full-text search across public content. Returns titles, URLs and types."
+msgstr "Búsqueda de texto completo en el contenido público. Devuelve títulos, URLs y tipos."
+
+#: src/Manifest/CapabilityRegistry.php:65
+#: src/Manifest/CapabilityRegistry.php:86
+msgid "Search terms."
+msgstr "Términos de búsqueda."
+
+#: src/Manifest/CapabilityRegistry.php:66
+msgid "Restrict to \"post\" (content), \"term\" or \"post-format\"."
+msgstr "Restringir a \"post\" (contenido), \"term\" o \"post-format\"."
+
+#: src/Manifest/CapabilityRegistry.php:67
+msgid "Post type, e.g. \"post\" or \"page\"."
+msgstr "Tipo de contenido, p. ej. \"post\" o \"page\"."
+
+#: src/Manifest/CapabilityRegistry.php:68
+#: src/Manifest/CapabilityRegistry.php:88
+msgid "Results per page (1-100)."
+msgstr "Resultados por página (1-100)."
+
+#: src/Manifest/CapabilityRegistry.php:69
+#: src/Manifest/CapabilityRegistry.php:89
+msgid "Page number."
+msgstr "Número de página."
+
+#. translators: %s: post type plural label.
+#: src/Manifest/CapabilityRegistry.php:81
+#, php-format
+msgid "List %s"
+msgstr "Listar %s"
+
+#. translators: %s: post type plural label.
+#: src/Manifest/CapabilityRegistry.php:83
+#, php-format
+msgid "Lists published %s with title, excerpt, date and link."
+msgstr "Lista %s publicados con título, extracto, fecha y enlace."
+
+#: src/Manifest/CapabilityRegistry.php:87
+msgid "Filter by slug."
+msgstr "Filtrar por slug."
+
+#: src/Manifest/CapabilityRegistry.php:90
+msgid "Sort field: date, title, modified, relevance."
+msgstr "Campo de ordenación: date, title, modified, relevance."
+
+#: src/Manifest/CapabilityRegistry.php:91
+msgid "\"asc\" or \"desc\"."
+msgstr "\"asc\" o \"desc\"."
+
+#. translators: %s: post type singular label.
+#: src/Manifest/CapabilityRegistry.php:98
+#, php-format
+msgid "Read a %s"
+msgstr "Leer un elemento de tipo %s"
+
+#. translators: %s: post type singular label.
+#: src/Manifest/CapabilityRegistry.php:100
+#, php-format
+msgid "Returns one published %s as JSON with rendered content."
+msgstr "Devuelve un elemento publicado de tipo %s como JSON con el contenido renderizado."
+
+#: src/Manifest/CapabilityRegistry.php:103
+#: src/Manifest/CapabilityRegistry.php:121
+msgid "Item id."
+msgstr "Id del elemento."
+
+#: src/Manifest/CapabilityRegistry.php:113
+msgid "Read content as Markdown"
+msgstr "Leer contenido como Markdown"
+
+#: src/Manifest/CapabilityRegistry.php:115
+msgid "Any public item is available as Markdown by appending \".md\" to its URL, or by requesting its URL with \"Accept: text/markdown\"."
+msgstr "Cualquier elemento público está disponible en Markdown añadiendo \".md\" a su URL o solicitando su URL con \"Accept: text/markdown\"."
+
+#: src/Manifest/CapabilityRegistry.php:116
+msgid "Any public item is available as Markdown by adding \"?wpasl=md\" to its URL, or by requesting its URL with \"Accept: text/markdown\"."
+msgstr "Cualquier elemento público está disponible en Markdown añadiendo \"?wpasl=md\" a su URL o solicitando su URL con \"Accept: text/markdown\"."
+
+#: src/Manifest/CapabilityRegistry.php:120
+msgid "Path of the item, as in its canonical URL."
+msgstr "Ruta del elemento, como en su URL canónica."
+
+#: src/Manifest/CapabilityRegistry.php:129
+msgid "Site index (llms.txt)"
+msgstr "Índice del sitio (llms.txt)"
+
+#: src/Manifest/CapabilityRegistry.php:130
+msgid "Curated Markdown index of the site with links to the Markdown version of each item."
+msgstr "Índice Markdown curado del sitio con enlaces a la versión Markdown de cada elemento."
+
+#: src/Manifest/CapabilityRegistry.php:138
+msgid "API description (OpenAPI 3.1)"
+msgstr "Descripción de la API (OpenAPI 3.1)"
+
+#: src/Manifest/CapabilityRegistry.php:139
+msgid "Machine-readable description of the public REST endpoints listed here."
+msgstr "Descripción legible por máquinas de los endpoints REST públicos listados aquí."
+
+#: src/Manifest/ManifestBuilder.php:213
+msgid "Successful response."
+msgstr "Respuesta correcta."
+
+#: src/Manifest/ManifestBuilder.php:218
+msgid "Not found."
+msgstr "No encontrado."
+
+#. translators: %s: site name.
+#: src/Manifest/ManifestBuilder.php:229
+#, php-format
+msgid "%s public API"
+msgstr "API pública de %s"
+
+#: src/Manifest/ManifestBuilder.php:232
+msgid "Read-only endpoints of the WordPress REST API that agents may use without authentication."
+msgstr "Endpoints de solo lectura de la API REST de WordPress que los agentes pueden usar sin autenticación."
+
+#: src/Manifest/ManifestRouter.php:126
+msgid "The agent manifests are disabled."
+msgstr "Los manifiestos de agente están desactivados."

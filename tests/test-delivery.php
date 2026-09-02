@@ -239,10 +239,102 @@ class Test_Delivery extends WP_UnitTestCase {
 	}
 
 	public function test_md_suffix_for_home_is_404() {
+		update_option( 'show_on_front', 'posts' );
 		ob_start();
 		$this->go_to( home_url( '/.md' ) );
 		ob_get_clean();
 		$this->assertTrue( is_404() );
+	}
+
+	/**
+	 * Configures a static front page and returns it.
+	 *
+	 * @return \WP_Post
+	 */
+	private function make_static_front_page() {
+		$front = self::factory()->post->create_and_get(
+			array(
+				'post_type'    => 'page',
+				'post_name'    => 'portada',
+				'post_title'   => 'Portada',
+				'post_content' => '<p>Bienvenida</p>',
+			)
+		);
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $front->ID );
+		$this->assertSame( home_url( '/' ), get_permalink( $front ) );
+		return $front;
+	}
+
+	public function test_markdown_url_for_static_front_page_uses_query_arg() {
+		$front = $this->make_static_front_page();
+		$this->assertSame( home_url( '/?wpasl=md' ), $this->delivery->markdown_url( $front ) );
+	}
+
+	public function test_markdown_url_for_post_type_without_rewrite_uses_query_arg() {
+		register_post_type(
+			'wpasl_doc',
+			array(
+				'public'  => true,
+				'rewrite' => false,
+			)
+		);
+		update_option( Settings::OPTION, array( 'post_types' => array( 'post', 'page', 'wpasl_doc' ) ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$doc = self::factory()->post->create_and_get( array( 'post_type' => 'wpasl_doc' ) );
+		$permalink = get_permalink( $doc );
+		$this->assertStringContainsString( '?wpasl_doc=', $permalink, 'A post type without rewrite rules keeps a query-string permalink.' );
+
+		$url = $this->delivery->markdown_url( $doc );
+		$this->assertSame( $permalink . '&wpasl=md', $url );
+
+		ob_start();
+		$this->go_to( $url );
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+		unregister_post_type( 'wpasl_doc' );
+
+		$this->assertTrue( $served );
+		$this->assertStringContainsString( '# ' . $doc->post_title, $out );
+	}
+
+	public function test_md_suffix_for_home_serves_static_front_page() {
+		$this->make_static_front_page();
+		ob_start();
+		$this->go_to( home_url( '/.md' ) );
+		$out = ob_get_clean();
+		$this->assertStringContainsString( "# Portada\n", $out );
+		$this->assertStringContainsString( 'Bienvenida', $out );
+	}
+
+	public function test_md_suffix_for_home_is_404_when_front_page_is_excluded() {
+		$front = $this->make_static_front_page();
+		update_post_meta( $front->ID, ExcludeMetaBox::META, true );
+		ob_start();
+		$this->go_to( home_url( '/.md' ) );
+		ob_get_clean();
+		$this->assertTrue( is_404() );
+	}
+
+	public function test_static_front_page_alternate_links_are_servable() {
+		$front = $this->make_static_front_page();
+
+		$this->go_to( home_url( '/' ) );
+		$this->assertTrue( is_singular() );
+		$headers = $this->delivery->html_headers( $front );
+		$this->assertSame( '<' . home_url( '/?wpasl=md' ) . '>; rel="alternate"; type="text/markdown"', $headers['Link'] );
+
+		ob_start();
+		$this->delivery->print_alternate_link();
+		$link = ob_get_clean();
+		$this->assertStringContainsString( 'href="' . esc_url( home_url( '/?wpasl=md' ) ) . '"', $link );
+
+		ob_start();
+		$this->go_to( home_url( '/?wpasl=md' ) );
+		$this->delivery->maybe_serve();
+		$out = ob_get_clean();
+		$this->assertStringContainsString( "# Portada\n", $out );
+		$this->assertSame( 1, substr_count( $out, "# Portada\n" ), 'Served exactly once.' );
 	}
 
 	public function test_non_eligible_content_is_never_served_as_markdown() {

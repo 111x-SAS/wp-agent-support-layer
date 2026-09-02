@@ -43,4 +43,14 @@ class Test_Plugin_Bootstrap extends WP_UnitTestCase {
 		$converter = new WPASL\Vendor\League\HTMLToMarkdown\HtmlConverter( array( 'header_style' => 'atx' ) );
 		$this->assertSame( '# Hello', trim( $converter->convert( '<h1>Hello</h1>' ) ) );
 	}
+
+	/**
+	 * The bundled Spanish translation loads.
+	 */
+	public function test_spanish_translation_is_bundled() {
+		$this->assertFileExists( WPASL_DIR . 'languages/wp-agent-support-layer-es_ES.mo' );
+		$this->assertTrue( load_textdomain( 'wp-agent-support-layer', WPASL_DIR . 'languages/wp-agent-support-layer-es_ES.mo' ) );
+		$this->assertSame( 'Elementos por ejecución', __( 'Items per run', 'wp-agent-support-layer' ) );
+		unload_textdomain( 'wp-agent-support-layer' );
+	}
 }

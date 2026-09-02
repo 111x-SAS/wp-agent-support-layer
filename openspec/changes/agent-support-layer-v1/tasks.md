@@ -12,11 +12,11 @@
 
 ## 2. Núcleo del plugin y ajustes (admin-settings)
 
-- [ ] 2.1 Implementar el arranque: comprobación de requisitos (WP 7.0, PHP 7.4), constantes, autoloader propio y contenedor de servicios; verificar con test que en PHP inferior al mínimo no se registran hooks y se muestra aviso
-- [ ] 2.2 Implementar activación (almacenamiento protegido, opciones por defecto, cron, flush), desactivación (unschedule) y `uninstall.php`; verificar con tests que tras desinstalar no quedan opciones `wpasl_`, meta ni directorio
-- [ ] 2.3 Implementar la página bajo Herramientas con Settings API, pestañas y sanitización; verificar con tests que un Editor recibe denegación y que los valores por defecto son `post` y `page`, `daily`, lote 50
-- [ ] 2.4 Implementar la casilla "Excluir de la capa de agentes" como meta box y post meta protegido con `auth_callback`; verificar con tests que solo aparece en post types habilitados y que la meta se guarda con nonce
-- [ ] 2.5 Añadir text domain, `.pot` y traducción `es_ES`; verificar con `wp i18n make-pot` que no hay cadenas sin text domain
+- [x] 2.1 Implementar el arranque: comprobación de requisitos (WP 7.0, PHP 7.4), constantes, autoloader propio y contenedor de servicios; verificar con test que en PHP inferior al mínimo no se registran hooks y se muestra aviso
+- [x] 2.2 Implementar activación (almacenamiento protegido, opciones por defecto, cron, flush), desactivación (unschedule) y `uninstall.php`; verificar con tests que tras desinstalar no quedan opciones `wpasl_`, meta ni directorio
+- [x] 2.3 Implementar la página bajo Herramientas con Settings API, pestañas y sanitización; verificar con tests que un Editor recibe denegación y que los valores por defecto son `post` y `page`, `daily`, lote 50
+- [x] 2.4 Implementar la casilla "Excluir de la capa de agentes" como meta box y post meta protegido con `auth_callback`; verificar con tests que solo aparece en post types habilitados y que la meta se guarda con nonce
+- [x] 2.5 Añadir text domain, `.pot` y traducción `es_ES`; verificar con `wp i18n make-pot` que no hay cadenas sin text domain
 
 ## 3. Motor de generación programada (scheduled-generation)
 

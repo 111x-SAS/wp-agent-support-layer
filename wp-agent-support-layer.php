@@ -43,24 +43,29 @@ define( 'WPASL_MIN_WP', '7.0' );
 /**
  * Checks the minimum PHP and WordPress versions.
  *
+ * @param string|null $php_version PHP version to check; defaults to the running version.
+ * @param string|null $wp_version  WordPress version to check; defaults to the running version.
  * @return string Empty string when requirements are met, otherwise the admin notice text.
  */
-function wpasl_requirements_notice() {
-	if ( version_compare( PHP_VERSION, WPASL_MIN_PHP, '<' ) ) {
+function wpasl_requirements_notice( $php_version = null, $wp_version = null ) {
+	$php_version = null === $php_version ? PHP_VERSION : $php_version;
+	$wp_version  = null === $wp_version ? get_bloginfo( 'version' ) : $wp_version;
+
+	if ( version_compare( $php_version, WPASL_MIN_PHP, '<' ) ) {
 		return sprintf(
 			/* translators: 1: required PHP version, 2: current PHP version. */
 			__( 'WP Agent Support Layer requires PHP %1$s or newer. This site runs PHP %2$s.', 'wp-agent-support-layer' ),
 			WPASL_MIN_PHP,
-			PHP_VERSION
+			$php_version
 		);
 	}
 
-	if ( version_compare( get_bloginfo( 'version' ), WPASL_MIN_WP, '<' ) ) {
+	if ( version_compare( $wp_version, WPASL_MIN_WP, '<' ) ) {
 		return sprintf(
 			/* translators: 1: required WordPress version, 2: current WordPress version. */
 			__( 'WP Agent Support Layer requires WordPress %1$s or newer. This site runs WordPress %2$s.', 'wp-agent-support-layer' ),
 			WPASL_MIN_WP,
-			get_bloginfo( 'version' )
+			$wp_version
 		);
 	}
 
@@ -81,6 +86,27 @@ function wpasl_print_requirements_notice() {
 }
 
 /**
+ * Registers the plugin autoloaders. Idempotent.
+ *
+ * @return void
+ */
+function wpasl_load_autoloader() {
+	static $loaded = false;
+	if ( $loaded ) {
+		return;
+	}
+	$loaded = true;
+
+	require_once WPASL_DIR . 'src/Autoloader.php';
+	WPASL\Autoloader::register( 'WPASL\\', WPASL_DIR . 'src/' );
+
+	// Third-party libraries are prefixed under WPASL\Vendor by Strauss at build time.
+	if ( is_readable( WPASL_DIR . 'vendor-prefixed/autoload.php' ) ) {
+		require_once WPASL_DIR . 'vendor-prefixed/autoload.php';
+	}
+}
+
+/**
  * Boots the plugin when requirements are met.
  *
  * @return void
@@ -91,15 +117,42 @@ function wpasl_boot() {
 		return;
 	}
 
-	require_once WPASL_DIR . 'src/Autoloader.php';
-	WPASL\Autoloader::register( 'WPASL\\', WPASL_DIR . 'src/' );
-
-	// Third-party libraries are prefixed under WPASL\Vendor by Strauss at build time.
-	if ( is_readable( WPASL_DIR . 'vendor-prefixed/autoload.php' ) ) {
-		require_once WPASL_DIR . 'vendor-prefixed/autoload.php';
-	}
-
+	wpasl_load_autoloader();
 	WPASL\Plugin::instance()->boot();
 }
 
+/**
+ * Activation hook: refuses to activate on unsupported environments, otherwise sets the plugin up.
+ *
+ * @param bool $network_wide Whether the plugin is being network-activated.
+ * @return void
+ */
+function wpasl_activate( $network_wide ) {
+	$notice = wpasl_requirements_notice();
+	if ( '' !== $notice ) {
+		deactivate_plugins( plugin_basename( WPASL_FILE ) );
+		wp_die( esc_html( $notice ), '', array( 'back_link' => true ) );
+	}
+
+	wpasl_load_autoloader();
+	WPASL\Lifecycle::activate( (bool) $network_wide );
+}
+
+/**
+ * Deactivation hook.
+ *
+ * @param bool $network_wide Whether the plugin is being network-deactivated.
+ * @return void
+ */
+function wpasl_deactivate( $network_wide ) {
+	if ( '' !== wpasl_requirements_notice() ) {
+		return;
+	}
+
+	wpasl_load_autoloader();
+	WPASL\Lifecycle::deactivate( (bool) $network_wide );
+}
+
+register_activation_hook( __FILE__, 'wpasl_activate' );
+register_deactivation_hook( __FILE__, 'wpasl_deactivate' );
 add_action( 'plugins_loaded', 'wpasl_boot', 5 );

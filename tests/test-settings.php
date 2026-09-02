@@ -138,6 +138,102 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( 40, $stored['llms_limit'] );
 	}
 
+	/**
+	 * Stores non-default values for every tab and returns them.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function store_non_defaults() {
+		$stored = array(
+			'post_types'           => array( 'page' ),
+			'schedule'             => 'weekly',
+			'batch_size'           => 25,
+			'signal_search'        => 'no',
+			'signal_ai_input'      => 'no',
+			'signal_ai_train'      => 'yes',
+			'content_usage_header' => false,
+			'crawler_overrides'    => array( 'GPTBot' => 'allow' ),
+			'llms_description'     => 'Desc',
+			'llms_intro'           => 'Intro',
+			'llms_limit'           => 40,
+			'llms_full_enabled'    => true,
+			'llms_full_max_bytes'  => 7 * MB_IN_BYTES,
+			'manifest_enabled'     => false,
+			'contact_email'        => 'a@example.org',
+		);
+		update_option( Settings::OPTION, $stored );
+		return $stored;
+	}
+
+	public function test_sanitize_with_unknown_tab_keeps_every_stored_value() {
+		$stored   = $this->store_non_defaults();
+		$settings = new Settings();
+		$clean    = $settings->sanitize( array( '_tab' => 'otro', 'post_types' => array( 'post' ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( $stored, array_intersect_key( $clean, $stored ) );
+	}
+
+	public function test_sanitize_without_tab_updates_only_present_keys() {
+		$stored   = $this->store_non_defaults();
+		$settings = new Settings();
+
+		$clean = $settings->sanitize( array( 'batch_size' => '10' ) );
+		$this->assertSame( 10, $clean['batch_size'] );
+		unset( $stored['batch_size'] );
+		$this->assertSame( $stored, array_intersect_key( $clean, $stored ), 'Every other value, including post types and signals, is preserved.' );
+
+		$clean = $settings->sanitize( array( 'llms_full_max_bytes_mb' => '3' ) );
+		$this->assertSame( 3 * MB_IN_BYTES, $clean['llms_full_max_bytes'], 'The MB form field still feeds the byte setting.' );
+		$this->assertSame( array( 'page' ), $clean['post_types'] );
+
+		// The Settings API path: update_option() with a partial array goes through the registered sanitizer.
+		Plugin::instance()->get( 'page' )->register_setting();
+		update_option( Settings::OPTION, array( 'llms_limit' => 12 ) );
+		$after = get_option( Settings::OPTION );
+		$this->assertSame( 12, $after['llms_limit'] );
+		$this->assertSame( array( 'page' ), $after['post_types'] );
+		$this->assertSame( 'yes', $after['signal_ai_train'] );
+	}
+
+	public function test_third_party_tab_saves_without_wiping_settings() {
+		$stored   = $this->store_non_defaults();
+		$tab      = new class() implements WPASL\Admin\Tab {
+			public function slug() {
+				return 'acme';
+			}
+			public function label() {
+				return 'Acme';
+			}
+			public function has_form() {
+				return true;
+			}
+			public function render() {
+				echo '<input type="text" name="acme_field" value="x" />';
+			}
+		};
+		$register = static function ( $page ) use ( $tab ) {
+			$page->add_tab( $tab );
+		};
+		add_action( 'wpasl_register_tabs', $register );
+		$html = $this->render_page( 'acme' );
+		remove_action( 'wpasl_register_tabs', $register );
+
+		$this->assertStringContainsString( 'name="wpasl_settings[_tab]" value="acme"', $html );
+		$this->assertStringContainsString( 'name="acme_field"', $html );
+
+		$clean = ( new Settings() )->sanitize( array( '_tab' => 'acme', 'acme_field' => 'x' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( $stored, array_intersect_key( $clean, $stored ) );
+		$this->assertSame( array( 'page' ), $clean['post_types'] );
+	}
+
+	public function test_page_shows_settings_saved_notice() {
+		$_GET['settings-updated'] = 'true';
+		set_transient( 'settings_errors', array( array( 'setting' => 'general', 'code' => 'settings_updated', 'message' => 'Settings saved.', 'type' => 'success' ) ), 30 ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$html = $this->render_page( 'signals' );
+		unset( $_GET['settings-updated'] );
+
+		$this->assertSame( 1, substr_count( $html, 'Settings saved.' ) );
+	}
+
 	public function test_llms_full_max_out_of_range_clamps_to_100_mb() {
 		$settings = new Settings();
 		$clean    = $settings->sanitize( array( '_tab' => 'llms', 'llms_full_max_bytes_mb' => '500' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound

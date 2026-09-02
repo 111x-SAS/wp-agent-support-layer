@@ -15,12 +15,12 @@
 
 ## 4. Media: confirmación al guardar (D2, hallazgo 3)
 
-- [ ] 4.1 Sustituir `settings_errors( self::GROUP )` por `settings_errors()` en `Page::render()`; verificar con `test_page_shows_settings_saved_notice` en `tests/test-settings.php` (`$_GET['settings-updated']='true'` y transient `settings_errors` con la entrada `general/settings_updated` → el HTML contiene `Settings saved.` exactamente una vez)
+- [x] 4.1 Sustituir `settings_errors( self::GROUP )` por `settings_errors()` en `Page::render()`; verificar con `test_page_shows_settings_saved_notice` en `tests/test-settings.php` (`$_GET['settings-updated']='true'` y transient `settings_errors` con la entrada `general/settings_updated` → el HTML contiene `Settings saved.` exactamente una vez)
 
 ## 5. Media: sanitización parcial (D3, hallazgo 4)
 
-- [ ] 5.1 En `Settings::sanitize()` devolver `$current` con `_tab` no vacío y desconocido; con `_tab` vacío limitar las claves a las presentes en la entrada (mapeando `llms_full_max_bytes_mb` a `llms_full_max_bytes`); verificar con `test_sanitize_with_unknown_tab_keeps_every_stored_value`, `test_sanitize_without_tab_updates_only_present_keys` y que `test_sanitize_is_idempotent_for_every_field` sigue pasando
-- [ ] 5.2 Añadir `test_third_party_tab_saves_without_wiping_settings` que registra un `Tab` falso con slug `acme` en `wpasl_register_tabs`, renderiza `Page::render()` en esa pestaña y ejecuta `sanitize( array( '_tab' => 'acme', 'acme_field' => 'x' ) )` verificando que `post_types` y las señales se conservan
+- [x] 5.1 En `Settings::sanitize()` devolver `$current` con `_tab` no vacío y desconocido; con `_tab` vacío limitar las claves a las presentes en la entrada (mapeando `llms_full_max_bytes_mb` a `llms_full_max_bytes`); verificar con `test_sanitize_with_unknown_tab_keeps_every_stored_value`, `test_sanitize_without_tab_updates_only_present_keys` y que `test_sanitize_is_idempotent_for_every_field` sigue pasando
+- [x] 5.2 Añadir `test_third_party_tab_saves_without_wiping_settings` que registra un `Tab` falso con slug `acme` en `wpasl_register_tabs`, renderiza `Page::render()` en esa pestaña y ejecuta `sanitize( array( '_tab' => 'acme', 'acme_field' => 'x' ) )` verificando que `post_types` y las señales se conservan
 
 ## 6. Media: sitios creados tras la activación en red (D5, hallazgo 5)
 

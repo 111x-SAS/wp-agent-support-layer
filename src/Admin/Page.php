@@ -173,7 +173,10 @@ final class Page {
 		?>
 		<div class="wrap wpasl-wrap">
 			<h1><?php esc_html_e( 'Agent Support Layer', 'wp-agent-support-layer' ); ?></h1>
-			<?php settings_errors( self::GROUP ); ?>
+			<?php
+			// No slug: options.php registers "Settings saved." under the core slug "general", not under ours.
+			settings_errors();
+			?>
 			<nav class="nav-tab-wrapper wp-clearfix" aria-label="<?php esc_attr_e( 'Secondary menu', 'wp-agent-support-layer' ); ?>">
 				<?php foreach ( $tabs as $slug => $item ) : ?>
 					<a href="<?php echo esc_url( $this->url( $slug ) ); ?>" class="nav-tab<?php echo $slug === $current ? ' nav-tab-active' : ''; ?>"><?php echo esc_html( $item->label() ); ?></a>

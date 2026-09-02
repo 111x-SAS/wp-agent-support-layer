@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<ruleset name="WP Agent Support Layer">
+	<description>Coding standards for WP Agent Support Layer.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/vendor-prefixed/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/openspec/*</exclude-pattern>
+	<exclude-pattern>/tests/wordpress-tests-lib/*</exclude-pattern>
+
+	<arg value="sp"/>
+	<arg name="basepath" value="."/>
+	<arg name="colors"/>
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+
+	<!-- WordPress Coding Standards, including Extra and Docs. -->
+	<rule ref="WordPress">
+		<!-- Files follow PSR-4 naming for the autoloader. -->
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="wp-agent-support-layer"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="wpasl"/>
+				<element value="WPASL"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- PHP compatibility for the supported range. -->
+	<config name="testVersion" value="7.4-"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<!-- Tests follow the WordPress core test-suite conventions. -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.NamingConventions.ValidVariableName">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Squiz.Commenting">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Generic.Commenting">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+</ruleset>

@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: PHPUnit (PHP ${{ matrix.php }}, WP ${{ matrix.wp }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.0', '8.2', '8.3']
+        wp: ['latest']
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, mbstring, dom, xml, json
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Subversion (required by install-wp-tests.sh)
+        run: sudo apt-get update -q && sudo apt-get install -y -q subversion
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v3
+        with:
+          composer-options: '--prefer-dist --no-progress'
+
+      - name: Install WordPress test suite
+        run: bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1:3306 ${{ matrix.wp }}
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit
+
+  lint:
+    name: PHPCS (WordPress Coding Standards)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2, cs2pr
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@v3
+        with:
+          composer-options: '--prefer-dist --no-progress'
+
+      - name: Run PHPCS
+        run: vendor/bin/phpcs --report-full --report-checkstyle=./phpcs-report.xml
+
+      - name: Annotate PHPCS results
+        if: always()
+        run: test -f phpcs-report.xml && cs2pr ./phpcs-report.xml || true
+
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Build distributable tree
+        run: |
+          composer install --no-dev --prefer-dist --no-progress --no-interaction
+          composer run strauss
+          mkdir -p build/wp-agent-support-layer
+          rsync -a --exclude-from=.distignore ./ build/wp-agent-support-layer/
+
+      - name: Run Plugin Check
+        uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: build/wp-agent-support-layer
+          exclude-directories: 'vendor-prefixed'

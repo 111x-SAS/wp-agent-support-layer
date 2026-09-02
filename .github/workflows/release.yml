@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build distributable zip
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Check that the tag matches the plugin version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          HEADER=$(grep -E '^ \* Version:' wp-agent-support-layer.php | awk '{print $3}')
+          STABLE=$(grep -E '^Stable tag:' readme.txt | awk '{print $3}')
+          echo "tag=$TAG header=$HEADER stable=$STABLE"
+          test "$TAG" = "$HEADER" && test "$TAG" = "$STABLE"
+
+      - name: Install production dependencies and prefix them
+        run: |
+          composer install --no-dev --prefer-dist --no-progress --no-interaction
+          composer run strauss
+
+      - name: Assemble plugin directory
+        run: |
+          mkdir -p build/wp-agent-support-layer
+          rsync -a --exclude-from=.distignore ./ build/wp-agent-support-layer/
+          rm -rf build/wp-agent-support-layer/vendor
+          (cd build && zip -rq ../wp-agent-support-layer-${GITHUB_REF_NAME#v}.zip wp-agent-support-layer)
+          ls -la *.zip
+
+      - name: Upload zip as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wp-agent-support-layer
+          path: build/wp-agent-support-layer
+
+      - name: Attach zip to the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wp-agent-support-layer-*.zip
+          generate_release_notes: true
+
+  deploy-wporg:
+    name: Deploy to WordPress.org SVN
+    needs: build
+    if: vars.WPORG_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download built plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: wp-agent-support-layer
+          path: build/wp-agent-support-layer
+
+      - name: Deploy
+        uses: 10up/action-wordpress-plugin-deploy@stable
+        with:
+          generate-zip: false
+        env:
+          SVN_USERNAME: ${{ secrets.WPORG_SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.WPORG_SVN_PASSWORD }}
+          SLUG: wp-agent-support-layer
+          BUILD_DIR: build/wp-agent-support-layer

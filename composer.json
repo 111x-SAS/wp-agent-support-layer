@@ -1,0 +1,91 @@
+{
+  "name": "111x/wp-agent-support-layer",
+  "description": "Makes a WordPress site discoverable, readable and operable by AI agents: Markdown delivery, Content Signals, AI crawler rules, llms.txt and agent manifests.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/111x-SAS/wp-agent-support-layer",
+  "authors": [
+    {
+      "name": "Mao Rodriguez",
+      "email": "mao@111x.co",
+      "homepage": "https://111x.co",
+      "role": "Developer"
+    }
+  ],
+  "support": {
+    "email": "contacto@111x.co",
+    "issues": "https://github.com/111x-SAS/wp-agent-support-layer/issues",
+    "source": "https://github.com/111x-SAS/wp-agent-support-layer"
+  },
+  "require": {
+    "php": ">=7.4",
+    "ext-dom": "*",
+    "ext-json": "*",
+    "league/html-to-markdown": "^5.1"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6",
+    "yoast/phpunit-polyfills": "^4.0",
+    "wp-coding-standards/wpcs": "^3.1",
+    "phpcompatibility/phpcompatibility-wp": "^2.1",
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "WPASL\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "WPASL\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true,
+    "platform": {
+      "php": "7.4.33"
+    },
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  },
+  "extra": {
+    "strauss": {
+      "target_directory": "vendor-prefixed",
+      "namespace_prefix": "WPASL\\Vendor\\",
+      "classmap_prefix": "WPASL_Vendor_",
+      "constant_prefix": "WPASL_VENDOR_",
+      "packages": [
+        "league/html-to-markdown"
+      ],
+      "delete_vendor_packages": false,
+      "exclude_from_copy": {
+        "file_patterns": [
+          "/\\.github\\//",
+          "/\\/bin\\//",
+          "/\\/tests?\\//",
+          "/\\.(md|yml|yaml|dist|xml|json)$/"
+        ]
+      },
+      "include_root_autoload": false
+    }
+  },
+  "scripts": {
+    "strauss": [
+      "test -f bin/strauss.phar || curl -sSL https://github.com/BrianHenryIE/strauss/releases/download/0.29.1/strauss.phar -o bin/strauss.phar",
+      "@php bin/strauss.phar"
+    ],
+    "build": [
+      "@composer install --no-dev --prefer-dist --no-interaction",
+      "@strauss",
+      "@composer install --prefer-dist --no-interaction"
+    ],
+    "lint": "phpcs",
+    "lint:fix": "phpcbf",
+    "test": "phpunit",
+    "install-wp-tests": "bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1:3306 latest"
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

@@ -103,7 +103,7 @@ final class Settings {
 	 */
 	public function update( array $values ) {
 		$this->cache = null;
-		update_option( self::OPTION, $values, false );
+		update_option( self::OPTION, $values, true );
 	}
 
 	/**

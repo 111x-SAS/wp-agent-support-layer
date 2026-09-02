@@ -145,29 +145,75 @@ final class LeagueConverter implements ConverterInterface {
 	}
 
 	/**
-	 * Makes a URL absolute against the base URL.
+	 * Sets the URL relative references are resolved against (the document's own URL).
+	 *
+	 * @param string $base_url Base URL.
+	 * @return void
+	 */
+	public function set_base_url( $base_url ) {
+		$this->base_url = '' === (string) $base_url ? home_url( '/' ) : (string) $base_url;
+	}
+
+	/**
+	 * Makes a URL absolute against the base URL: scheme-relative URLs take the base scheme, "./" and
+	 * "../" segments are resolved, fragments are left alone.
 	 *
 	 * @param string $url URL or path.
 	 * @return string
 	 */
 	public function absolutize( $url ) {
 		$url = trim( $url );
-		if ( '' === $url || preg_match( '#^(?:[a-z][a-z0-9+.-]*:|//|\#|mailto:|tel:|data:)#i', $url ) ) {
-			return 0 === strpos( $url, '//' ) ? ( is_ssl() ? 'https:' : 'http:' ) . $url : $url;
+		if ( '' === $url || preg_match( '#^(?:[a-z][a-z0-9+.-]*:|\#)#i', $url ) ) {
+			return $url;
 		}
 
-		$base = wp_parse_url( $this->base_url );
-		$root = $base['scheme'] . '://' . $base['host'] . ( isset( $base['port'] ) ? ':' . $base['port'] : '' );
+		$base   = wp_parse_url( $this->base_url );
+		$scheme = isset( $base['scheme'] ) ? $base['scheme'] : 'https';
+		if ( 0 === strpos( $url, '//' ) ) {
+			return $scheme . ':' . $url;
+		}
+
+		$root = $scheme . '://' . ( isset( $base['host'] ) ? $base['host'] : '' ) . ( isset( $base['port'] ) ? ':' . $base['port'] : '' );
+		$path = isset( $base['path'] ) && '' !== $base['path'] ? $base['path'] : '/';
 
 		if ( '/' === $url[0] ) {
-			return $root . $url;
+			return $root . self::normalize_path( $url );
 		}
-
 		if ( '?' === $url[0] ) {
-			return untrailingslashit( $this->base_url ) . $url;
+			return $root . untrailingslashit( $path ) . $url;
 		}
+		// Relative to the base directory (everything up to the last slash of the base path).
+		$directory = substr( $path, 0, (int) strrpos( $path, '/' ) + 1 );
+		return $root . self::normalize_path( $directory . $url );
+	}
 
-		$path = isset( $base['path'] ) ? $base['path'] : '/';
-		return $root . trailingslashit( $path ) . $url;
+	/**
+	 * Resolves "." and ".." segments of an absolute path (query string and fragment preserved).
+	 *
+	 * @param string $path Path starting with "/".
+	 * @return string
+	 */
+	private static function normalize_path( $path ) {
+		$suffix = '';
+		if ( preg_match( '/^([^?#]*)(.*)$/s', $path, $m ) ) {
+			$path   = $m[1];
+			$suffix = $m[2];
+		}
+		$parts = explode( '/', $path );
+		$last  = count( $parts ) - 1;
+		$out   = array();
+		foreach ( $parts as $index => $segment ) {
+			if ( '.' === $segment || '..' === $segment ) {
+				if ( '..' === $segment && count( $out ) > 1 ) {
+					array_pop( $out );
+				}
+				if ( $index === $last ) {
+					$out[] = '';
+				}
+				continue;
+			}
+			$out[] = $segment;
+		}
+		return implode( '/', $out ) . $suffix;
 	}
 }

@@ -42,7 +42,7 @@ final class Lifecycle {
 	public static function activate_site() {
 		$settings = new Settings();
 		if ( false === get_option( Settings::OPTION, false ) ) {
-			add_option( Settings::OPTION, Settings::defaults(), '', false );
+			add_option( Settings::OPTION, Settings::defaults(), '', true );
 		}
 
 		$storage = new Storage();

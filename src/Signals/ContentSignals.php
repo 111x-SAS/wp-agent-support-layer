@@ -9,6 +9,7 @@ namespace WPASL\Signals;
 
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\SignalsTab;
+use WPASL\Http;
 use WPASL\Settings;
 
 /**
@@ -139,12 +140,17 @@ final class ContentSignals {
 	 * @return void
 	 */
 	public function send( $context = null ) {
-		if ( is_admin() || headers_sent() ) {
+		if ( is_admin() ) {
 			return;
 		}
 		$html = ! is_string( $context );
+		if ( ! $html ) {
+			// send_headers already emitted the HTML set (including X-Robots-Tag) before content negotiation
+			// picked Markdown; the noai directives are for HTML responses only.
+			Http::remove_header( self::ROBOTS_HEADER );
+		}
 		foreach ( $this->headers( $html ) as $name => $value ) {
-			header( $name . ': ' . $value, self::ROBOTS_HEADER !== $name );
+			Http::send_header( $name, $value, self::ROBOTS_HEADER !== $name );
 		}
 	}
 

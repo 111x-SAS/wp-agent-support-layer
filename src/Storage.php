@@ -38,7 +38,7 @@ final class Storage {
 		$token = get_option( self::TOKEN_OPTION, '' );
 		if ( ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{32}$/', $token ) ) {
 			$token = md5( wp_generate_password( 64, true, true ) );
-			update_option( self::TOKEN_OPTION, $token, false );
+			update_option( self::TOKEN_OPTION, $token, true );
 		}
 		return $token;
 	}

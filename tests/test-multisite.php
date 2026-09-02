@@ -144,4 +144,25 @@ class Test_Multisite extends WP_UnitTestCase {
 		$this->assertFalse( wp_next_scheduled( WPASL\Generation\Scheduler::HOOK ) );
 		restore_current_blog();
 	}
+
+	public function test_network_activation_paginates_sites() {
+		$queries = array();
+		$spy     = static function ( $pre, $query ) use ( &$queries ) {
+			$queries[] = array( (int) $query->query_vars['number'], (int) $query->query_vars['offset'] );
+			return $pre;
+		};
+		add_filter( 'sites_pre_query', $spy, 10, 2 );
+		Lifecycle::activate( true );
+		remove_filter( 'sites_pre_query', $spy, 10 );
+
+		$this->assertNotEmpty( $queries );
+		$this->assertSame( array( Lifecycle::SITES_PER_PAGE, 0 ), $queries[0] );
+		foreach ( $queries as $query ) {
+			$this->assertSame( Lifecycle::SITES_PER_PAGE, $query[0], 'Sites are fetched in bounded pages, never with number => 0.' );
+		}
+
+		Lifecycle::deactivate( true );
+		Storage::delete_all();
+		delete_option( Settings::OPTION );
+	}
 }

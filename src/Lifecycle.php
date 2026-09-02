@@ -15,6 +15,11 @@ use WPASL\Generation\Scheduler;
 final class Lifecycle {
 
 	/**
+	 * Sites fetched per page when iterating a network.
+	 */
+	const SITES_PER_PAGE = 100;
+
+	/**
 	 * Activation routine.
 	 *
 	 * @param bool $network_wide Whether all sites of a network are affected.
@@ -66,8 +71,7 @@ final class Lifecycle {
 	public static function deactivate_site() {
 		$scheduler = new Scheduler( new Settings() );
 		$scheduler->unschedule();
-
-		flush_rewrite_rules();
+		// No flush_rewrite_rules(): the plugin registers no rewrite rules (all routing runs on parse_request).
 	}
 
 	/**
@@ -82,17 +86,31 @@ final class Lifecycle {
 			call_user_func( $callback );
 			return;
 		}
+		self::each_site( $callback );
+	}
 
-		$site_ids = get_sites(
-			array(
-				'fields' => 'ids',
-				'number' => 0,
-			)
-		);
-		foreach ( $site_ids as $site_id ) {
-			switch_to_blog( $site_id );
-			call_user_func( $callback );
-			restore_current_blog();
-		}
+	/**
+	 * Runs a callback on every site of the network, switching to each one, in pages of SITES_PER_PAGE.
+	 *
+	 * @param callable $callback Callback.
+	 * @return void
+	 */
+	public static function each_site( $callback ) {
+		$offset = 0;
+		do {
+			$site_ids = get_sites(
+				array(
+					'fields' => 'ids',
+					'number' => self::SITES_PER_PAGE,
+					'offset' => $offset,
+				)
+			);
+			foreach ( $site_ids as $site_id ) {
+				switch_to_blog( $site_id );
+				call_user_func( $callback );
+				restore_current_blog();
+			}
+			$offset += self::SITES_PER_PAGE;
+		} while ( count( $site_ids ) === self::SITES_PER_PAGE );
 	}
 }

@@ -61,7 +61,7 @@
 
 ## 14. Baja: ciclo de vida y desinstalación (D13, hallazgos 14 y 29)
 
-- [ ] 14.1 Quitar `flush_rewrite_rules()` de `Lifecycle::deactivate()`, paginar `get_sites()` en `Lifecycle::for_each_site()` y `Uninstaller` (100 por página), y usar `Scheduler::unschedule()` más `wp_clear_scheduled_hook( 'wpasl_build_llms_full' )` en `Uninstaller`; verificar con `test_uninstall_clears_manual_event` en `tests/test-lifecycle.php` (`run_soon()` antes de desinstalar → `_get_cron_array()` sin `wpasl_generate`) y `test_deactivate_does_not_flush_rewrite_rules`; en multisitio, `test_network_activation_paginates_sites` con más de 100 sitios simulados mediante el filtro `sites_pre_query`
+- [x] 14.1 Quitar `flush_rewrite_rules()` de `Lifecycle::deactivate()`, paginar `get_sites()` en `Lifecycle::for_each_site()` y `Uninstaller` (100 por página), y usar `Scheduler::unschedule()` más `wp_clear_scheduled_hook( 'wpasl_build_llms_full' )` en `Uninstaller`; verificar con `test_uninstall_clears_manual_event` en `tests/test-lifecycle.php` (`run_soon()` antes de desinstalar → `_get_cron_array()` sin `wpasl_generate`) y `test_deactivate_does_not_flush_rewrite_rules`; en multisitio, `test_network_activation_paginates_sites` con más de 100 sitios simulados mediante el filtro `sites_pre_query`
 
 ## 15. Baja: cabeceras, rutas y manifiestos (D14, D15, hallazgos 15 a 19, 24 y 25)
 

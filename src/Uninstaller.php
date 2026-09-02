@@ -41,17 +41,7 @@ final class Uninstaller {
 			return;
 		}
 
-		$site_ids = get_sites(
-			array(
-				'fields' => 'ids',
-				'number' => 0,
-			)
-		);
-		foreach ( $site_ids as $site_id ) {
-			switch_to_blog( $site_id );
-			self::run_site();
-			restore_current_blog();
-		}
+		Lifecycle::each_site( array( __CLASS__, 'run_site' ) );
 	}
 
 	/**
@@ -60,8 +50,7 @@ final class Uninstaller {
 	 * @return void
 	 */
 	public static function run_site() {
-		wp_clear_scheduled_hook( Scheduler::HOOK );
-		wp_clear_scheduled_hook( Scheduler::LLMS_FULL_HOOK );
+		( new Scheduler( new Settings() ) )->unschedule(); // Recurring, manual one-off and llms-full events.
 
 		Storage::delete_all();
 

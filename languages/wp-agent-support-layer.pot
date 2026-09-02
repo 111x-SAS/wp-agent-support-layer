@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-02T02:13:42+00:00\n"
+"POT-Creation-Date: 2026-09-02T02:22:40+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: wp-agent-support-layer\n"
@@ -248,6 +248,60 @@ msgstr ""
 msgid "Maximum number of items converted in one scheduled run. Large sites are processed over several runs."
 msgstr ""
 
+#. translators: %s: URL of llms.txt.
+#: src/Admin/Tabs/LlmsTab.php:75
+#, php-format
+msgid "Published at %s: the site name, a description, an optional introduction and one section per content type linking to the Markdown version of each item."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:81
+msgid "A physical llms.txt file exists in the site root and takes precedence over the generated one."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:85
+msgid "Site description"
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:88
+msgid "One or two sentences shown as the summary block. Defaults to the site tagline."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:92
+msgid "Introduction (Markdown)"
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:95
+msgid "Optional free text placed before the content sections: what the site is about, key products, how to get in touch."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:99
+msgid "Items per section"
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:102
+msgid "Pages are listed by menu order, other types by publication date, newest first."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:106
+msgid "llms-full.txt"
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:110
+msgid "Also publish /llms-full.txt with the full Markdown of every indexed item concatenated."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:112
+msgid "Useful for agents that want the whole site in one request. Disabled by default because the file can get large."
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:116
+msgid "llms-full.txt size limit (MB)"
+msgstr ""
+
+#: src/Admin/Tabs/LlmsTab.php:119
+msgid "When the limit is reached the file stops at the last complete item and ends with a note saying it was truncated."
+msgstr ""
+
 #: src/Admin/Tabs/SignalsTab.php:49
 msgid "Signals"
 msgstr ""
@@ -300,7 +354,25 @@ msgstr ""
 msgid "The AIPREF specification is still a draft; disable this if its syntax changes."
 msgstr ""
 
-#: src/Plugin.php:153
+#. translators: %s: site name.
+#: src/Llms/LlmsTxtBuilder.php:153
+#, php-format
+msgid "Content index of %s."
+msgstr ""
+
+#. translators: %s: URL of llms.txt.
+#: src/Llms/LlmsTxtBuilder.php:205
+#, php-format
+msgid "Concatenated Markdown of the content indexed in %s."
+msgstr ""
+
+#. translators: 1: size limit, 2: URL of llms.txt.
+#: src/Llms/LlmsTxtBuilder.php:210
+#, php-format
+msgid "Truncated: this file reached its %1$s limit. The complete index is in %2$s."
+msgstr ""
+
+#: src/Plugin.php:160
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr ""
 

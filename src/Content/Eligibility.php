@@ -85,42 +85,52 @@ final class Eligibility {
 	 * @return int[]
 	 */
 	public function eligible_ids( $post_types = null ) {
+		return $this->query( $post_types, array() );
+	}
+
+	/**
+	 * Ids of eligible items with custom ordering and limit.
+	 *
+	 * @param string[]|null        $post_types Restrict to these enabled post types.
+	 * @param array<string, mixed> $args       WP_Query overrides (orderby, order, posts_per_page).
+	 * @return int[]
+	 */
+	public function query( $post_types, array $args ) {
 		$enabled = $this->settings->enabled_post_types();
 		$types   = null === $post_types ? $enabled : array_values( array_intersect( (array) $post_types, $enabled ) );
 		if ( empty( $types ) ) {
 			return array();
 		}
 
-		$query = new \WP_Query(
-			array(
-				'post_type'              => $types,
-				'post_status'            => 'publish',
-				'has_password'           => false,
-				'posts_per_page'         => -1,
-				'fields'                 => 'ids',
-				'orderby'                => 'ID',
-				'order'                  => 'ASC',
-				'no_found_rows'          => true,
-				'ignore_sticky_posts'    => true,
-				'update_post_meta_cache' => false,
-				'update_post_term_cache' => false,
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Exclusion flag is a single boolean meta.
-				'meta_query'             => array(
-					'relation' => 'OR',
-					array(
-						'key'     => ExcludeMetaBox::META,
-						'compare' => 'NOT EXISTS',
-					),
-					array(
-						'key'     => ExcludeMetaBox::META,
-						'value'   => '1',
-						'compare' => '!=',
-					),
+		$defaults = array(
+			'post_type'              => $types,
+			'post_status'            => 'publish',
+			'has_password'           => false,
+			'posts_per_page'         => -1,
+			'fields'                 => 'ids',
+			'orderby'                => 'ID',
+			'order'                  => 'ASC',
+			'no_found_rows'          => true,
+			'ignore_sticky_posts'    => true,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
+			// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Exclusion flag is a single boolean meta.
+			'meta_query'             => array(
+				'relation' => 'OR',
+				array(
+					'key'     => ExcludeMetaBox::META,
+					'compare' => 'NOT EXISTS',
 				),
-			)
+				array(
+					'key'     => ExcludeMetaBox::META,
+					'value'   => '1',
+					'compare' => '!=',
+				),
+			),
 		);
 
-		$ids = array_map( 'intval', $query->posts );
+		$query = new \WP_Query( array_merge( $defaults, $args ) );
+		$ids   = array_map( 'intval', $query->posts );
 		return array_values( array_filter( $ids, array( $this, 'is_eligible' ) ) );
 	}
 }

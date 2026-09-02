@@ -17,6 +17,8 @@ use WPASL\Generation\Scheduler;
 use WPASL\Generation\State;
 use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
+use WPASL\Llms\LlmsTxtBuilder;
+use WPASL\Llms\LlmsTxtRouter;
 use WPASL\Markdown\LeagueConverter;
 use WPASL\Robots\RobotsTxt;
 use WPASL\Signals\ContentSignals;
@@ -90,6 +92,11 @@ final class Plugin {
 			'signals'     => new ContentSignals( $settings ),
 		);
 		$this->services['robots'] = new RobotsTxt( $settings, $this->services['signals'] );
+
+		$llms_builder                  = new LlmsTxtBuilder( $settings, $eligibility, $this->services['delivery'] );
+		$this->services['llms']        = $llms_builder;
+		$this->services['llms_router'] = new LlmsTxtRouter( $settings, $storage, $llms_builder, $this->services['delivery'] );
+		$runner->add_artifact_generator( $llms_builder );
 
 		if ( LeagueConverter::is_available() ) {
 			$this->services['converter'] = new LeagueConverter();

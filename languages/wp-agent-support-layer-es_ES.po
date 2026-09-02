@@ -193,7 +193,7 @@ msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa
 msgid "Never"
 msgstr "Nunca"
 
-#: src/Plugin.php:153
+#: src/Plugin.php:160
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr "WP Agent Support Layer: falta la librería HTML a Markdown incluida. Instala una versión de release o ejecuta \"composer run build\" en el directorio del plugin."
 
@@ -342,3 +342,75 @@ msgstr "Obtienen páginas en nombre de un usuario durante una conversación. Sig
 #: src/Robots/RobotsTxt.php:156
 msgid "A physical robots.txt file exists in the site root, so WordPress does not serve the generated one. Copy the rules from the Crawlers tab into that file."
 msgstr "Existe un archivo robots.txt físico en la raíz del sitio, así que WordPress no sirve el generado. Copia las reglas de la pestaña Crawlers en ese archivo."
+
+#. translators: %s: URL of llms.txt.
+#: src/Admin/Tabs/LlmsTab.php:75
+#, php-format
+msgid "Published at %s: the site name, a description, an optional introduction and one section per content type linking to the Markdown version of each item."
+msgstr "Publicado en %s: el nombre del sitio, una descripción, una introducción opcional y una sección por tipo de contenido con enlaces a la versión Markdown de cada elemento."
+
+#: src/Admin/Tabs/LlmsTab.php:81
+msgid "A physical llms.txt file exists in the site root and takes precedence over the generated one."
+msgstr "Existe un archivo llms.txt físico en la raíz del sitio y tiene prioridad sobre el generado."
+
+#: src/Admin/Tabs/LlmsTab.php:85
+msgid "Site description"
+msgstr "Descripción del sitio"
+
+#: src/Admin/Tabs/LlmsTab.php:88
+msgid "One or two sentences shown as the summary block. Defaults to the site tagline."
+msgstr "Una o dos frases que se muestran como bloque de resumen. Por defecto, la descripción corta del sitio."
+
+#: src/Admin/Tabs/LlmsTab.php:92
+msgid "Introduction (Markdown)"
+msgstr "Introducción (Markdown)"
+
+#: src/Admin/Tabs/LlmsTab.php:95
+msgid "Optional free text placed before the content sections: what the site is about, key products, how to get in touch."
+msgstr "Texto libre opcional antes de las secciones de contenido: de qué trata el sitio, productos clave, cómo contactar."
+
+#: src/Admin/Tabs/LlmsTab.php:99
+msgid "Items per section"
+msgstr "Elementos por sección"
+
+#: src/Admin/Tabs/LlmsTab.php:102
+msgid "Pages are listed by menu order, other types by publication date, newest first."
+msgstr "Las páginas se listan por orden de menú; los demás tipos por fecha de publicación, primero los más recientes."
+
+#: src/Admin/Tabs/LlmsTab.php:106
+msgid "llms-full.txt"
+msgstr "llms-full.txt"
+
+#: src/Admin/Tabs/LlmsTab.php:110
+msgid "Also publish /llms-full.txt with the full Markdown of every indexed item concatenated."
+msgstr "Publicar también /llms-full.txt con el Markdown completo de todos los elementos indexados concatenados."
+
+#: src/Admin/Tabs/LlmsTab.php:112
+msgid "Useful for agents that want the whole site in one request. Disabled by default because the file can get large."
+msgstr "Útil para agentes que quieren todo el sitio en una sola petición. Desactivado por defecto porque el archivo puede crecer mucho."
+
+#: src/Admin/Tabs/LlmsTab.php:116
+msgid "llms-full.txt size limit (MB)"
+msgstr "Límite de tamaño de llms-full.txt (MB)"
+
+#: src/Admin/Tabs/LlmsTab.php:119
+msgid "When the limit is reached the file stops at the last complete item and ends with a note saying it was truncated."
+msgstr "Al alcanzar el límite, el archivo se detiene en el último elemento completo y termina con una nota indicando que fue truncado."
+
+#. translators: %s: site name.
+#: src/Llms/LlmsTxtBuilder.php:153
+#, php-format
+msgid "Content index of %s."
+msgstr "Índice de contenidos de %s."
+
+#. translators: %s: URL of llms.txt.
+#: src/Llms/LlmsTxtBuilder.php:205
+#, php-format
+msgid "Concatenated Markdown of the content indexed in %s."
+msgstr "Markdown concatenado del contenido indexado en %s."
+
+#. translators: 1: size limit, 2: URL of llms.txt.
+#: src/Llms/LlmsTxtBuilder.php:210
+#, php-format
+msgid "Truncated: this file reached its %1$s limit. The complete index is in %2$s."
+msgstr "Truncado: este archivo alcanzó su límite de %1$s. El índice completo está en %2$s."

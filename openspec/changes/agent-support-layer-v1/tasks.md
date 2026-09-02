@@ -54,10 +54,10 @@
 
 ## 7. llms.txt (llms-txt)
 
-- [ ] 7.1 Implementar el `LlmsTxtBuilder` (H1, blockquote, bloque libre, secciones por post type con URLs `.md`, límite y orden, sección Optional); verificar con tests la estructura y el límite de 100
-- [ ] 7.2 Implementar el enrutado de `/llms.txt` y `/llms-full.txt` con precedencia del archivo físico y aviso en ajustes; verificar con tests el 200 con `text/markdown` y el 404 cuando `llms-full` está deshabilitado
-- [ ] 7.3 Implementar `llms-full.txt` con concatenación, separadores, límite de 5 MB y nota de truncado; verificar con test que supera el límite y trunca en un ítem completo
-- [ ] 7.4 Implementar la pestaña llms.txt (descripción, bloque libre, límite, interruptor y tamaño máximo de `llms-full`); verificar con test de sanitización
+- [x] 7.1 Implementar el `LlmsTxtBuilder` (H1, blockquote, bloque libre, secciones por post type con URLs `.md`, límite y orden, sección Optional); verificar con tests la estructura y el límite de 100
+- [x] 7.2 Implementar el enrutado de `/llms.txt` y `/llms-full.txt` con precedencia del archivo físico y aviso en ajustes; verificar con tests el 200 con `text/markdown` y el 404 cuando `llms-full` está deshabilitado
+- [x] 7.3 Implementar `llms-full.txt` con concatenación, separadores, límite de 5 MB y nota de truncado; verificar con test que supera el límite y trunca en un ítem completo
+- [x] 7.4 Implementar la pestaña llms.txt (descripción, bloque libre, límite, interruptor y tamaño máximo de `llms-full`); verificar con test de sanitización
 
 ## 8. Manifiestos de agente (agent-manifest)
 

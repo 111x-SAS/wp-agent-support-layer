@@ -77,15 +77,22 @@ final class DocumentBuilder implements ItemGeneratorInterface {
 	 * @return string
 	 */
 	private function render_html( \WP_Post $post ) {
-		global $wp_query;
+		global $wp_query, $more, $page;
 
 		$previous_post  = isset( $GLOBALS['post'] ) ? $GLOBALS['post'] : null;
 		$previous_query = $wp_query;
+		$previous_more  = $more;
+		$previous_page  = $page;
 
 		$GLOBALS['post'] = $post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restored below.
 		setup_postdata( $post );
 
-		$content = get_the_content( null, false, $post );
+		// Outside a singular view WordPress renders only the teaser and the first page. The
+		// document must always carry the whole content, whichever code path generated it.
+		$more = 1; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restored below.
+		$page = 1; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restored below.
+
+		$content = self::strip_pagination_marks( (string) $post->post_content );
 		/** This filter is documented in wp-includes/post-template.php */
 		$html = (string) apply_filters( 'the_content', $content ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter.
 		$html = str_replace( ']]>', ']]&gt;', $html );
@@ -93,8 +100,22 @@ final class DocumentBuilder implements ItemGeneratorInterface {
 		wp_reset_postdata();
 		$GLOBALS['post'] = $previous_post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
 		$wp_query        = $previous_query; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
+		$more            = $previous_more; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
+		$page            = $previous_page; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
 
 		return $html;
+	}
+
+	/**
+	 * Removes the "more" and "nextpage" marks (and their block wrappers) so the whole content is rendered.
+	 *
+	 * @param string $content Raw post content.
+	 * @return string
+	 */
+	public static function strip_pagination_marks( $content ) {
+		$content = (string) preg_replace( '/<!--\s*\/?wp:(?:more|nextpage)\b[^>]*-->/i', '', $content );
+		$content = (string) preg_replace( '/<!--more(?:.*?)?-->/i', '', $content );
+		return str_ireplace( '<!--nextpage-->', '', $content );
 	}
 
 	/**

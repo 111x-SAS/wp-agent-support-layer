@@ -140,6 +140,8 @@ final class Plugin {
 
 		add_action( 'init', array( $this, 'load_textdomain' ) );
 		add_action( 'admin_init', array( $this, 'maybe_upgrade' ) );
+		// After core populated the new site (priority 10).
+		add_action( 'wp_initialize_site', array( $this, 'initialize_site' ), 100 );
 
 		foreach ( $this->services as $service ) {
 			if ( method_exists( $service, 'register' ) ) {
@@ -193,6 +195,13 @@ final class Plugin {
 	 * @return void
 	 */
 	public function maybe_upgrade() {
+		// Self-repair: a site that lost its recurring event (or was never set up) gets it back on its first
+		// admin request. Reading the cron option is cheap; scheduling only happens when the event is missing.
+		$scheduler = $this->get( 'scheduler' );
+		if ( $scheduler instanceof Scheduler && null === $scheduler->current_interval() ) {
+			$scheduler->schedule();
+		}
+
 		if ( WPASL_VERSION === get_option( self::VERSION_OPTION ) ) {
 			return;
 		}
@@ -202,7 +211,40 @@ final class Plugin {
 				Storage::TOKEN_OPTION => true,
 			)
 		);
+		$storage = $this->get( 'storage' );
+		if ( $storage instanceof Storage ) {
+			$storage->ensure();
+		}
 		update_option( self::VERSION_OPTION, WPASL_VERSION, true );
+	}
+
+	/**
+	 * Sets up a site created after a network-wide activation (activation only ran on the sites that
+	 * existed at that time).
+	 *
+	 * @param \WP_Site $site The new site.
+	 * @return void
+	 */
+	public function initialize_site( $site ) {
+		if ( ! $site instanceof \WP_Site || ! is_multisite() || ! self::is_network_active() ) {
+			return;
+		}
+		switch_to_blog( (int) $site->blog_id );
+		Lifecycle::activate_site( false );
+		restore_current_blog();
+	}
+
+	/**
+	 * Whether the plugin is activated for the whole network.
+	 *
+	 * @return bool
+	 */
+	public static function is_network_active() {
+		if ( ! is_multisite() ) {
+			return false;
+		}
+		$plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
+		return isset( $plugins[ plugin_basename( WPASL_FILE ) ] );
 	}
 
 	/**

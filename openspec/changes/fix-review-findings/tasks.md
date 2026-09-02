@@ -21,7 +21,7 @@
 
 ## 5. Media: exclusión no legible por REST (D4)
 
-- [ ] 5.1 Añadir en `ExcludeMetaBox::register()` el filtro `rest_prepare_{$post_type}` que elimina `meta[_wpasl_exclude]` cuando el usuario no puede editar la entrada; verificar con `test_rest_read_hides_exclude_meta_for_anonymous` y `test_rest_read_shows_exclude_meta_for_editor_with_context_edit` en `tests/test-exclude-meta-box.php` (peticiones `WP_REST_Request` a `/wp/v2/posts/{id}`)
+- [x] 5.1 Añadir en `ExcludeMetaBox::register()` el filtro `rest_prepare_{$post_type}` que elimina `meta[_wpasl_exclude]` cuando el usuario no puede editar la entrada; verificar con `test_rest_read_hides_exclude_meta_for_anonymous` y `test_rest_read_shows_exclude_meta_for_editor_with_context_edit` en `tests/test-exclude-meta-box.php` (peticiones `WP_REST_Request` a `/wp/v2/posts/{id}`)
 
 ## 6. Media: diagnóstico por lotes acotado en tiempo (D5)
 

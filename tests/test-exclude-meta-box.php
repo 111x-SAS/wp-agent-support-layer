@@ -80,6 +80,54 @@ class Test_Exclude_Meta_Box extends WP_UnitTestCase {
 		$this->assertFalse( ExcludeMetaBox::is_excluded( $post_id ) );
 	}
 
+	/**
+	 * Dispatches a REST request for one post.
+	 *
+	 * @param int    $post_id Post id.
+	 * @param string $context Request context.
+	 * @return array<string, mixed>
+	 */
+	private function rest_post( $post_id, $context = 'view' ) {
+		global $wp_rest_server;
+		$wp_rest_server = new WP_REST_Server(); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Test server.
+		do_action( 'rest_api_init', $wp_rest_server ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core action.
+
+		$request = new WP_REST_Request( 'GET', '/wp/v2/posts/' . $post_id );
+		$request->set_param( 'context', $context );
+		$response = $wp_rest_server->dispatch( $request );
+		$this->assertSame( 200, $response->get_status() );
+		return $response->get_data();
+	}
+
+	public function test_rest_read_hides_exclude_meta_for_anonymous() {
+		Plugin::instance()->get( 'exclude_meta_box' )->register_meta();
+		$post_id = self::factory()->post->create();
+		update_post_meta( $post_id, ExcludeMetaBox::META, true );
+
+		wp_set_current_user( 0 );
+		$data = $this->rest_post( $post_id );
+		$this->assertArrayHasKey( 'meta', $data );
+		$this->assertArrayNotHasKey( ExcludeMetaBox::META, $data['meta'] );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'subscriber' ) ) );
+		$data = $this->rest_post( $post_id );
+		$this->assertArrayNotHasKey( ExcludeMetaBox::META, $data['meta'] );
+	}
+
+	public function test_rest_read_shows_exclude_meta_for_editor_with_context_edit() {
+		Plugin::instance()->get( 'exclude_meta_box' )->register_meta();
+		$post_id = self::factory()->post->create();
+		update_post_meta( $post_id, ExcludeMetaBox::META, true );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
+		$data = $this->rest_post( $post_id, 'edit' );
+		$this->assertArrayHasKey( ExcludeMetaBox::META, $data['meta'] );
+		$this->assertTrue( $data['meta'][ ExcludeMetaBox::META ] );
+
+		$data = $this->rest_post( $post_id, 'view' );
+		$this->assertArrayHasKey( ExcludeMetaBox::META, $data['meta'], 'Editors keep seeing the flag in the view context.' );
+	}
+
 	public function test_meta_is_exposed_in_rest_for_editors_only() {
 		$box = Plugin::instance()->get( 'exclude_meta_box' );
 		$box->register_meta();

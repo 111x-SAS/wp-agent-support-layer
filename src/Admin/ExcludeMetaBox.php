@@ -91,7 +91,28 @@ final class ExcludeMetaBox {
 					'auth_callback'     => array( $this, 'can_edit' ),
 				)
 			);
+			// auth_callback only guards writes: hide the value from readers without edit permission.
+			add_filter( 'rest_prepare_' . $type, array( $this, 'hide_meta_from_readers' ), 10, 2 );
 		}
+	}
+
+	/**
+	 * Removes the exclusion flag from REST responses for users who cannot edit the post.
+	 *
+	 * @param \WP_REST_Response $response Response.
+	 * @param \WP_Post          $post     Post.
+	 * @return \WP_REST_Response
+	 */
+	public function hide_meta_from_readers( $response, $post ) {
+		if ( ! $response instanceof \WP_REST_Response || ! $post instanceof \WP_Post || current_user_can( 'edit_post', $post->ID ) ) {
+			return $response;
+		}
+		$data = $response->get_data();
+		if ( is_array( $data ) && isset( $data['meta'] ) && is_array( $data['meta'] ) && array_key_exists( self::META, $data['meta'] ) ) {
+			unset( $data['meta'][ self::META ] );
+			$response->set_data( $data );
+		}
+		return $response;
 	}
 
 	/**

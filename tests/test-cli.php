@@ -131,7 +131,10 @@ class Test_CLI extends WP_UnitTestCase {
 	public function test_status_command_lists_failed_items() {
 		$state          = new WPASL\Generation\State();
 		$data           = $state->load();
-		$data['failed'] = array( 11 => 3, 12 => 1 );
+		$data['failed'] = array(
+			11 => 3,
+			12 => 1,
+		);
 		$state->save( $data, false );
 
 		$this->commands->status( array(), array() );

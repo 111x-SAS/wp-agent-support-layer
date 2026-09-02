@@ -68,7 +68,10 @@ final class ExcludeMetaBox {
 	 * @return bool
 	 */
 	public static function is_excluded( $post_id ) {
-		return (bool) get_post_meta( (int) $post_id, self::META, true );
+		// Any stored value other than '' and '0' excludes (third parties may write "yes"); Eligibility::excluded_ids()
+		// applies the same predicate in SQL.
+		$value = (string) get_post_meta( (int) $post_id, self::META, true );
+		return '' !== $value && '0' !== $value;
 	}
 
 	/**

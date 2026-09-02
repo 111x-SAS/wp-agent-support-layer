@@ -180,7 +180,8 @@ final class LeagueConverter implements ConverterInterface {
 			return $root . self::normalize_path( $url );
 		}
 		if ( '?' === $url[0] ) {
-			return $root . untrailingslashit( $path ) . $url;
+			// Keep the root slash: "?p=1" on the site root resolves to "/?p=1", not to "?p=1" glued to the host.
+			return $root . ( '/' === $path ? '/' : untrailingslashit( $path ) ) . $url;
 		}
 		// Relative to the base directory (everything up to the last slash of the base path).
 		$directory = substr( $path, 0, (int) strrpos( $path, '/' ) + 1 );

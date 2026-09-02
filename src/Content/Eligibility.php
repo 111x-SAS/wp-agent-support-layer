@@ -196,8 +196,9 @@ final class Eligibility {
 		$cache_key = 'wpasl_excluded_ids';
 		$ids       = wp_cache_get( $cache_key, 'wpasl' );
 		if ( false === $ids ) {
+			// Same predicate as ExcludeMetaBox::is_excluded(): any value other than '' and '0' excludes.
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Single indexed lookup on postmeta; results are cached.
-			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = '1'", ExcludeMetaBox::META ) );
+			$ids = $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value NOT IN ( '', '0' )", ExcludeMetaBox::META ) );
 			$ids = array_map( 'intval', (array) $ids );
 			wp_cache_set( $cache_key, $ids, 'wpasl', MINUTE_IN_SECONDS );
 		}

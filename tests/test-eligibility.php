@@ -60,6 +60,21 @@ class Test_Eligibility extends WP_UnitTestCase {
 		$this->assertSame( 'post_type', $this->eligibility->reason( $id ) );
 	}
 
+	public function test_non_canonical_exclusion_value_excludes_everywhere() {
+		$post = self::factory()->post->create();
+		update_post_meta( $post, WPASL\Admin\ExcludeMetaBox::META, 'yes' );
+		WPASL\Content\Eligibility::flush_excluded_cache();
+
+		$this->assertFalse( $this->eligibility->is_eligible( $post ) );
+		$this->assertNotContains( $post, $this->eligibility->eligible_ids() );
+		$this->assertContains( $post, WPASL\Content\Eligibility::excluded_ids() );
+
+		update_post_meta( $post, WPASL\Admin\ExcludeMetaBox::META, '0' );
+		WPASL\Content\Eligibility::flush_excluded_cache();
+		$this->assertTrue( $this->eligibility->is_eligible( $post ) );
+		$this->assertContains( $post, $this->eligibility->eligible_ids() );
+	}
+
 	public function test_excluded_post_is_not_eligible() {
 		$id = self::factory()->post->create();
 		update_post_meta( $id, ExcludeMetaBox::META, true );

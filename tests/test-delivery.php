@@ -465,6 +465,27 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertGreaterThan( 0, $blog->ID );
 	}
 
+	public function test_md_suffix_respects_base_path_segment_boundary() {
+		$home = static function () {
+			return 'http://example.org/blog';
+		};
+		add_filter( 'pre_option_home', $home );
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'x', 'post_title' => 'Equis' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( 'http://example.org/blog/x/', get_permalink( $post ) );
+
+		ob_start();
+		$this->go_to( 'http://example.org/blogx.md' );
+		$out = ob_get_clean();
+		$this->assertSame( '', $out, '/blogx.md must not resolve to /blog/x/.' );
+		$this->assertTrue( is_404() );
+
+		ob_start();
+		$this->go_to( 'http://example.org/blog/x.md' );
+		$out = ob_get_clean();
+		remove_filter( 'pre_option_home', $home );
+		$this->assertStringContainsString( "# Equis\n", $out );
+	}
+
 	public function test_non_eligible_content_is_never_served_as_markdown() {
 		$draft     = self::factory()->post->create_and_get( array( 'post_status' => 'draft', 'post_name' => 'borrador' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 		$protected = self::factory()->post->create_and_get( array( 'post_password' => 'x', 'post_name' => 'protegida' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound

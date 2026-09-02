@@ -235,7 +235,11 @@ final class Delivery {
 	private static function relative_path( $path ) {
 		$base_path = rtrim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
 		if ( '' !== $base_path && 0 === strpos( $path, $base_path ) ) {
-			$path = substr( $path, strlen( $base_path ) );
+			$rest = substr( $path, strlen( $base_path ) );
+			// Only a whole segment counts: on a site under /blog/, "/blogx.md" is not "/blog/x.md".
+			if ( '' === $rest || '/' === $rest[0] ) {
+				$path = $rest;
+			}
 		}
 		return trim( (string) $path, '/' );
 	}

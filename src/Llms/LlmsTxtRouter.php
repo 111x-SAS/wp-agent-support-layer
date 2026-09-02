@@ -7,6 +7,7 @@
 
 namespace WPASL\Llms;
 
+use WPASL\Http;
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\LlmsTab;
 use WPASL\Markdown\Delivery;
@@ -179,9 +180,10 @@ final class LlmsTxtRouter {
 	 */
 	public function headers( $document ) {
 		return array(
-			'Content-Type'      => 'text/markdown; charset=utf-8',
-			'X-Markdown-Tokens' => (string) (int) ceil( strlen( $document ) / 4 ),
-			'Cache-Control'     => 'public, max-age=' . $this->delivery->max_age(),
+			'Content-Type'           => 'text/markdown; charset=utf-8',
+			'X-Markdown-Tokens'      => (string) (int) ceil( strlen( $document ) / 4 ),
+			'Cache-Control'          => 'public, max-age=' . $this->delivery->max_age(),
+			'X-Content-Type-Options' => 'nosniff',
 		);
 	}
 
@@ -202,9 +204,9 @@ final class LlmsTxtRouter {
 
 		if ( ! headers_sent() ) {
 			status_header( 200 );
-			foreach ( $this->headers( $document ) as $name => $value ) {
-				header( $name . ': ' . $value );
-			}
+		}
+		foreach ( $this->headers( $document ) as $name => $value ) {
+			Http::send_header( $name, $value );
 		}
 
 		echo $document; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text/markdown body.

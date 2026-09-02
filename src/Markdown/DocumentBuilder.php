@@ -47,6 +47,9 @@ final class DocumentBuilder implements ItemGeneratorInterface {
 		 */
 		$html = (string) apply_filters( 'wpasl_markdown_html', $html, $post );
 
+		if ( method_exists( $this->converter, 'set_base_url' ) ) {
+			$this->converter->set_base_url( (string) get_permalink( $post ) );
+		}
 		$body     = $this->converter->convert( $html );
 		$title    = self::plain_text( $post->post_title );
 		$document = $this->front_matter( $post, $title, $body ) . '# ' . $title . "\n\n" . $body;

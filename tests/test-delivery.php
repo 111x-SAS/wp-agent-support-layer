@@ -7,6 +7,7 @@
 
 use WPASL\Admin\ExcludeMetaBox;
 use WPASL\Generation\Runner;
+use WPASL\Http;
 use WPASL\Markdown\Delivery;
 use WPASL\Plugin;
 use WPASL\Settings;
@@ -171,6 +172,57 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertSame( $from_cron, $from_request );
 	}
 
+	public function test_negotiated_markdown_has_no_x_robots_tag() {
+		$this->assertSame( 'no', Plugin::instance()->get( 'settings' )->get( 'signal_ai_train' ), 'Training not allowed by default.' );
+		$post                   = self::factory()->post->create_and_get( array( 'post_name' => 'sin-noai' ) );
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		Http::reset();
+		$this->go_to( get_permalink( $post ) );
+		$this->assertArrayHasKey( 'x-robots-tag', Http::effective_headers(), 'send_headers emitted the HTML set first.' );
+
+		ob_start();
+		$this->assertTrue( $this->delivery->maybe_serve() );
+		ob_get_clean();
+
+		$headers = Http::effective_headers();
+		$this->assertArrayNotHasKey( 'x-robots-tag', $headers );
+		$this->assertSame( array( 'text/markdown; charset=utf-8' ), $headers['content-type'] );
+		$this->assertSame( array( 'nosniff' ), $headers['x-content-type-options'] );
+		$this->assertArrayHasKey( 'content-signal', $headers );
+
+		// The .md route removes it as well (the request would end right after serving).
+		Http::reset();
+		unset( $_SERVER['HTTP_ACCEPT'] );
+		ob_start();
+		$this->go_to( home_url( '/sin-noai.md' ) );
+		ob_get_clean();
+		$removed = array_filter( Http::log(), static function ( $entry ) { return 'remove' === $entry[0] && 'X-Robots-Tag' === $entry[1]; } ); // phpcs:ignore
+		$this->assertCount( 1, $removed );
+	}
+
+	public function test_markdown_and_json_responses_send_nosniff() {
+		$post = self::factory()->post->create_and_get();
+		$this->assertSame( 'nosniff', $this->delivery->markdown_headers( $post, 'x' )['X-Content-Type-Options'] );
+		$this->assertSame( 'nosniff', Plugin::instance()->get( 'llms_router' )->headers( 'x' )['X-Content-Type-Options'] );
+		$manifest = Plugin::instance()->get( 'manifest_router' );
+		$this->assertSame( 'nosniff', $manifest->headers( \WPASL\Manifest\ManifestRouter::SKILLS_PATH )['X-Content-Type-Options'] );
+		$this->assertSame( 'nosniff', $manifest->headers( \WPASL\Manifest\ManifestRouter::CATALOG_PATH )['X-Content-Type-Options'] );
+	}
+
+	public function test_html_link_header_does_not_replace_existing_link() {
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'con-link' ) );
+		Http::reset();
+		Http::send_header( 'Link', '</style.css>; rel="preload"; as="style"' );
+		$this->go_to( get_permalink( $post ) );
+		$this->delivery->send_html_headers();
+
+		$headers = Http::effective_headers();
+		$this->assertCount( 2, $headers['link'] );
+		$this->assertSame( '</style.css>; rel="preload"; as="style"', $headers['link'][0] );
+		$this->assertStringContainsString( 'rel="alternate"; type="text/markdown"', $headers['link'][1] );
+		$this->assertContains( 'Accept', $headers['vary'] );
+	}
+
 	public function test_browser_accept_gets_html() {
 		$post                   = self::factory()->post->create_and_get();
 		$_SERVER['HTTP_ACCEPT'] = 'text/html,application/xhtml+xml,*/*;q=0.8';
@@ -281,7 +333,7 @@ class Test_Delivery extends WP_UnitTestCase {
 		);
 		update_option( Settings::OPTION, array( 'post_types' => array( 'post', 'page', 'wpasl_doc' ) ) );
 		Plugin::instance()->get( 'settings' )->flush_cache();
-		$doc = self::factory()->post->create_and_get( array( 'post_type' => 'wpasl_doc' ) );
+		$doc       = self::factory()->post->create_and_get( array( 'post_type' => 'wpasl_doc' ) );
 		$permalink = get_permalink( $doc );
 		$this->assertStringContainsString( '?wpasl_doc=', $permalink, 'A post type without rewrite rules keeps a query-string permalink.' );
 

@@ -35,6 +35,11 @@ use WPASL\Signals\ContentSignals;
 final class Plugin {
 
 	/**
+	 * Option holding the last version that ran maybe_upgrade().
+	 */
+	const VERSION_OPTION = 'wpasl_version';
+
+	/**
 	 * Singleton instance.
 	 *
 	 * @var Plugin|null
@@ -134,6 +139,7 @@ final class Plugin {
 		$this->services = apply_filters( 'wpasl_services', $this->services, $this );
 
 		add_action( 'init', array( $this, 'load_textdomain' ) );
+		add_action( 'admin_init', array( $this, 'maybe_upgrade' ) );
 
 		foreach ( $this->services as $service ) {
 			if ( method_exists( $service, 'register' ) ) {
@@ -178,6 +184,25 @@ final class Plugin {
 			'<div class="notice notice-error"><p>%s</p></div>',
 			esc_html__( 'WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run "composer run build" in the plugin directory.', 'wp-agent-support-layer' )
 		);
+	}
+
+	/**
+	 * One-off housekeeping when the plugin version changes: options read on every front-end request
+	 * become autoloaded (installs created before 1.0.2 stored them without autoload).
+	 *
+	 * @return void
+	 */
+	public function maybe_upgrade() {
+		if ( WPASL_VERSION === get_option( self::VERSION_OPTION ) ) {
+			return;
+		}
+		wp_set_option_autoload_values(
+			array(
+				Settings::OPTION      => true,
+				Storage::TOKEN_OPTION => true,
+			)
+		);
+		update_option( self::VERSION_OPTION, WPASL_VERSION, true );
 	}
 
 	/**

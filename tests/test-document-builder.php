@@ -6,6 +6,7 @@
  */
 
 use WPASL\Markdown\DocumentBuilder;
+use WPASL\Markdown\LeagueConverter;
 use WPASL\Plugin;
 
 /**
@@ -162,6 +163,40 @@ class Test_Document_Builder extends WP_UnitTestCase {
 		$this->builder->generate( $post );
 		$this->assertSame( 0, $GLOBALS['more'] );
 		$this->assertSame( 3, $GLOBALS['page'] );
+	}
+
+	public function test_absolutize_resolves_parent_segments_and_protocol_relative_urls() {
+		$converter = new LeagueConverter( 'https://example.com/blog/entrada/' );
+		$this->assertSame( 'https://example.com/blog/img/foto.png', $converter->absolutize( '../img/foto.png' ) );
+		$this->assertSame( 'https://cdn.example.com/doc.pdf', $converter->absolutize( '//cdn.example.com/doc.pdf' ) );
+		$this->assertSame( 'https://example.com/blog/entrada/x.png', $converter->absolutize( './x.png' ) );
+		$this->assertSame( 'https://example.com/blog/entrada/y.png', $converter->absolutize( 'y.png' ) );
+		$this->assertSame( 'https://example.com/b', $converter->absolutize( '/a/../b' ) );
+		$this->assertSame( 'https://example.com/x', $converter->absolutize( '/../x' ) );
+		$this->assertSame( 'https://example.com/blog/', $converter->absolutize( '..' ) );
+		$this->assertSame( 'https://example.com/blog/entrada?q=1', $converter->absolutize( '?q=1' ) );
+		$this->assertSame( 'https://example.com/a/b?x=../y#f', $converter->absolutize( '/a/./b?x=../y#f' ) );
+		$this->assertSame( '#seccion', $converter->absolutize( '#seccion' ) );
+		$this->assertSame( 'mailto:a@b.c', $converter->absolutize( 'mailto:a@b.c' ) );
+		$this->assertSame( 'https://other.example/p', $converter->absolutize( 'https://other.example/p' ) );
+
+		$converter = new LeagueConverter( 'http://example.org:8080/' );
+		$this->assertSame( 'http://cdn.example/x.png', $converter->absolutize( '//cdn.example/x.png' ), 'Scheme of the base URL, not is_ssl().' );
+		$this->assertSame( 'http://example.org:8080/p/', $converter->absolutize( '/p/' ) );
+
+		// Documents resolve against their own permalink.
+		kses_remove_filters();
+		$post = self::factory()->post->create_and_get(
+			array(
+				'post_name'    => 'entrada',
+				'post_content' => '<p><img src="../img/foto.png" alt="f"> <a href="//cdn.example.com/doc.pdf">Doc</a> <a href="#arriba">Arriba</a></p>',
+			)
+		);
+		kses_init_filters();
+		$doc = $this->builder->generate( $post );
+		$this->assertStringContainsString( '![f](' . home_url( '/img/foto.png' ) . ')', $doc );
+		$this->assertStringContainsString( '[Doc](' . wp_parse_url( home_url(), PHP_URL_SCHEME ) . '://cdn.example.com/doc.pdf)', $doc );
+		$this->assertStringContainsString( '[Arriba](#arriba)', $doc );
 	}
 
 	public function test_token_estimate() {

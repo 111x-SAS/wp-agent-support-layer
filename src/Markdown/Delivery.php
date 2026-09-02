@@ -9,6 +9,7 @@ namespace WPASL\Markdown;
 
 use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
+use WPASL\Http;
 use WPASL\Settings;
 use WPASL\Storage;
 
@@ -171,6 +172,8 @@ final class Delivery {
 	 * @return void
 	 */
 	public function handle_md_suffix( $wp ) {
+		$this->md_request_post_id = 0;
+		// A new request is being parsed.
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed below.
 		$path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
 
@@ -272,15 +275,16 @@ final class Delivery {
 	 * @return void
 	 */
 	public function send_html_headers() {
-		if ( headers_sent() || ! is_singular() ) {
+		if ( ! is_singular() ) {
 			return;
 		}
 		$post = get_queried_object();
 		if ( ! $post instanceof \WP_Post || ! $this->eligibility->is_eligible( $post ) ) {
 			return;
 		}
+		// Never replace: other components may have sent their own Vary or Link headers.
 		foreach ( $this->html_headers( $post ) as $name => $value ) {
-			header( $name . ': ' . $value, 'Vary' !== $name );
+			Http::send_header( $name, $value, false );
 		}
 	}
 
@@ -322,11 +326,12 @@ final class Delivery {
 	 */
 	public function markdown_headers( \WP_Post $post, $document ) {
 		return array(
-			'Content-Type'      => self::MIME . '; charset=utf-8',
-			'Vary'              => 'Accept',
-			'X-Markdown-Tokens' => (string) DocumentBuilder::estimate_tokens( $document ),
-			'Link'              => '<' . get_permalink( $post ) . '>; rel="canonical"',
-			'Cache-Control'     => 'public, max-age=' . $this->max_age(),
+			'Content-Type'           => self::MIME . '; charset=utf-8',
+			'Vary'                   => 'Accept',
+			'X-Markdown-Tokens'      => (string) DocumentBuilder::estimate_tokens( $document ),
+			'Link'                   => '<' . get_permalink( $post ) . '>; rel="canonical"',
+			'Cache-Control'          => 'public, max-age=' . $this->max_age(),
+			'X-Content-Type-Options' => 'nosniff',
 		);
 	}
 
@@ -377,9 +382,9 @@ final class Delivery {
 
 		if ( ! headers_sent() ) {
 			status_header( 200 );
-			foreach ( $this->markdown_headers( $post, $document ) as $name => $value ) {
-				header( $name . ': ' . $value, 'Vary' !== $name );
-			}
+		}
+		foreach ( $this->markdown_headers( $post, $document ) as $name => $value ) {
+			Http::send_header( $name, $value, 'Vary' !== $name );
 		}
 
 		echo $document; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text/markdown body.

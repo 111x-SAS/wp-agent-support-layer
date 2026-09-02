@@ -7,6 +7,7 @@
 
 namespace WPASL\Manifest;
 
+use WPASL\Http;
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\ManifestsTab;
 use WPASL\Markdown\Delivery;
@@ -197,6 +198,7 @@ final class ManifestRouter {
 			'Content-Type'                => ( self::CATALOG_PATH === $path ? 'application/linkset+json' : 'application/ld+json' ) . '; charset=utf-8',
 			'Cache-Control'               => 'public, max-age=' . $this->delivery->max_age(),
 			'Access-Control-Allow-Origin' => '*',
+			'X-Content-Type-Options'      => 'nosniff',
 		);
 	}
 
@@ -218,9 +220,9 @@ final class ManifestRouter {
 
 		if ( ! headers_sent() ) {
 			status_header( 200 );
-			foreach ( $this->headers( $path ) as $name => $value ) {
-				header( $name . ': ' . $value );
-			}
+		}
+		foreach ( $this->headers( $path ) as $name => $value ) {
+			Http::send_header( $name, $value );
 		}
 
 		echo $document; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON body.

@@ -15,6 +15,13 @@ use WPASL\Generation\ItemGeneratorInterface;
 final class DocumentBuilder implements ItemGeneratorInterface {
 
 	/**
+	 * Globals set by setup_postdata() besides $post, $more and $page.
+	 *
+	 * @var string[]
+	 */
+	const POSTDATA_GLOBALS = array( 'id', 'authordata', 'currentday', 'currentmonth', 'pages', 'numpages', 'multipage' );
+
+	/**
 	 * Converter.
 	 *
 	 * @var ConverterInterface
@@ -47,9 +54,7 @@ final class DocumentBuilder implements ItemGeneratorInterface {
 		 */
 		$html = (string) apply_filters( 'wpasl_markdown_html', $html, $post );
 
-		if ( method_exists( $this->converter, 'set_base_url' ) ) {
-			$this->converter->set_base_url( (string) get_permalink( $post ) );
-		}
+		$this->converter->set_base_url( (string) get_permalink( $post ) );
 		$body     = $this->converter->convert( $html );
 		$title    = self::plain_text( $post->post_title );
 		$document = $this->front_matter( $post, $title, $body ) . '# ' . $title . "\n\n" . $body;
@@ -86,6 +91,11 @@ final class DocumentBuilder implements ItemGeneratorInterface {
 		$previous_query = $wp_query;
 		$previous_more  = $more;
 		$previous_page  = $page;
+		// setup_postdata() also sets these; wp_reset_postdata() only restores them inside a singular view.
+		$previous_globals = array();
+		foreach ( self::POSTDATA_GLOBALS as $name ) {
+			$previous_globals[ $name ] = isset( $GLOBALS[ $name ] ) ? $GLOBALS[ $name ] : null;
+		}
 
 		$GLOBALS['post'] = $post; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restored below.
 		setup_postdata( $post );
@@ -105,6 +115,9 @@ final class DocumentBuilder implements ItemGeneratorInterface {
 		$wp_query        = $previous_query; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
 		$more            = $previous_more; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
 		$page            = $previous_page; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring.
+		foreach ( $previous_globals as $name => $value ) {
+			$GLOBALS[ $name ] = $value; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited,WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound -- Restoring core globals.
+		}
 
 		return $html;
 	}

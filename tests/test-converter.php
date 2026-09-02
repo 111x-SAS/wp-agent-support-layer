@@ -45,7 +45,7 @@ class Test_Converter extends WP_UnitTestCase {
 		$this->assertStringContainsString( '[Contacto](https://example.org/contacto/)', $md );
 		$this->assertStringContainsString( '![A](https://example.org/wp-content/uploads/a.png)', $md );
 		$this->assertStringContainsString( '(https://example.org/relativo)', $md );
-		$this->assertStringContainsString( '(https://example.org?p=1)', $md );
+		$this->assertStringContainsString( '(https://example.org/?p=1)', $md );
 	}
 
 	public function test_absolute_and_special_links_are_untouched() {

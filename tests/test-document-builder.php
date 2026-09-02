@@ -165,6 +165,43 @@ class Test_Document_Builder extends WP_UnitTestCase {
 		$this->assertSame( 3, $GLOBALS['page'] );
 	}
 
+	public function test_converter_interface_requires_base_url() {
+		$converter = new class() implements WPASL\Markdown\ConverterInterface {
+			public $base_url = null;
+			public function set_base_url( $url ) {
+				$this->base_url = $url;
+			}
+			public function convert( $html ) {
+				return 'body';
+			}
+		};
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'iface' ) );
+		$doc  = ( new DocumentBuilder( $converter ) )->generate( $post );
+		$this->assertSame( get_permalink( $post ), $converter->base_url, 'The builder hands the canonical URL to every converter, through the interface.' );
+		$this->assertStringEndsWith( "\n\nbody", $doc );
+		$this->assertTrue( method_exists( WPASL\Markdown\ConverterInterface::class, 'set_base_url' ) );
+	}
+
+	public function test_building_documents_restores_all_post_globals() {
+		$this->assertFalse( is_singular() );
+		$sentinels = array(
+			'id'         => 123456,
+			'authordata' => (object) array( 'ID' => 99 ),
+			'pages'      => array( 'sentinel' ),
+			'numpages'   => 7,
+			'multipage'  => 1,
+		);
+		foreach ( $sentinels as $name => $value ) {
+			$GLOBALS[ $name ] = $value; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		}
+		$this->builder->generate( self::factory()->post->create_and_get( array( 'post_content' => 'uno<!--nextpage-->dos' ) ) );
+		$this->builder->generate( self::factory()->post->create_and_get( array( 'post_content' => 'tres' ) ) );
+		foreach ( $sentinels as $name => $value ) {
+			$this->assertSame( $value, $GLOBALS[ $name ], "\${$name} is restored." );
+			unset( $GLOBALS[ $name ] );
+		}
+	}
+
 	public function test_absolutize_resolves_parent_segments_and_protocol_relative_urls() {
 		$converter = new LeagueConverter( 'https://example.com/blog/entrada/' );
 		$this->assertSame( 'https://example.com/blog/img/foto.png', $converter->absolutize( '../img/foto.png' ) );

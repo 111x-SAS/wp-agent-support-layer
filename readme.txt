@@ -4,7 +4,7 @@ Tags: ai, agents, markdown, llms.txt, robots.txt
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -158,6 +158,26 @@ Every extension point, with the file that documents its parameters.
 
 == Changelog ==
 
+= 1.0.3 =
+* Fixed: the "Regenerate now" / "Regenerate everything" form was nested inside the settings form, so on a clean install both buttons landed on the "All Settings" screen and the General tab could not be saved. The status block now renders after the settings form through the new `wpasl_page_after_form` action.
+* Fixed: the page configured as "Posts page" is served as Markdown (`.md`, `Accept: text/markdown`, `?wpasl=md`) and announces its Markdown URL, as llms.txt already advertised.
+* Fixed: "Settings saved." is shown after saving any tab; a save without a known tab (third-party tabs, programmatic updates) no longer wipes the other settings.
+* Fixed: sites created after a network activation are set up on creation; a missing recurring event is re-scheduled on the next admin request.
+* Fixed: `wp wpasl generate --post-type` stays scoped with `--batch`, with `--all` (only that type is invalidated) and when the type has no eligible items.
+* Added: generation failures are counted per item, shown in the General tab and `wp wpasl status`, reported through the `wpasl_generation_failed` action and the PHP error log, and retried after the rest of the queue once they reach `wpasl_max_failures` (default 3).
+* Performance: the generation state is written once per run (lazy fills during llms-full.txt no longer rewrite the option per item) and not at all when an item of a non-enabled post type is unpublished.
+* Fixed: the robots.txt preview and copy block match what WordPress serves, also when search engines are discouraged.
+* Changed: `/llms.txt` only builds llms.txt; a missing `llms-full.txt` answers 503 with `Retry-After` and is built in the background by a one-off event.
+* Added: the diagnostics probe the `.md` URL and robots.txt with every crawler user-agent, so user-agent specific WAF or CDN rules show up per crawler.
+* Fixed: the OpenAPI document served by REST carries `Content-Signal` / `Content-Usage`; `X-Robots-Tag: noai` is no longer sent on robots.txt, feeds or sitemaps; HTML and Markdown responses announce `Link: <…/.well-known/api-catalog>; rel="api-catalog"`.
+* Fixed: `/.well-known/api-catalog` is served as `application/linkset+json` without parameters; the root documents only answer on their exact path; the `read-markdown` template uses `{+path}`; the OpenAPI `servers` URL has no query string with plain permalinks.
+* Fixed: deactivation no longer flushes rewrite rules; network loops are paginated; uninstall clears the one-off events too.
+* Fixed: shell-safe `curl` commands in the Diagnostics tab; reports stored by an earlier version render without notices.
+* Fixed: llms.txt omits an empty `## Optional`; only pages follow the menu order (other hierarchical types are listed by date).
+* Fixed: `.md` routing respects the base path of subdirectory installs; `?p=1` links keep the root slash; all post globals are restored after building a document; the exclusion flag uses the same predicate everywhere.
+* Added: `web.config` and an `index.php` in every storage directory; stale `.tmp` files are removed by the cycle cleanup.
+* Developers: `ConverterInterface` now declares `set_base_url()`; a converter injected through `wpasl_services` must implement it. Every filter and action is documented in the new "Filters and actions" section.
+
 = 1.0.2 =
 * Markdown documents always carry the whole content, whichever code path generated them (`<!--more-->` and `<!--nextpage-->` no longer truncate cron, WP-CLI or `.md` output).
 * Servable Markdown URL for the static front page (`/?wpasl=md`, `/.md`) and for post types without rewrite rules.
@@ -190,6 +210,9 @@ Every extension point, with the file that documents its parameters.
 * English interface with Spanish (es_ES) translation.
 
 == Upgrade Notice ==
+
+= 1.0.3 =
+Fixes from the 1.0.2 code review, including the General tab that could not be saved and the "Regenerate now" buttons that ended on All Settings. No settings change required. Developers: custom converters must implement `ConverterInterface::set_base_url()`; blocks with their own form belong in the new `wpasl_page_after_form` action, not in `wpasl_general_tab_after`.
 
 = 1.0.2 =
 Fixes from the 1.0.1 code review: full-content Markdown, static front page URL, faster eligibility queries, batched diagnostics safe behind Cloudflare, REST exposure of the exclusion flag, and several smaller corrections. No settings change required.

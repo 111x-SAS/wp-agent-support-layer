@@ -69,10 +69,10 @@
 
 ## 9. Diagnóstico (agent-diagnostics)
 
-- [ ] 9.1 Implementar el `CrawlerProbe` con peticiones loopback por user-agent y `Accept`, timeout 10 s y bloqueo de hosts externos; verificar con tests usando `pre_http_request` para simular respuestas
-- [ ] 9.2 Implementar el evaluador de robots.txt por user-agent y el informe con estados correcto/advertencia/error guardado en transient de 1 h; verificar con tests los escenarios "bloqueado coherente" y "Markdown no servido"
-- [ ] 9.3 Implementar la detección de CDN (`cf-ray`, `server`, `x-cache`), la advertencia de Cloudflare Markdown for Agents y la prueba de acceso directo al almacenamiento; verificar con tests simulando cabeceras
-- [ ] 9.4 Implementar la pestaña Diagnóstico con la lista de verificación de WAF y los comandos `curl` por crawler; verificar manualmente en el entorno Docker que la prueba se ejecuta y el informe se muestra
+- [x] 9.1 Implementar el `CrawlerProbe` con peticiones loopback por user-agent y `Accept`, timeout 10 s y bloqueo de hosts externos; verificar con tests usando `pre_http_request` para simular respuestas
+- [x] 9.2 Implementar el evaluador de robots.txt por user-agent y el informe con estados correcto/advertencia/error guardado en transient de 1 h; verificar con tests los escenarios "bloqueado coherente" y "Markdown no servido"
+- [x] 9.3 Implementar la detección de CDN (`cf-ray`, `server`, `x-cache`), la advertencia de Cloudflare Markdown for Agents y la prueba de acceso directo al almacenamiento; verificar con tests simulando cabeceras
+- [x] 9.4 Implementar la pestaña Diagnóstico con la lista de verificación de WAF y los comandos `curl` por crawler; verificar manualmente en el entorno Docker que la prueba se ejecuta y el informe se muestra
 
 ## 10. Cumplimiento WordPress.org y documentación
 

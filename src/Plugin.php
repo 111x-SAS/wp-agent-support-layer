@@ -14,6 +14,9 @@ use WPASL\CLI\Commands;
 use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
 use WPASL\Generation\Scheduler;
+use WPASL\Diagnostics\CrawlerProbe;
+use WPASL\Diagnostics\DiagnosticsController;
+use WPASL\Diagnostics\Report;
 use WPASL\Generation\State;
 use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
@@ -105,6 +108,14 @@ final class Plugin {
 		$this->services['manifest']        = $manifest_builder;
 		$this->services['manifest_router'] = new ManifestRouter( $settings, $storage, $manifest_builder, $this->services['delivery'] );
 		$runner->add_artifact_generator( $manifest_builder );
+
+		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage );
+		$this->services['probe']       = $probe;
+		$this->services['diagnostics'] = new DiagnosticsController(
+			$probe,
+			new Report( $this->services['robots']->policy(), $this->services['signals'] ),
+			$page
+		);
 
 		if ( LeagueConverter::is_available() ) {
 			$this->services['converter'] = new LeagueConverter();

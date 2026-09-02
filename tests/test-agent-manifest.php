@@ -258,7 +258,7 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		$tabs = Plugin::instance()->get( 'page' )->tabs();
 		$this->assertArrayHasKey( 'manifests', $tabs );
-		$this->assertSame( array( 'general', 'signals', 'crawlers', 'llms', 'manifests' ), array_keys( $tabs ) );
+		$this->assertSame( array( 'general', 'signals', 'crawlers', 'llms', 'manifests', 'diagnostics' ), array_keys( $tabs ) );
 		ob_start();
 		$tabs['manifests']->render();
 		$html = ob_get_clean();

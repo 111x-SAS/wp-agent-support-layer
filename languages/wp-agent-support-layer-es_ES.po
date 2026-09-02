@@ -130,6 +130,7 @@ msgid "WP Agent Support Layer requires WordPress %1$s or newer. This site runs W
 msgstr "WP Agent Support Layer requiere WordPress %1$s o superior. Este sitio usa WordPress %2$s."
 
 #: src/Admin/GenerationStatus.php:87
+#: src/Diagnostics/DiagnosticsController.php:93
 msgid "You do not have permission to do this."
 msgstr "No tienes permiso para hacer esto."
 
@@ -193,7 +194,7 @@ msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa
 msgid "Never"
 msgstr "Nunca"
 
-#: src/Plugin.php:168
+#: src/Plugin.php:179
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr "WP Agent Support Layer: falta la librería HTML a Markdown incluida. Instala una versión de release o ejecuta \"composer run build\" en el directorio del plugin."
 
@@ -299,11 +300,13 @@ msgstr "Por defecto"
 
 #: src/Admin/Tabs/CrawlersTab.php:118
 #: src/Admin/Tabs/CrawlersTab.php:121
+#: src/Admin/Tabs/DiagnosticsTab.php:155
 msgid "Allow"
 msgstr "Permitir"
 
 #: src/Admin/Tabs/CrawlersTab.php:119
 #: src/Admin/Tabs/CrawlersTab.php:121
+#: src/Admin/Tabs/DiagnosticsTab.php:155
 msgid "Block"
 msgstr "Bloquear"
 
@@ -580,3 +583,204 @@ msgstr "Endpoints de solo lectura de la API REST de WordPress que los agentes pu
 #: src/Manifest/ManifestRouter.php:126
 msgid "The agent manifests are disabled."
 msgstr "Los manifiestos de agente están desactivados."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:62
+msgid "Diagnostics"
+msgstr "Diagnóstico"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:84
+msgid "Simulates how each AI crawler sees this site by requesting the home page, a sample item (as HTML and as Markdown) and the discovery files from this server with the crawler user-agents. Read-only; no external service is contacted."
+msgstr "Simula cómo ve este sitio cada crawler de IA solicitando desde este servidor la portada, un elemento de muestra (como HTML y como Markdown) y los archivos de descubrimiento con los user-agents de los crawlers. Solo lectura; no se contacta ningún servicio externo."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:86
+msgid "Diagnostics completed."
+msgstr "Diagnóstico completado."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:91
+msgid "Run crawler simulation"
+msgstr "Ejecutar simulación de crawlers"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:92
+msgid "Takes a few seconds; results are kept for one hour."
+msgstr "Tarda unos segundos; los resultados se conservan una hora."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:113
+msgid "Last report"
+msgstr "Último informe"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:118
+msgid "Sample item:"
+msgstr "Elemento de muestra:"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:120
+msgid "Infrastructure"
+msgstr "Infraestructura"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:122
+msgid "No CDN or proxy detected."
+msgstr "No se detectó CDN ni proxy."
+
+#. translators: %s: CDN name.
+#: src/Admin/Tabs/DiagnosticsTab.php:122
+#, php-format
+msgid "%s detected in front of the site."
+msgstr "%s detectado delante del sitio."
+
+#. translators: %s: Server header.
+#: src/Admin/Tabs/DiagnosticsTab.php:126
+#, php-format
+msgid "Server header: %s"
+msgstr "Cabecera Server: %s"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:130
+msgid "Cloudflare \"Markdown for Agents\" seems to convert pages at the edge. Keep only one converter (this plugin or Cloudflare) to avoid double processing."
+msgstr "\"Markdown for Agents\" de Cloudflare parece convertir las páginas en el borde. Conserva un solo conversor (este plugin o Cloudflare) para evitar el doble procesamiento."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:133
+msgid "Site checks"
+msgstr "Comprobaciones del sitio"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:142
+msgid "Per crawler"
+msgstr "Por crawler"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:146
+msgid "Crawler"
+msgstr "Crawler"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:147
+#: src/Diagnostics/Report.php:154
+msgid "robots.txt"
+msgstr "robots.txt"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:148
+msgid "Checks"
+msgstr "Comprobaciones"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:176
+msgid "OK"
+msgstr "OK"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:177
+msgid "Warning"
+msgstr "Advertencia"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:178
+msgid "Error"
+msgstr "Error"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:196
+msgid "List which AI crawlers you want to allow (see the Crawlers tab) and check that your WAF, bot-fight or \"AI scrapers\" rules do not block them by user-agent or by ASN."
+msgstr "Define qué crawlers de IA quieres permitir (pestaña Crawlers) y comprueba que tus reglas de WAF, bot-fight o \"AI scrapers\" no los bloquean por user-agent ni por ASN."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:197
+msgid "Verify crawlers by IP range or reverse DNS as published by each vendor, rather than trusting the user-agent string alone."
+msgstr "Verifica los crawlers por rango de IP o DNS inverso según publica cada proveedor, en lugar de confiar solo en la cadena user-agent."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:198
+msgid "Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide."
+msgstr "Mantén el rate limiting activo; sube los umbrales para crawlers verificados en lugar de desactivar los límites en todo el sitio."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:199
+msgid "Ensure the CDN or page cache honours \"Vary: Accept\" for HTML URLs, or rely on the .md URLs which are cached independently."
+msgstr "Asegúrate de que el CDN o la caché de página respetan \"Vary: Accept\" en las URLs HTML, o apóyate en las URLs .md, que se cachean por separado."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:200
+msgid "Do not cache or transform robots.txt, llms.txt, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime."
+msgstr "No caches ni transformes robots.txt, llms.txt, agent-skills.json y /.well-known/api-catalog más allá de su Cache-Control."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:201
+msgid "If Cloudflare \"Markdown for Agents\" is enabled, decide whether Cloudflare or this plugin converts pages, not both."
+msgstr "Si \"Markdown for Agents\" de Cloudflare está activo, decide si convierte Cloudflare o este plugin, no ambos."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:202
+msgid "Confirm that the uploads/wp-agent-support-layer directory is not directly accessible (Apache .htaccess or an nginx deny rule)."
+msgstr "Confirma que el directorio uploads/wp-agent-support-layer no es accesible directamente (.htaccess en Apache o una regla deny en nginx)."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:203
+msgid "After changing security rules, run this simulation again and compare the per-crawler results."
+msgstr "Tras cambiar reglas de seguridad, vuelve a ejecutar esta simulación y compara los resultados por crawler."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:206
+msgid "Infrastructure checklist (WAF, rate limiting, IP filtering)"
+msgstr "Lista de verificación de infraestructura (WAF, rate limiting, filtrado de IP)"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:207
+msgid "This plugin cannot change your CDN or firewall. Review these points with your provider."
+msgstr "Este plugin no puede cambiar tu CDN ni tu firewall. Revisa estos puntos con tu proveedor."
+
+#: src/Admin/Tabs/DiagnosticsTab.php:225
+msgid "Repeat the checks from outside"
+msgstr "Repite las comprobaciones desde fuera"
+
+#: src/Admin/Tabs/DiagnosticsTab.php:226
+msgid "Run these from your computer to see exactly what each crawler receives through your CDN and firewall."
+msgstr "Ejecútalos desde tu equipo para ver exactamente qué recibe cada crawler a través de tu CDN y firewall."
+
+#: src/Diagnostics/Report.php:155
+msgid "llms.txt"
+msgstr "llms.txt"
+
+#: src/Diagnostics/Report.php:156
+msgid "agent-skills.json"
+msgstr "agent-skills.json"
+
+#: src/Diagnostics/Report.php:157
+msgid "API catalog"
+msgstr "Catálogo de API"
+
+#: src/Diagnostics/Report.php:158
+msgid "Markdown URL of the sample item"
+msgstr "URL Markdown del elemento de muestra"
+
+#: src/Diagnostics/Report.php:178
+msgid "Generated documents are publicly accessible by direct URL. Apache: keep the .htaccess in uploads/wp-agent-support-layer. Nginx: add \"location ^~ /wp-content/uploads/wp-agent-support-layer/ { deny all; }\"."
+msgstr "Los documentos generados son accesibles públicamente por URL directa. Apache: conserva el .htaccess en uploads/wp-agent-support-layer. Nginx: añade \"location ^~ /wp-content/uploads/wp-agent-support-layer/ { deny all; }\"."
+
+#: src/Diagnostics/Report.php:179
+msgid "Direct access to the generated documents is denied."
+msgstr "El acceso directo a los documentos generados está denegado."
+
+#: src/Diagnostics/Report.php:201
+msgid "Blocked by robots.txt, as configured."
+msgstr "Bloqueado por robots.txt, según la configuración."
+
+#: src/Diagnostics/Report.php:202
+msgid "Allowed by robots.txt, as configured."
+msgstr "Permitido por robots.txt, según la configuración."
+
+#: src/Diagnostics/Report.php:209
+msgid "Home page"
+msgstr "Portada"
+
+#: src/Diagnostics/Report.php:209
+msgid "Sample item (HTML)"
+msgstr "Elemento de muestra (HTML)"
+
+#: src/Diagnostics/Report.php:224
+msgid "Content-Signal header missing on the HTML response (a cache or proxy may strip it)."
+msgstr "Falta la cabecera Content-Signal en la respuesta HTML (una caché o proxy puede estar eliminándola)."
+
+#: src/Diagnostics/Report.php:229
+msgid "X-Robots-Tag noai missing on the HTML response."
+msgstr "Falta X-Robots-Tag noai en la respuesta HTML."
+
+#: src/Diagnostics/Report.php:234
+msgid "Markdown alternate link present."
+msgstr "Enlace alternativo Markdown presente."
+
+#: src/Diagnostics/Report.php:235
+msgid "No link rel=\"alternate\" type=\"text/markdown\" found (theme without wp_head, or headers stripped)."
+msgstr "No se encontró link rel=\"alternate\" type=\"text/markdown\" (tema sin wp_head o cabeceras eliminadas)."
+
+#: src/Diagnostics/Report.php:241
+msgid "Markdown served for Accept: text/markdown."
+msgstr "Markdown servido para Accept: text/markdown."
+
+#: src/Diagnostics/Report.php:243
+msgid "It appears to be converted by Cloudflare \"Markdown for Agents\" instead of this plugin; keep only one of the two."
+msgstr "Parece convertido por \"Markdown for Agents\" de Cloudflare en lugar de por este plugin; conserva solo uno de los dos."
+
+#: src/Diagnostics/Report.php:248
+msgid "HTML returned for Accept: text/markdown. A page cache or CDN that ignores \"Vary: Accept\" is probably interfering; agents can still use the .md URL."
+msgstr "Se devolvió HTML para Accept: text/markdown. Probablemente interfiere una caché de página o CDN que ignora \"Vary: Accept\"; los agentes pueden usar la URL .md."

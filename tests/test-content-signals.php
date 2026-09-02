@@ -5,6 +5,7 @@
  * @package WPASL
  */
 
+use WPASL\Http;
 use WPASL\Plugin;
 use WPASL\Settings;
 use WPASL\Signals\ContentSignals;
@@ -102,6 +103,54 @@ class Test_Content_Signals extends WP_UnitTestCase {
 		$headers = $this->signals->headers( false );
 		$this->assertArrayHasKey( 'Content-Signal', $headers );
 		$this->assertArrayNotHasKey( 'X-Robots-Tag', $headers );
+	}
+
+	public function test_html_and_markdown_announce_api_catalog_link() {
+		$expected = '<' . home_url( '/.well-known/api-catalog' ) . '>; rel="api-catalog"';
+
+		Http::reset();
+		$this->signals->send();
+		$headers = Http::effective_headers();
+		$this->assertContains( $expected, $headers['link'] );
+		$this->assertArrayHasKey( 'x-robots-tag', $headers );
+
+		Http::reset();
+		Http::send_header( 'Link', '<https://example.org/>; rel="canonical"' );
+		$this->signals->send( 'markdown' );
+		$headers = Http::effective_headers();
+		$this->assertSame( array( '<https://example.org/>; rel="canonical"', $expected ), $headers['link'], 'Added, never replacing other Link headers.' );
+
+		Http::reset();
+		$this->signals->send( 'llms-txt' );
+		$this->assertArrayNotHasKey( 'link', Http::effective_headers() );
+	}
+
+	public function test_no_api_catalog_link_when_manifest_disabled() {
+		update_option( Settings::OPTION, array( 'manifest_enabled' => false ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		Http::reset();
+		$this->signals->send();
+		$headers = Http::effective_headers();
+		$this->assertArrayNotHasKey( 'link', $headers );
+		$this->assertArrayHasKey( 'content-signal', $headers );
+	}
+
+	public function test_robots_feed_and_sitemap_have_no_noai_header() {
+		// Other tests reset WP_Rewrite (set_permalink_structure), which drops the "sitemap" rewrite tag core
+		// registers on init; register it again as core does on every request.
+		wp_sitemaps_get_server()->register_rewrites();
+		foreach ( array( '/?robots=1', '/?feed=rss2', '/?sitemap=index' ) as $path ) {
+			Http::reset();
+			$this->go_to( home_url( $path ) );
+			$headers = Http::effective_headers();
+			$this->assertArrayHasKey( 'content-signal', $headers, $path );
+			$this->assertArrayNotHasKey( 'x-robots-tag', $headers, $path . ' must not carry noai.' );
+		}
+
+		Http::reset();
+		$post = self::factory()->post->create();
+		$this->go_to( get_permalink( $post ) );
+		$this->assertSame( array( 'noai, noimageai' ), Http::effective_headers()['x-robots-tag'] );
 	}
 
 	public function test_hooks_are_wired() {

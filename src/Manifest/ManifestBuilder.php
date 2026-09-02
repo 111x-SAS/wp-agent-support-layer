@@ -181,14 +181,24 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 	public function openapi() {
 		$paths    = array();
 		$rest_url = rest_url();
+		// Plain permalinks: rest_url() is the site URL plus "?rest_route=/". A Server Object URL must not carry a
+		// query string, so the server is the site URL and every path key carries the "/?rest_route=" prefix.
+		$plain = false !== strpos( $rest_url, '?' );
 
 		foreach ( $this->registry->all() as $capability ) {
 			$url = isset( $capability['url'] ) ? $capability['url'] : $capability['urlTemplate'];
 			if ( 0 !== strpos( $url, $rest_url ) || 'GET' !== $capability['method'] ) {
 				continue;
 			}
-			$path = '/' . ltrim( substr( $url, strlen( $rest_url ) ), '/' );
+			$route = substr( $url, strlen( $rest_url ) );
+			if ( $plain ) {
+				$route = (string) strtok( $route, '&' );
+			}
+			$path = '/' . ltrim( $route, '/' );
 			$path = (string) wp_parse_url( $path, PHP_URL_PATH );
+			if ( $plain ) {
+				$path = '/?rest_route=' . $path;
+			}
 
 			$parameters = array();
 			foreach ( $capability['parameters'] as $param ) {
@@ -233,7 +243,7 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 				'version'     => WPASL_VERSION,
 				'contact'     => array( 'email' => $this->settings->contact_email() ),
 			),
-			'servers' => array( array( 'url' => untrailingslashit( $rest_url ) ) ),
+			'servers' => array( array( 'url' => $plain ? untrailingslashit( home_url() ) : untrailingslashit( $rest_url ) ) ),
 			'paths'   => $paths,
 		);
 

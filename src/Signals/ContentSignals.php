@@ -136,15 +136,16 @@ final class ContentSignals {
 	/**
 	 * Sends the headers on front-end responses. Never in the admin.
 	 *
-	 * @param mixed $context Ignored; "markdown" when fired by wpasl_before_serve.
+	 * @param mixed $context The WP object on send_headers; "markdown", "llms-txt" or "manifest" when fired
+	 *                       by wpasl_before_serve.
 	 * @return void
 	 */
 	public function send( $context = null ) {
 		if ( is_admin() ) {
 			return;
 		}
-		$html = ! is_string( $context );
-		if ( ! $html ) {
+		$html = ! is_string( $context ) && ! ( $context instanceof \WP && self::is_non_html_query( $context->query_vars ) );
+		if ( is_string( $context ) ) {
 			// send_headers already emitted the HTML set (including X-Robots-Tag) before content negotiation
 			// picked Markdown; the noai directives are for HTML responses only.
 			Http::remove_header( self::ROBOTS_HEADER );
@@ -152,6 +153,26 @@ final class ContentSignals {
 		foreach ( $this->headers( $html ) as $name => $value ) {
 			Http::send_header( $name, $value, self::ROBOTS_HEADER !== $name );
 		}
+		if ( ( $html || 'markdown' === $context ) && $this->settings->get( 'manifest_enabled' ) ) {
+			// RFC 9727 §4: discovery of the API catalog from any resource of the origin. Never replace other Link headers.
+			Http::send_header( 'Link', '<' . home_url( '/.well-known/api-catalog' ) . '>; rel="api-catalog"', false );
+		}
+	}
+
+	/**
+	 * Whether the main query targets a non-HTML resource (robots.txt, a feed or a sitemap). is_feed() and
+	 * is_robots() are not reliable yet on send_headers, so the query vars are inspected directly.
+	 *
+	 * @param array<string, mixed> $query_vars Query vars.
+	 * @return bool
+	 */
+	private static function is_non_html_query( array $query_vars ) {
+		foreach ( array( 'feed', 'robots', 'sitemap', 'sitemap-stylesheet' ) as $var ) {
+			if ( ! empty( $query_vars[ $var ] ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

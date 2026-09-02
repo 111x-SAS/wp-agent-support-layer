@@ -172,7 +172,9 @@ final class Runner {
 
 		$cycle_completed = empty( $state['queue'] );
 		if ( $cycle_completed ) {
-			$state['generated']            = $this->prune( $state['generated'] );
+			$before                        = $state['generated'];
+			$state['generated']            = $this->prune( $before );
+			$state['_removed']             = array_keys( array_diff_key( $before, $state['generated'] ) );
 			$state['last_cycle_completed'] = time();
 		}
 		if ( $cycle_completed || $this->artifacts_are_stale( $state ) ) {
@@ -271,6 +273,7 @@ final class Runner {
 		}
 
 		if ( $persist ) {
+			$state['_removed']  = array_keys( array_diff_key( $state['generated'], $generated ) );
 			$state['generated'] = $generated;
 			$this->state->save( $state );
 		}
@@ -312,7 +315,7 @@ final class Runner {
 		$state              = $this->state->load();
 		$state['queue']     = array();
 		$state['generated'] = array();
-		$this->state->save( $state );
+		$this->state->save( $state, false );
 	}
 
 	/**

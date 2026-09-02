@@ -80,6 +80,35 @@ class Test_Lifecycle extends WP_UnitTestCase {
 		return (string) $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", $option ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
 	}
 
+	public function test_uninstall_clears_manual_event() {
+		Lifecycle::activate();
+		$block = static function () {
+			return new WP_Error( 'blocked', 'No HTTP in tests.' );
+		};
+		add_filter( 'pre_http_request', $block );
+		Plugin::instance()->get( 'scheduler' )->run_soon();
+		Plugin::instance()->get( 'scheduler' )->schedule_llms_full();
+		remove_filter( 'pre_http_request', $block );
+		$this->assertNotFalse( wp_next_scheduled( Scheduler::HOOK, Scheduler::MANUAL_ARGS ) );
+
+		Uninstaller::run_site();
+
+		foreach ( (array) _get_cron_array() as $hooks ) {
+			$this->assertArrayNotHasKey( Scheduler::HOOK, $hooks );
+			$this->assertArrayNotHasKey( Scheduler::LLMS_FULL_HOOK, $hooks );
+		}
+	}
+
+	public function test_deactivate_does_not_flush_rewrite_rules() {
+		Lifecycle::activate();
+		update_option( 'rewrite_rules', array( 'sentinel/?$' => 'index.php?sentinel=1' ) );
+		Lifecycle::deactivate();
+		$rules = get_option( 'rewrite_rules' );
+		$this->assertIsArray( $rules );
+		$this->assertArrayHasKey( 'sentinel/?$', $rules, 'Deactivation leaves the rewrite rules alone.' );
+		$this->assertNull( ( new Scheduler( new Settings() ) )->current_interval() );
+	}
+
 	public function test_settings_and_token_options_are_autoloaded() {
 		global $wpdb;
 		$autoloaded = array( 'yes', 'on', 'auto-on' );

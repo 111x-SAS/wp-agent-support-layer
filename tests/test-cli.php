@@ -128,6 +128,16 @@ class Test_CLI extends WP_UnitTestCase {
 		$this->assertSame( 0, Plugin::instance()->get( 'runner' )->status()['pending'] );
 	}
 
+	public function test_status_command_lists_failed_items() {
+		$state          = new WPASL\Generation\State();
+		$data           = $state->load();
+		$data['failed'] = array( 11 => 3, 12 => 1 );
+		$state->save( $data, false );
+
+		$this->commands->status( array(), array() );
+		$this->assertContains( 'failed=2', WP_CLI::$log );
+	}
+
 	public function test_status_and_clear() {
 		self::factory()->post->create_many( 2 );
 		$this->commands->status( array(), array( 'format' => 'table' ) );

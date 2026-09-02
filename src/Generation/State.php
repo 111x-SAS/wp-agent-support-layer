@@ -23,6 +23,7 @@ final class State {
 		return array(
 			'queue'                      => array(),
 			'generated'                  => array(),
+			'failed'                     => array(),
 			'cycle_started'              => 0,
 			'last_run'                   => 0,
 			'last_run_count'             => 0,
@@ -86,6 +87,7 @@ final class State {
 		}
 		if ( ! empty( $removed ) ) {
 			$state['generated'] = array_diff_key( $state['generated'], array_fill_keys( $removed, true ) );
+			$state['failed']    = array_diff_key( (array) $state['failed'], array_fill_keys( $removed, true ) );
 			$state['queue']     = array_values( array_diff( array_map( 'intval', $state['queue'] ), $removed ) );
 		}
 

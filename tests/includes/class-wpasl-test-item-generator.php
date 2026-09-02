@@ -20,10 +20,20 @@ class WPASL_Test_Item_Generator implements ItemGeneratorInterface {
 	public $calls = 0;
 
 	/**
+	 * Ids whose generation fails (returns false).
+	 *
+	 * @var int[]
+	 */
+	public $fail_ids = array();
+
+	/**
 	 * {@inheritDoc}
 	 */
 	public function generate( WP_Post $post ) {
 		++$this->calls;
+		if ( in_array( $post->ID, $this->fail_ids, true ) ) {
+			return false;
+		}
 		return "# {$post->post_title}\n";
 	}
 }

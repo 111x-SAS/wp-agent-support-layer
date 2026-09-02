@@ -288,6 +288,86 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertFalse( $this->storage->exists( Runner::document_path( 'post', $post ) ) );
 	}
 
+	/**
+	 * Item generator that fails for the given ids.
+	 *
+	 * @param int[] $fail_ids Ids whose generation returns false.
+	 * @return WPASL_Test_Item_Generator
+	 */
+	private function failing_generator( array $fail_ids ) {
+		$generator           = new WPASL_Test_Item_Generator();
+		$generator->fail_ids = $fail_ids;
+		$this->runner->set_item_generator( $generator );
+		return $generator;
+	}
+
+	public function test_failed_items_are_counted_and_deprioritized() {
+		$bad  = self::factory()->post->create( array( 'post_title' => 'Bad' ) );
+		$good = self::factory()->post->create( array( 'post_title' => 'Good' ) );
+		$this->failing_generator( array( $bad ) );
+		$events = array();
+		add_action(
+			'wpasl_generation_failed',
+			static function ( $post, $reason, $attempts ) use ( &$events ) {
+				$events[] = array( $post->ID, $reason, $attempts );
+			},
+			10,
+			3
+		);
+
+		$log = tempnam( get_temp_dir(), 'wpasl-log' );
+		$ini = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		try {
+			$this->runner->run( 10 );
+			$this->runner->run( 10 );
+		} finally {
+			ini_set( 'error_log', (string) $ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		}
+		$logged = (string) file_get_contents( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		unlink( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+		$this->assertStringContainsString( "post #{$bad} (empty_document), attempt 1", $logged );
+		$state = ( new State() )->load();
+		$this->assertSame( 2, $state['failed'][ $bad ] );
+		$this->assertArrayNotHasKey( $bad, $state['generated'] );
+		$this->assertArrayHasKey( $good, $state['generated'] );
+		$this->assertSame( array( array( $bad, 'empty_document', 1 ), array( $bad, 'empty_document', 2 ) ), $events );
+		$this->assertSame( 1, $this->runner->status()['failed'] );
+
+		$this->runner->run( 10 );
+		$this->assertSame( 3, ( new State() )->load()['failed'][ $bad ], 'Third failure reaches the threshold.' );
+
+		// A fresh item and a batch of one: the exhausted item must not take the slot.
+		$fresh = self::factory()->post->create( array( 'post_title' => 'Fresh' ) );
+		$this->runner->run( 1 );
+		$state = ( new State() )->load();
+		$this->assertArrayHasKey( $fresh, $state['generated'], 'The healthy item was processed first.' );
+		$this->assertSame( 3, $state['failed'][ $bad ], 'The exhausted item was not retried in that batch.' );
+		$this->assertSame( $bad, end( $state['queue'] ), 'It waits at the end of the queue.' );
+
+		// Mid-cycle top-up: the exhausted item is never re-inserted at the front.
+		$later = self::factory()->post->create( array( 'post_title' => 'Later' ) );
+		$this->runner->run( 1 );
+		$state = ( new State() )->load();
+		$this->assertArrayHasKey( $later, $state['generated'] );
+		$this->assertSame( 3, $state['failed'][ $bad ] );
+	}
+
+	public function test_successful_generation_clears_failure_counter() {
+		$post      = self::factory()->post->create();
+		$generator = $this->failing_generator( array( $post ) );
+		$ini       = ini_set( 'error_log', '/dev/null' ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		$this->runner->run( 10 );
+		ini_set( 'error_log', (string) $ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		$this->assertSame( 1, ( new State() )->load()['failed'][ $post ] );
+
+		$generator->fail_ids = array();
+		$this->runner->run( 10 );
+		$state = ( new State() )->load();
+		$this->assertSame( array(), $state['failed'] );
+		$this->assertArrayHasKey( $post, $state['generated'] );
+		$this->assertSame( 0, $this->runner->status()['failed'] );
+	}
+
 	public function test_reset_cycle_without_types_forgets_everything() {
 		$post = self::factory()->post->create();
 		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );

@@ -306,7 +306,15 @@ final class Runner {
 
 		$eligible = array_fill_keys( $this->eligibility->eligible_ids(), true );
 
-		foreach ( $this->storage->list_files( 'md' ) as $relative ) {
+		foreach ( $this->storage->list_files( '' ) as $relative ) {
+			if ( '.tmp' === substr( $relative, -4 ) ) {
+				// Leftover of an interrupted atomic write (see Storage::write()); safe to delete once it is old.
+				$mtime = $this->storage->mtime( $relative );
+				if ( null !== $mtime && time() - $mtime > HOUR_IN_SECONDS ) {
+					$this->storage->delete( $relative );
+				}
+				continue;
+			}
 			if ( ! preg_match( '#^md/([^/]+)/(\d+)\.md$#', $relative, $m ) ) {
 				continue;
 			}

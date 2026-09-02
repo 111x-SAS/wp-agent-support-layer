@@ -78,4 +78,22 @@ class Test_Storage extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Storage write failed: file_put_contents(' . $dir, $contents );
 		$this->assertFalse( $storage->exists( 'md/post/1.md' ) );
 	}
+
+	public function test_write_creates_index_in_new_subdirectories() {
+		$storage = new Storage();
+		$storage->ensure();
+		$this->assertTrue( $storage->write( 'md/post/7.md', "# x\n" ) );
+		$this->assertFileExists( $storage->base_dir() . '/md/index.php' );
+		$this->assertFileExists( $storage->base_dir() . '/md/post/index.php' );
+		$this->assertSame( Storage::INDEX_GUARD, file_get_contents( $storage->base_dir() . '/md/post/index.php' ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$this->assertSame( array( 'md/post/7.md' ), $storage->list_files( 'md' ), 'Guards are not listed as documents.' );
+	}
+
+	public function test_ensure_writes_web_config() {
+		$storage = new Storage();
+		$this->assertTrue( $storage->ensure() );
+		$config = file_get_contents( Storage::root_dir() . '/web.config' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$this->assertStringContainsString( '<add accessType="Deny" users="*" />', $config );
+		$this->assertFileExists( Storage::root_dir() . '/.htaccess' );
+	}
 }

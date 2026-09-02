@@ -428,6 +428,23 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertTrue( $this->storage->exists( 'llms-full.txt' ) );
 	}
 
+	public function test_prune_removes_stale_tmp_files() {
+		$post = self::factory()->post->create();
+		$this->runner->run_cycle();
+		$stale = $this->storage->path( 'md/post/' . $post . '.md.abcdefgh.tmp' );
+		$fresh = $this->storage->path( 'md/post/' . $post . '.md.ijklmnop.tmp' );
+		file_put_contents( $stale, 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		file_put_contents( $fresh, 'x' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
+		touch( $stale, time() - 2 * HOUR_IN_SECONDS ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_touch
+
+		$this->runner->prune();
+
+		$this->assertFileDoesNotExist( $stale );
+		$this->assertFileExists( $fresh, 'A temporary file from a write in progress is kept.' );
+		$this->assertTrue( $this->storage->exists( Runner::document_path( 'post', $post ) ) );
+		unlink( $fresh ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+	}
+
 	public function test_reset_cycle_without_types_forgets_everything() {
 		$post = self::factory()->post->create();
 		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );

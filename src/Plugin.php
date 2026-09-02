@@ -18,6 +18,7 @@ use WPASL\Generation\State;
 use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
 use WPASL\Markdown\LeagueConverter;
+use WPASL\Signals\ContentSignals;
 
 /**
  * Wires the plugin services into WordPress.
@@ -85,6 +86,7 @@ final class Plugin {
 			'exclude'     => new ExcludeMetaBox( $settings ),
 			'status'      => new GenerationStatus( $runner, $scheduler, $page ),
 			'delivery'    => new Delivery( $settings, $storage, $eligibility, $runner ),
+			'signals'     => new ContentSignals( $settings ),
 		);
 
 		if ( LeagueConverter::is_available() ) {

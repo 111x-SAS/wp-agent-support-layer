@@ -193,6 +193,58 @@ msgstr "Ambas acciones se ejecutan en segundo plano. \"Regenerar ahora\" procesa
 msgid "Never"
 msgstr "Nunca"
 
-#: src/Plugin.php:149
+#: src/Plugin.php:151
 msgid "WP Agent Support Layer: the bundled HTML-to-Markdown library is missing. Install a release build, or run \"composer run build\" in the plugin directory."
 msgstr "WP Agent Support Layer: falta la librería HTML a Markdown incluida. Instala una versión de release o ejecuta \"composer run build\" en el directorio del plugin."
+
+#: src/Admin/Tabs/SignalsTab.php:49
+msgid "Signals"
+msgstr "Señales"
+
+#: src/Admin/Tabs/SignalsTab.php:70
+msgid "Search"
+msgstr "Búsqueda"
+
+#: src/Admin/Tabs/SignalsTab.php:72
+msgid "Building a search index and showing links and short excerpts in results. Does not include AI-generated summaries."
+msgstr "Construir un índice de búsqueda y mostrar enlaces y extractos breves en los resultados. No incluye resúmenes generados por IA."
+
+#: src/Admin/Tabs/SignalsTab.php:75
+msgid "AI input"
+msgstr "Entrada para IA"
+
+#: src/Admin/Tabs/SignalsTab.php:77
+msgid "Using the content as input for AI models in real time: answer engines, retrieval-augmented generation, on-demand agents."
+msgstr "Usar el contenido como entrada de modelos de IA en tiempo real: motores de respuestas, generación aumentada por recuperación, agentes bajo demanda."
+
+#: src/Admin/Tabs/SignalsTab.php:80
+msgid "AI training"
+msgstr "Entrenamiento de IA"
+
+#: src/Admin/Tabs/SignalsTab.php:82
+msgid "Training or fine-tuning AI models. When set to No, the site also sends \"noai, noimageai\" in X-Robots-Tag and the robots meta tag."
+msgstr "Entrenar o ajustar modelos de IA. Con No, el sitio envía además \"noai, noimageai\" en X-Robots-Tag y en la meta etiqueta robots."
+
+#: src/Admin/Tabs/SignalsTab.php:86
+msgid "These preferences are published in robots.txt (Content-Signal directive), in the Content-Signal HTTP header of every public response and as robots directives. They are declarations, not enforcement; use the Crawlers tab to decide which AI crawlers may fetch the site."
+msgstr "Estas preferencias se publican en robots.txt (directiva Content-Signal), en la cabecera HTTP Content-Signal de cada respuesta pública y como directivas robots. Son declaraciones, no un bloqueo; usa la pestaña Crawlers para decidir qué crawlers de IA pueden acceder al sitio."
+
+#: src/Admin/Tabs/SignalsTab.php:95
+msgid "Yes"
+msgstr "Sí"
+
+#: src/Admin/Tabs/SignalsTab.php:96
+msgid "No"
+msgstr "No"
+
+#: src/Admin/Tabs/SignalsTab.php:103
+msgid "Content-Usage header"
+msgstr "Cabecera Content-Usage"
+
+#: src/Admin/Tabs/SignalsTab.php:107
+msgid "Also send the experimental IETF AIPREF \"Content-Usage\" header (train-ai, search)."
+msgstr "Enviar también la cabecera experimental \"Content-Usage\" del IETF AIPREF (train-ai, search)."
+
+#: src/Admin/Tabs/SignalsTab.php:109
+msgid "The AIPREF specification is still a draft; disable this if its syntax changes."
+msgstr "La especificación AIPREF sigue siendo un borrador; desactívalo si su sintaxis cambia."

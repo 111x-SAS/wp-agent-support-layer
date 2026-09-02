@@ -40,10 +40,10 @@
 
 ## 5. Señales de contenido (content-signals)
 
-- [ ] 5.1 Implementar los ajustes `search`, `ai-input`, `ai-train` y el interruptor de `Content-Usage` con sus defaults; verificar con tests los valores por defecto
-- [ ] 5.2 Implementar la inserción de `Content-Signal:` dentro del grupo `User-agent: *` del robots.txt virtual con comentario de referencia; verificar con tests sobre la salida del filtro `robots_txt`
-- [ ] 5.3 Implementar las cabeceras `Content-Signal` y `Content-Usage` en respuestas de front-end y su ausencia en admin; verificar con tests de `send_headers` y de la respuesta Markdown
-- [ ] 5.4 Implementar `noai, noimageai` en `X-Robots-Tag` y en `wp_robots` cuando `ai-train=no`, preservando directivas existentes; verificar con tests los escenarios de convivencia
+- [x] 5.1 Implementar los ajustes `search`, `ai-input`, `ai-train` y el interruptor de `Content-Usage` con sus defaults; verificar con tests los valores por defecto
+- [x] 5.2 Implementar la inserción de `Content-Signal:` dentro del grupo `User-agent: *` del robots.txt virtual con comentario de referencia; verificar con tests sobre la salida del filtro `robots_txt`
+- [x] 5.3 Implementar las cabeceras `Content-Signal` y `Content-Usage` en respuestas de front-end y su ausencia en admin; verificar con tests de `send_headers` y de la respuesta Markdown
+- [x] 5.4 Implementar `noai, noimageai` en `X-Robots-Tag` y en `wp_robots` cuando `ai-train=no`, preservando directivas existentes; verificar con tests los escenarios de convivencia
 
 ## 6. Reglas para crawlers de IA (ai-crawler-robots)
 

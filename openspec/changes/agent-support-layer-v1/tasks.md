@@ -6,9 +6,9 @@
 - [x] 1.4 Configurar Strauss para prefijar `league/html-to-markdown` en `vendor-prefixed/` bajo `WPASL\Vendor` y verificar que `composer run build` genera las clases prefijadas
 - [x] 1.5 Ejecutar `wp scaffold plugin-tests --ci=github` y adaptar `phpunit.xml.dist`, `tests/bootstrap.php` y `bin/install-wp-tests.sh`; verificar que la suite de humo pasa localmente contra MySQL en Docker
 - [x] 1.6 Configurar `.phpcs.xml.dist` con WordPress, WordPress-Extra, WordPress-Docs, PHPCompatibilityWP (`testVersion 7.4-`), text domain y prefijos permitidos; verificar `vendor/bin/phpcs` sin errores sobre el esqueleto
-- [ ] 1.7 Crear `.github/workflows/ci.yml` con jobs `test` (matriz PHP 7.4/8.0/8.2/8.3, servicio MySQL 8.0, `bin/install-wp-tests.sh`, PHPUnit), `lint` (PHPCS) y `plugin-check`; verificar en GitHub que los tres jobs pasan en el primer push
-- [ ] 1.8 Crear `.github/workflows/release.yml` que construya el zip distribuible al publicar un tag y verificar el artefacto con un tag de prueba
-- [ ] 1.9 Crear el repositorio en GitHub, hacer el push inicial (OpenSpec + scaffolding) y verificar que la CI está en verde
+- [x] 1.7 Crear `.github/workflows/ci.yml` con jobs `test` (matriz PHP 7.4/8.0/8.2/8.3, servicio MySQL 8.0, `bin/install-wp-tests.sh`, PHPUnit), `lint` (PHPCS) y `plugin-check`; verificar en GitHub que los tres jobs pasan en el primer push
+- [x] 1.8 Crear `.github/workflows/release.yml` que construya el zip distribuible al publicar un tag y verificar el artefacto con un tag de prueba
+- [x] 1.9 Crear el repositorio en GitHub, hacer el push inicial (OpenSpec + scaffolding) y verificar que la CI está en verde
 
 ## 2. Núcleo del plugin y ajustes (admin-settings)
 

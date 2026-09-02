@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Tags are needed to find the previous release for the compare link.
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -52,12 +54,32 @@ jobs:
           name: wp-agent-support-layer
           path: build/wp-agent-support-layer
 
+      - name: Prepare release notes (main changes from readme.txt, then the full compare link)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PREVIOUS=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          {
+            echo "## Main changes"
+            echo
+            # The "= X.Y.Z =" section of the readme changelog, first 10 bullets.
+            awk -v v="= ${VERSION} =" '$0 == v { on = 1; next } on && /^= / { exit } on && /^\* / { print }' readme.txt | head -10
+            echo
+            if [ -n "$PREVIOUS" ]; then
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${GITHUB_REF_NAME}"
+            else
+              echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_REF_NAME}"
+            fi
+          } > release-notes.md
+          cat release-notes.md
+
       - name: Attach zip to the GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: wp-agent-support-layer-*.zip
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
 
   deploy-wporg:
     name: Deploy to WordPress.org SVN

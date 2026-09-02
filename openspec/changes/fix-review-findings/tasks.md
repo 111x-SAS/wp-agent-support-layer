@@ -5,8 +5,8 @@
 
 ## 2. Alta: documento Markdown completo (D1)
 
-- [ ] 2.1 En `DocumentBuilder::render_html()` fijar `$more = 1` (guardando y restaurando `$more` y `$page`), eliminar `<!--more-->`, `<!--nextpage-->` y los bloques `wp:more`/`wp:nextpage` de una copia de `post_content` y pasarla al filtro `the_content`; verificar con `test_document_contains_both_halves_of_more_and_every_nextpage` en `tests/test-document-builder.php` (post con ambas marcas generado fuera de una vista singular → ambas mitades presentes, sin `more-link` ni `(more…)`)
-- [ ] 2.2 Añadir `test_document_is_identical_from_cron_and_from_singular_request` que compara el documento generado vía `Runner::generate_item()` con el generado vía `Accept: text/markdown` en la URL canónica y verificar que son idénticos
+- [x] 2.1 En `DocumentBuilder::render_html()` fijar `$more = 1` (guardando y restaurando `$more` y `$page`), eliminar `<!--more-->`, `<!--nextpage-->` y los bloques `wp:more`/`wp:nextpage` de una copia de `post_content` y pasarla al filtro `the_content`; verificar con `test_document_contains_both_halves_of_more_and_every_nextpage` en `tests/test-document-builder.php` (post con ambas marcas generado fuera de una vista singular → ambas mitades presentes, sin `more-link` ni `(more…)`)
+- [x] 2.2 Añadir `test_document_is_identical_from_cron_and_from_singular_request` que compara el documento generado vía `Runner::generate_item()` con el generado vía `Accept: text/markdown` en la URL canónica y verificar que son idénticos
 
 ## 3. Alta: URL Markdown de portada estática y permalinks con query string (D2)
 

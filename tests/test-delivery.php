@@ -144,6 +144,33 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertTrue( $this->storage->exists( Runner::document_path( 'post', $post->ID ) ), 'Lazy fill stored the document.' );
 	}
 
+	public function test_document_is_identical_from_cron_and_from_singular_request() {
+		$post = self::factory()->post->create_and_get(
+			array(
+				'post_title'   => 'Paginada',
+				'post_content' => "<p>Teaser</p>\n<!--more-->\n<p>Cuerpo completo</p>\n<!--nextpage-->\n<p>Segunda página</p>",
+			)
+		);
+
+		// Generated outside any singular view, as WP-Cron does.
+		$this->assertFalse( is_singular() );
+		$from_cron = Plugin::instance()->get( 'runner' )->generate_item( $post );
+		$this->assertStringContainsString( 'Cuerpo completo', $from_cron );
+		$this->assertStringContainsString( 'Segunda página', $from_cron );
+
+		// Same post, regenerated from scratch inside the singular request.
+		Plugin::instance()->get( 'runner' )->clear();
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		$this->go_to( get_permalink( $post ) );
+		$this->assertTrue( is_singular() );
+
+		ob_start();
+		$this->delivery->maybe_serve();
+		$from_request = ob_get_clean();
+
+		$this->assertSame( $from_cron, $from_request );
+	}
+
 	public function test_browser_accept_gets_html() {
 		$post                   = self::factory()->post->create_and_get();
 		$_SERVER['HTTP_ACCEPT'] = 'text/html,application/xhtml+xml,*/*;q=0.8';

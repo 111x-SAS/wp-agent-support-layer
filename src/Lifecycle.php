@@ -105,12 +105,13 @@ final class Lifecycle {
 					'offset' => $offset,
 				)
 			);
+			$fetched = count( $site_ids );
 			foreach ( $site_ids as $site_id ) {
 				switch_to_blog( $site_id );
 				call_user_func( $callback );
 				restore_current_blog();
 			}
 			$offset += self::SITES_PER_PAGE;
-		} while ( count( $site_ids ) === self::SITES_PER_PAGE );
+		} while ( self::SITES_PER_PAGE === $fetched );
 	}
 }

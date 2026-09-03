@@ -175,8 +175,8 @@ class Test_Document_Builder extends WP_UnitTestCase {
 				return 'body';
 			}
 		};
-		$post = self::factory()->post->create_and_get( array( 'post_name' => 'iface' ) );
-		$doc  = ( new DocumentBuilder( $converter ) )->generate( $post );
+		$post      = self::factory()->post->create_and_get( array( 'post_name' => 'iface' ) );
+		$doc       = ( new DocumentBuilder( $converter ) )->generate( $post );
 		$this->assertSame( get_permalink( $post ), $converter->base_url, 'The builder hands the canonical URL to every converter, through the interface.' );
 		$this->assertStringEndsWith( "\n\nbody", $doc );
 		$this->assertTrue( method_exists( WPASL\Markdown\ConverterInterface::class, 'set_base_url' ) );

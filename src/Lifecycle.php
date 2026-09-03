@@ -105,7 +105,7 @@ final class Lifecycle {
 					'offset' => $offset,
 				)
 			);
-			$fetched = count( $site_ids );
+			$fetched  = count( $site_ids );
 			foreach ( $site_ids as $site_id ) {
 				switch_to_blog( $site_id );
 				call_user_func( $callback );

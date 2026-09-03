@@ -119,7 +119,7 @@ class Test_Generation_Status extends WP_UnitTestCase {
 		ob_start();
 		$this->status->render();
 		$html = ob_get_clean();
-		$this->assertMatchesRegularExpression( '/Failed items<\/th><td>2 /', $html );
+		$this->assertMatchesRegularExpression( '/Failed items<\/th><td>2 <span/', $html );
 		$this->assertSame( 2, Plugin::instance()->get( 'runner' )->status()['failed'] );
 	}
 

@@ -6,11 +6,11 @@ Permite al administrador comprobar desde el propio sitio cómo lo ven los crawle
 ## Requirements
 
 ### Requirement: Ejecución de la prueba de rastreo
-La página de diagnóstico SHALL ofrecer una acción que realice peticiones HTTP desde el servidor a URLs del propio sitio (portada, una entrada elegible de muestra, su URL `.md`, `/robots.txt`, `/llms.txt`, `/agent-skills.json` y `/.well-known/api-catalog`) usando los user-agents del catálogo de crawlers y las cabeceras `Accept: text/markdown` y `Accept: text/html`. La acción MUST requerir `manage_options` y nonce válido, MUST limitar cada petición a 5 segundos, MUST NOT seguir redirecciones, MUST limitar el tamaño de cada respuesta leída y MUST NOT contactar ningún host distinto del propio sitio. La prueba SHALL ejecutarse en lotes repartidos en varias peticiones del navegador encadenadas automáticamente: cada petición del administrador MUST terminar dentro de un presupuesto de tiempo configurable por filtro (por defecto 30 segundos) y, si quedan crawlers por sondear, MUST guardar el progreso y continuar en la siguiente petición sin intervención del administrador ni JavaScript. Ninguna petición del administrador MUST superar los 100 segundos. El informe SHALL publicarse solo cuando el último lote termine; un progreso interrumpido MUST descartarse al cabo de una hora.
+La página de diagnóstico SHALL ofrecer una acción que realice peticiones HTTP desde el servidor a URLs del propio sitio (portada, una entrada elegible de muestra, su URL `.md`, `/robots.txt`, `/llms.txt`, `/agent-skills.json` y `/.well-known/api-catalog`) usando los user-agents del catálogo de crawlers y las cabeceras `Accept: text/markdown` y `Accept: text/html`. Las comprobaciones de sitio (`/llms.txt`, `/agent-skills.json`, `/.well-known/api-catalog`, la sonda de almacenamiento) SHALL realizarse una vez con el user-agent del plugin; por cada crawler del catálogo SHALL solicitarse, con su user-agent, la portada, la entrada de muestra con `Accept: text/html`, la entrada de muestra con `Accept: text/markdown`, la URL `.md` de muestra y `/robots.txt`. La acción MUST requerir `manage_options` y nonce válido, MUST limitar cada petición a 5 segundos, MUST NOT seguir redirecciones, MUST limitar el tamaño de cada respuesta leída y MUST NOT contactar ningún host distinto del propio sitio. La prueba SHALL ejecutarse en lotes repartidos en varias peticiones del navegador encadenadas automáticamente: cada petición del administrador MUST terminar dentro de un presupuesto de tiempo configurable por filtro (por defecto 30 segundos) y, si quedan crawlers por sondear, MUST guardar el progreso y continuar en la siguiente petición sin intervención del administrador ni JavaScript. Ninguna petición del administrador MUST superar los 100 segundos. El informe SHALL publicarse solo cuando el último lote termine; un progreso interrumpido MUST descartarse al cabo de una hora.
 
 #### Scenario: Ejecución completa
 - **WHEN** un administrador lanza la prueba
-- **THEN** se obtiene un resultado por cada combinación de URL y user-agent con código HTTP, `Content-Type` y cabeceras relevantes
+- **THEN** se obtiene un resultado por cada comprobación de sitio y, por cada crawler, un resultado para la portada, la entrada de muestra en HTML y en Markdown negociado, la URL `.md` de muestra y `/robots.txt`, con código HTTP, `Content-Type` y cabeceras relevantes
 
 #### Scenario: Sin permisos
 - **WHEN** un usuario sin `manage_options` intenta lanzar la prueba
@@ -28,8 +28,12 @@ La página de diagnóstico SHALL ofrecer una acción que realice peticiones HTTP
 - **WHEN** la portada responde 301 hacia otra URL
 - **THEN** el resultado registra el código 301 sin seguirlo y el informe marca la comprobación como advertencia
 
+#### Scenario: Bloqueo por user-agent en la URL .md
+- **WHEN** la infraestructura responde 403 a la URL `.md` de muestra solo cuando el user-agent es `ClaudeBot`
+- **THEN** el informe marca la comprobación de la URL `.md` como error únicamente en ClaudeBot y como correcta en el resto de crawlers
+
 ### Requirement: Informe por crawler
-El informe SHALL mostrar, por cada crawler, el veredicto de robots.txt para su user-agent, si obtuvo la portada y la entrada de muestra, si recibió Markdown al pedir `text/markdown`, y si las cabeceras `Content-Signal`, `X-Robots-Tag` y `Link rel="alternate"` estaban presentes. El veredicto de robots.txt SHALL obtenerse del cuerpo de `/robots.txt` realmente servido, localizando el grupo `User-agent` del crawler y su directiva `Disallow`/`Allow`, y SHALL compararse con la política configurada: coincidencia como comprobación correcta; grupo ausente o directiva distinta como advertencia que indique que el robots.txt servido no refleja la configuración. Cada comprobación SHALL etiquetarse como correcta, advertencia o error, y el informe SHALL guardarse durante una hora para consultarlo sin repetir las peticiones.
+El informe SHALL mostrar, por cada crawler, el veredicto de robots.txt para su user-agent, si obtuvo la portada y la entrada de muestra, si recibió Markdown al pedir `text/markdown` y en la URL `.md`, si `/robots.txt` respondió con su user-agent, y si las cabeceras `Content-Signal`, `X-Robots-Tag` y `Link rel="alternate"` estaban presentes. El veredicto de robots.txt SHALL obtenerse del cuerpo de `/robots.txt` realmente servido, localizando el grupo `User-agent` del crawler y su directiva `Disallow`/`Allow`, y SHALL compararse con la política configurada: coincidencia como comprobación correcta; grupo ausente o directiva distinta como advertencia que indique que el robots.txt servido no refleja la configuración. Cada comprobación SHALL etiquetarse como correcta, advertencia o error, y el informe SHALL guardarse durante una hora para consultarlo sin repetir las peticiones. Un informe almacenado por una versión anterior del plugin, con claves ausentes, SHALL renderizarse sin avisos ni errores de PHP, mostrando las comprobaciones ausentes como no disponibles.
 
 #### Scenario: Crawler bloqueado en robots.txt
 - **WHEN** GPTBot tiene política `block` y el cuerpo servido de `/robots.txt` contiene `User-agent: GPTBot` seguido de `Disallow: /`
@@ -42,6 +46,10 @@ El informe SHALL mostrar, por cada crawler, el veredicto de robots.txt para su u
 #### Scenario: Markdown no servido
 - **WHEN** la petición con `Accept: text/markdown` a la entrada de muestra devuelve HTML
 - **THEN** el informe marca la comprobación de negociación de contenido como error e indica que una caché o CDN puede estar interfiriendo
+
+#### Scenario: Informe de una versión anterior
+- **WHEN** el transient del informe contiene un informe sin la clave de exposición del almacenamiento ni las comprobaciones nuevas por crawler
+- **THEN** la pestaña Diagnóstico se renderiza sin avisos de PHP y muestra esas comprobaciones como no disponibles
 
 ### Requirement: Detección de CDN y advertencias de infraestructura
 El informe SHALL indicar si las respuestas provienen de un CDN o proxy conocido a partir de cabeceras como `cf-ray`, `server` o `x-cache`, y SHALL advertir cuando detecte que Cloudflare ya convierte a Markdown en el borde. El informe SHALL comprobar si los archivos del almacenamiento son accesibles por acceso directo y marcarlo como error si lo son. El almacenamiento SHALL contener siempre un archivo sonda para esta comprobación, de modo que se realice aunque no exista ningún documento generado.
@@ -59,8 +67,12 @@ El informe SHALL indicar si las respuestas provienen de un CDN o proxy conocido 
 - **THEN** el informe incluye igualmente la comprobación de acceso directo al almacenamiento usando el archivo sonda
 
 ### Requirement: Lista de verificación de infraestructura y comandos externos
-La página SHALL mostrar una lista de verificación estática para la auditoría de WAF, rate-limiting y filtrado de IP orientada a crawlers verificados, y SHALL mostrar comandos `curl` equivalentes a las pruebas realizadas para que puedan repetirse desde fuera del servidor.
+La página SHALL mostrar una lista de verificación estática para la auditoría de WAF, rate-limiting y filtrado de IP orientada a crawlers verificados, y SHALL mostrar comandos `curl` equivalentes a las pruebas realizadas para que puedan repetirse desde fuera del servidor. Los comandos SHALL ser seguros de pegar en una shell POSIX: la URL y el user-agent SHALL ir citados de forma que ninguna comilla, espacio o carácter especial presente en ellos rompa el comando.
 
 #### Scenario: Comandos disponibles
 - **WHEN** un administrador abre la página de diagnóstico
 - **THEN** ve la lista de verificación y al menos un comando `curl` por crawler con su user-agent y la cabecera `Accept` correspondiente
+
+#### Scenario: Comando con comilla en el user-agent
+- **WHEN** el catálogo contiene, por filtro, un user-agent con una comilla simple en su nombre
+- **THEN** el comando `curl` mostrado sigue siendo un comando válido que envía ese user-agent literal

@@ -50,7 +50,8 @@ final class Uninstaller {
 	 * @return void
 	 */
 	public static function run_site() {
-		( new Scheduler( new Settings() ) )->unschedule(); // Recurring, manual one-off and llms-full events.
+		( new Scheduler( new Settings() ) )->unschedule();
+		// Recurring, manual one-off and llms-full events.
 
 		Storage::delete_all();
 

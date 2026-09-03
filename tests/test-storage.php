@@ -64,11 +64,11 @@ class Test_Storage extends WP_UnitTestCase {
 		wp_mkdir_p( $dir );
 		$log = tempnam( get_temp_dir(), 'wpasl-log' );
 		$ini = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet.Risky
-		chmod( $dir, 0500 );
+		chmod( $dir, 0500 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
 		try {
 			$result = $storage->write( 'md/post/1.md', "# x\n" );
 		} finally {
-			chmod( $dir, 0755 );
+			chmod( $dir, 0755 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod
 			ini_set( 'error_log', (string) $ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
 		}
 		$contents = (string) file_get_contents( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents

@@ -140,7 +140,11 @@ final class GenerationStatus {
 				<tr><th scope="row"><?php esc_html_e( 'Eligible items', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['eligible'] ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'With a generated document', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['generated'] ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Pending', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['pending'] ); ?></td></tr>
-				<tr><th scope="row"><?php esc_html_e( 'Failed items', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['failed'] ); ?><?php if ( $status['failed'] > 0 ) : ?> <span class="description"><?php esc_html_e( '(see the PHP error log; they are retried after the rest of the queue)', 'wp-agent-support-layer' ); ?></span><?php endif; ?></td></tr>
+				<tr><th scope="row"><?php esc_html_e( 'Failed items', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['failed'] ); ?>
+				<?php
+				if ( $status['failed'] > 0 ) :
+					?>
+					<span class="description"><?php esc_html_e( '(see the PHP error log; they are retried after the rest of the queue)', 'wp-agent-support-layer' ); ?></span><?php endif; ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Last run', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( $this->format_time( $status['last_run'] ) ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Last completed cycle', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( $this->format_time( $status['last_cycle_completed'] ) ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Next scheduled run', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( null === $next ? __( 'Not scheduled', 'wp-agent-support-layer' ) : $this->format_time( $next ) ); ?></td></tr>

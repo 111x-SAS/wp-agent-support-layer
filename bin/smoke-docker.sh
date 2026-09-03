@@ -84,10 +84,15 @@ curl -s -b "$CJ" -o /dev/null -w 'POST options.php (batch_size=10) -> %{http_cod
   --data-urlencode 'wpasl_settings[schedule]=daily' --data-urlencode 'wpasl_settings[batch_size]=10' "$B/wp-admin/options.php"
 echo "batch_size stored: $(W eval 'echo (int) get_option("wpasl_settings")["batch_size"];') (expect 10)"
 echo "settings saved notice: $(curl -s -b "$CJ" "$GENERAL_URL&settings-updated=true" | grep -c 'Settings saved.') (expect 1)"
+LAST_RUN_BEFORE="$(W eval 'echo (int) WPASL\Plugin::instance()->get("runner")->status()["last_run"];')"
+sleep 1
 curl -s -b "$CJ" -o /dev/null -w 'POST admin-post.php (Regenerate now) -> %{http_code} %{redirect_url}\n' \
   --data-urlencode 'action=wpasl_regenerate' --data-urlencode "wpasl_regenerate_nonce=$NONCE_REGEN" \
   --data-urlencode '_wp_http_referer=/wp-admin/tools.php?page=wp-agent-support-layer&tab=general' "$B/wp-admin/admin-post.php"
-echo "cron events for wpasl_generate (expect the recurring one plus a one-off):"; W cron event list --hook=wpasl_generate --fields=hook,next_run_relative,recurrence
+# The handler schedules a one-off event and spawns WP-Cron, which usually consumes it within a second.
+for i in $(seq 1 10); do LAST_RUN_AFTER="$(W eval 'echo (int) WPASL\Plugin::instance()->get("runner")->status()["last_run"];')"; [ "$LAST_RUN_AFTER" -gt "$LAST_RUN_BEFORE" ] && break; sleep 1; done
+echo "one-off run executed by the spawned cron: last_run $LAST_RUN_BEFORE -> $LAST_RUN_AFTER ($([ "$LAST_RUN_AFTER" -gt "$LAST_RUN_BEFORE" ] && echo yes || echo NO))"
+echo "cron events for wpasl_generate (the recurring one; the one-off was already consumed):"; W cron event list --hook=wpasl_generate --fields=hook,next_run_relative,recurrence
 rm -f "$CJ"
 echo "== static front page (Markdown URL with query arg and /.md)"
 FRONT="$(W post list --post_type=page --post_status=publish --field=ID | head -1)"

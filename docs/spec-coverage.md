@@ -5,7 +5,7 @@ Every scenario of the main specs (`openspec/specs`, including the deltas of the 
 official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
-Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`), **A+M** both.
+Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 1.0.3 smoke is `2026-09-02-smoke-1.0.3.md`), **A+M** both.
 
 ## markdown-delivery
 
@@ -164,7 +164,7 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`), **A
 | Ejecución completa (resultado por crawler para `.md` y robots.txt) | `Test_Diagnostics::test_probe_uses_crawler_user_agents_and_accept_headers`, `test_report_contains_markdown_url_check_per_crawler`, `test_probe_only_contacts_its_own_host`, `test_probe_does_not_follow_redirects` | A+M |
 | Sin permisos | `Test_Diagnostics::test_handler_requires_capability_and_nonce`, `test_handler_runs_and_redirects` | A |
 | Prueba dividida en lotes | `Test_Diagnostics::test_diagnostics_splits_into_batches_and_resumes`, `test_diagnostics_step_requires_capability_and_nonce`, `test_tab_shows_in_progress_notice` | A+M |
-| Peticiones lentas (cota por petición del administrador) | `Test_Diagnostics::test_diagnostics_request_duration_is_bounded` + Docker smoke test (`docs/evidence/2026-09-02-smoke-1.0.2.md`) | A+M |
+| Peticiones lentas (cota por petición del administrador) | `Test_Diagnostics::test_diagnostics_request_duration_is_bounded` + Docker smoke test (`docs/evidence/2026-09-02-smoke-1.0.2.md`, `docs/evidence/2026-09-02-smoke-1.0.3.md`) | A+M |
 | Redirección en una URL sondeada | `Test_Diagnostics::test_report_flags_redirect_as_warning` | A |
 | Bloqueo por user-agent en la URL .md | `Test_Diagnostics::test_ua_specific_block_on_md_is_reported_only_for_that_crawler` | A |
 | Crawler bloqueado en robots.txt (veredicto del cuerpo servido) | `Test_Diagnostics::test_report_blocked_crawler_is_coherent_and_healthy_site_is_ok`, `test_robots_verdict_matches_served_body` | A+M |

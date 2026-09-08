@@ -28,7 +28,7 @@ Cada crawler SHALL tener una política `allow` o `block`. El valor por defecto d
 - **THEN** el robots.txt generado permite GPTBot y sigue bloqueando el resto del grupo `training`
 
 ### Requirement: Grupos en el robots.txt virtual
-El robots.txt servido por WordPress SHALL incluir, tras el contenido generado por el núcleo, un grupo `User-agent:` por cada crawler bloqueado con `Disallow: /` y un grupo por cada crawler permitido con `Allow: /`, seguido de una línea de comentario que indique la URL de `/llms.txt`. El sistema MUST NOT alterar las reglas generadas por el núcleo ni por otros plugins.
+El robots.txt servido por WordPress SHALL incluir, tras el contenido generado por el núcleo, un grupo `User-agent:` por cada crawler bloqueado con `Disallow: /` y un grupo por cada crawler permitido con `Allow: /`, seguido de una línea de comentario que indique la URL de `/llms.txt` y, cuando `auth.md` esté publicado, de una línea de comentario `# auth.md: <URL absoluta de /auth.md>`; cuando `auth.md` no esté publicado, esa línea MUST NOT aparecer. El bloque que la pestaña Crawlers ofrece para copiar en un robots.txt físico SHALL contener las mismas líneas. El sistema MUST NOT alterar las reglas generadas por el núcleo ni por otros plugins.
 
 #### Scenario: Crawler bloqueado
 - **WHEN** GPTBot tiene política `block` y un cliente solicita `/robots.txt`
@@ -41,6 +41,14 @@ El robots.txt servido por WordPress SHALL incluir, tras el contenido generado po
 #### Scenario: Reglas del núcleo intactas
 - **WHEN** un cliente solicita `/robots.txt`
 - **THEN** las líneas `Disallow: /wp-admin/` y `Allow: /wp-admin/admin-ajax.php` del núcleo siguen presentes y sin modificar
+
+#### Scenario: Puntero a auth.md
+- **WHEN** `auth.md` está publicado y un cliente solicita `/robots.txt`
+- **THEN** la respuesta contiene la línea `# llms.txt: <URL>` seguida de `# auth.md: <URL absoluta de /auth.md>`
+
+#### Scenario: Sin puntero con auth.md desactivado
+- **WHEN** la publicación de `auth.md` está desactivada y un cliente solicita `/robots.txt`
+- **THEN** la respuesta contiene la línea de `llms.txt` y ninguna línea `# auth.md:`
 
 ### Requirement: Detección de robots.txt físico
 Cuando exista un archivo `robots.txt` físico en la raíz del sitio, el sistema SHALL mostrar un aviso en la página de ajustes indicando que las reglas no se aplican automáticamente y SHALL ofrecer el bloque generado como texto para copiar. El bloque generado y la vista previa de solo lectura del robots.txt virtual SHALL reproducir exactamente lo que WordPress serviría en `/robots.txt`: las reglas del núcleo (`Disallow` del directorio de administración y `Allow` de `admin-ajax.php`, con rutas derivadas de la URL de administración) seguidas de las reglas del plugin, tanto si el sitio es público como si tiene desactivada la visibilidad para motores de búsqueda. El bloque MUST NOT contener un `Disallow: /` genérico que el núcleo no emita.

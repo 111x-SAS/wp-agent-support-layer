@@ -219,21 +219,23 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 					'parameters'  => $parameters,
 					'security'    => array(),
 					'responses'   => array(
-						'200' => array(
+						'200'     => array(
 							'description' => __( 'Successful response.', 'wp-agent-support-layer' ),
 							'content'     => array(
 								$capability['responseType'] => array( 'schema' => $this->schema_for( $path ) ),
 							),
 						),
-						'404' => array( 'description' => __( 'Not found.', 'wp-agent-support-layer' ) ),
+						'400'     => self::error_response( __( 'Invalid parameter.', 'wp-agent-support-layer' ) ),
+						'404'     => self::error_response( __( 'Not found.', 'wp-agent-support-layer' ) ),
+						'default' => self::error_response( __( 'Error response of the WordPress REST API.', 'wp-agent-support-layer' ) ),
 					),
 				),
 			);
 		}//end foreach
 
 		$document = array(
-			'openapi' => '3.1.0',
-			'info'    => array(
+			'openapi'    => '3.1.0',
+			'info'       => array(
 				'title'       => sprintf(
 					/* translators: %s: site name. */
 					__( '%s public API', 'wp-agent-support-layer' ),
@@ -243,8 +245,11 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 				'version'     => WPASL_VERSION,
 				'contact'     => array( 'email' => $this->settings->contact_email() ),
 			),
-			'servers' => array( array( 'url' => $plain ? untrailingslashit( home_url() ) : untrailingslashit( $rest_url ) ) ),
-			'paths'   => $paths,
+			'servers'    => array( array( 'url' => $plain ? untrailingslashit( home_url() ) : untrailingslashit( $rest_url ) ) ),
+			'paths'      => $paths,
+			'components' => array(
+				'schemas' => array( 'Error' => self::error_schema() ),
+			),
 		);
 
 		/**
@@ -253,6 +258,57 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 		 * @param array<string, mixed> $document Document.
 		 */
 		return (array) apply_filters( 'wpasl_openapi', $document );
+	}
+
+	/**
+	 * Schema of the error body of the WordPress REST API (WP_Error as serialized by WP_REST_Server): the
+	 * site does not emit RFC 9457 problem details, so the document does not declare them.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function error_schema() {
+		return array(
+			'type'                 => 'object',
+			'required'             => array( 'code', 'message' ),
+			'properties'           => array(
+				'code'    => array(
+					'type'        => 'string',
+					'description' => __( 'Machine-readable error code, e.g. rest_no_route or rest_post_invalid_id.', 'wp-agent-support-layer' ),
+				),
+				'message' => array(
+					'type'        => 'string',
+					'description' => __( 'Human-readable message.', 'wp-agent-support-layer' ),
+				),
+				'data'    => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'status' => array(
+							'type'        => 'integer',
+							'description' => __( 'HTTP status code.', 'wp-agent-support-layer' ),
+						),
+					),
+					'additionalProperties' => true,
+				),
+			),
+			'additionalProperties' => true,
+		);
+	}
+
+	/**
+	 * A Response Object whose JSON body follows the Error schema.
+	 *
+	 * @param string $description Description.
+	 * @return array<string, mixed>
+	 */
+	private static function error_response( $description ) {
+		return array(
+			'description' => $description,
+			'content'     => array(
+				'application/json' => array(
+					'schema' => array( '$ref' => '#/components/schemas/Error' ),
+				),
+			),
+		);
 	}
 
 	/**

@@ -207,6 +207,38 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertArrayHasKey( '/wp/v2/search', $doc['paths'] );
 		$this->assertArrayHasKey( '/wpasl/v1/openapi', $doc['paths'] );
 		$this->assertArrayNotHasKey( '/{path}.md', $doc['paths'], 'Non-REST capabilities are not paths.' );
+		$this->assertArrayHasKey( 'Error', $doc['components']['schemas'] );
+	}
+
+	public function test_openapi_error_schema_and_responses() {
+		$doc   = $this->builder->openapi();
+		$error = $doc['components']['schemas']['Error'];
+		$this->assertSame( 'object', $error['type'] );
+		$this->assertSame( array( 'code', 'message' ), $error['required'] );
+		$this->assertSame( 'string', $error['properties']['code']['type'] );
+		$this->assertSame( 'string', $error['properties']['message']['type'] );
+		$this->assertSame( 'object', $error['properties']['data']['type'] );
+		$this->assertSame( 'integer', $error['properties']['data']['properties']['status']['type'] );
+		$this->assertTrue( $error['properties']['data']['additionalProperties'] );
+		$this->assertTrue( $error['additionalProperties'] );
+
+		foreach ( array( '/wp/v2/posts', '/wp/v2/posts/{id}', '/wp/v2/search', '/wpasl/v1/openapi' ) as $path ) {
+			$responses = $doc['paths'][ $path ]['get']['responses'];
+			$this->assertSame( array( '200', '400', '404', 'default' ), array_map( 'strval', array_keys( $responses ) ), $path );
+			foreach ( array( '400', '404', 'default' ) as $code ) {
+				$this->assertSame( '#/components/schemas/Error', $responses[ $code ]['content']['application/json']['schema']['$ref'], $path . ' ' . $code );
+				$this->assertNotEmpty( $responses[ $code ]['description'], $path . ' ' . $code );
+			}
+		}
+		$this->assertSame( 'Invalid parameter.', $doc['paths']['/wp/v2/posts']['get']['responses']['400']['description'] );
+		$this->assertSame( 'Not found.', $doc['paths']['/wp/v2/posts']['get']['responses']['404']['description'] );
+	}
+
+	public function test_openapi_has_no_problem_json() {
+		$json = ManifestBuilder::encode( $this->builder->openapi() );
+		$this->assertStringNotContainsString( 'application/problem+json', $json );
+		$this->assertStringNotContainsString( 'problem+json', $json );
+		$this->assertNotNull( json_decode( $json, true ) );
 	}
 
 	public function test_openapi_rest_route() {

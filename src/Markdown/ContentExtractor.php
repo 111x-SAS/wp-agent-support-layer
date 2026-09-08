@@ -90,6 +90,7 @@ final class ContentExtractor {
 			$result['error'] = 'no_content';
 			return $result;
 		}
+		self::remove_blank_text( $document, $region['node'] );
 
 		$fragment = '';
 		foreach ( $region['node']->childNodes as $child ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
@@ -523,6 +524,27 @@ final class ContentExtractor {
 			if ( self::normalize_text( $node->textContent ) === $expected ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 				$node->parentNode->removeChild( $node ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 				return;
+			}
+		}
+	}
+
+	/**
+	 * Removes the whitespace-only text nodes between elements (indentation of the page source), which would
+	 * otherwise survive the conversion as blank lines; preformatted text is left alone.
+	 *
+	 * @param \DOMDocument $document Document.
+	 * @param \DOMNode     $region   Region node.
+	 * @return void
+	 */
+	private static function remove_blank_text( \DOMDocument $document, \DOMNode $region ) {
+		$query = new \DOMXPath( $document );
+		$nodes = $query->query( ".//text()[normalize-space(.)='' and not(ancestor::pre)]", $region );
+		if ( ! $nodes ) {
+			return;
+		}
+		foreach ( iterator_to_array( $nodes ) as $node ) {
+			if ( $node->parentNode ) { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
+				$node->parentNode->removeChild( $node ); // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 			}
 		}
 	}

@@ -8,6 +8,7 @@
 use WPASL\Markdown\DocumentBuilder;
 use WPASL\Markdown\LeagueConverter;
 use WPASL\Plugin;
+use WPASL\Settings;
 
 /**
  * Covers WPASL\Markdown\DocumentBuilder.
@@ -19,10 +20,109 @@ class Test_Document_Builder extends WP_UnitTestCase {
 	 */
 	private $builder;
 
+	/**
+	 * Requests seen by the fake loopback.
+	 *
+	 * @var array<int, array{url:string, args:array}>
+	 */
+	private $requests = array();
+
+	/**
+	 * Fake loopback response: array( code, headers, body ) or a WP_Error; null answers with the Elementor fixture.
+	 *
+	 * @var mixed
+	 */
+	private $response = null;
+
+	/**
+	 * Resolutions announced through wpasl_content_source_resolved.
+	 *
+	 * @var array<int, array{0:int, 1:array}>
+	 */
+	private $resolutions = array();
+
 	public function set_up() {
 		parent::set_up();
 		$this->builder = Plugin::instance()->get( 'builder' );
 		$this->assertInstanceOf( DocumentBuilder::class, $this->builder );
+		$this->requests    = array();
+		$this->response    = null;
+		$this->resolutions = array();
+		$this->set_permalink_structure( '/%postname%/' );
+		add_action( 'wpasl_content_source_resolved', array( $this, 'record_resolution' ), 10, 2 );
+	}
+
+	public function tear_down() {
+		remove_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20 );
+		remove_action( 'wpasl_content_source_resolved', array( $this, 'record_resolution' ), 10 );
+		remove_all_filters( 'wpasl_markdown_html' );
+		remove_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
+		add_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
+		delete_option( Settings::OPTION );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		parent::tear_down();
+	}
+
+	public function record_resolution( $post, $info ) {
+		$this->resolutions[] = array( $post->ID, $info );
+	}
+
+	/**
+	 * Fake loopback: records the request and answers with the configured response.
+	 */
+	public function fake_loopback( $pre, $args, $url ) {
+		$this->requests[] = array(
+			'url'  => $url,
+			'args' => $args,
+		);
+		$spec             = $this->response;
+		if ( null === $spec ) {
+			$spec = array( 200, array( 'content-type' => 'text/html; charset=utf-8' ), file_get_contents( __DIR__ . '/fixtures/rendered-elementor.html' ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		}
+		if ( is_wp_error( $spec ) ) {
+			return $spec;
+		}
+		return array(
+			'response' => array( 'code' => $spec[0], 'message' => 'x' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			'headers'  => new WpOrg\Requests\Utility\CaseInsensitiveDictionary( $spec[1] ),
+			'body'     => $spec[2],
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	}
+
+	/**
+	 * Installs the fake loopback.
+	 *
+	 * @param mixed $response Response spec (see fake_loopback()).
+	 * @return void
+	 */
+	private function use_loopback( $response = null ) {
+		$this->response = $response;
+		add_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20, 3 );
+	}
+
+	/**
+	 * Creates a post built with Elementor (rendered content source, reason builder:elementor).
+	 *
+	 * @param array<string, mixed> $args Post arguments.
+	 * @return WP_Post
+	 */
+	private function elementor_post( array $args = array() ) {
+		$post = self::factory()->post->create_and_get(
+			array_merge(
+				array(
+					'post_title'   => 'Blackboard',
+					'post_name'    => 'blackboard',
+					'post_excerpt' => '',
+					'post_content' => '<p>Editor placeholder text of the Elementor page.</p>',
+				),
+				$args
+			)
+		);
+		update_post_meta( $post->ID, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $post->ID, '_elementor_data', '[{"id":"abc"}]' );
+		return $post;
 	}
 
 	public function test_front_matter_contains_required_keys_and_taxonomies() {
@@ -54,12 +154,139 @@ class Test_Document_Builder extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'date: "' . get_the_date( 'c', $post ) . '"', $doc );
 		$this->assertStringContainsString( 'modified: "' . get_the_modified_date( 'c', $post ) . '"', $doc );
 		$this->assertStringContainsString( 'author: "Ana Autora"', $doc );
-		$this->assertStringContainsString( 'lang: "' . get_bloginfo( 'language' ) . '"', $doc );
-		$this->assertStringContainsString( 'description: "Resumen manual"', $doc );
+		$this->assertStringContainsString( 'lang: "' . get_bloginfo( 'language' ) . '"' . "\nsource: \"editor\"\ndescription: \"Resumen manual\"\n", $doc, 'source follows lang and precedes description.' );
 		$this->assertStringContainsString( "categories:\n  - \"Noticias\"", $doc );
 		$this->assertStringContainsString( "tags:\n  - \"IA\"", $doc );
 		$this->assertStringContainsString( "---\n\n# Título con \"comillas\"\n\n", $doc );
 		$this->assertStringContainsString( "Primer párrafo.\n\n## Sub\n\nSegundo.", $doc );
+	}
+
+	public function test_front_matter_has_source_editor_by_default() {
+		$post = self::factory()->post->create_and_get( array( 'post_content' => '<p>Texto</p>' ) );
+		$doc  = $this->builder->generate( $post );
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+		$this->assertSame( 1, substr_count( $doc, 'source:' ) );
+		$this->assertMatchesRegularExpression( '/^lang: "[^"]*"\nsource: "editor"\n/m', $doc );
+		$this->assertSame( array(), $this->requests, 'No loopback for the editor source.' );
+		$this->assertCount( 1, $this->resolutions );
+		$this->assertSame(
+			array( 'source' => 'editor', 'reason' => 'default', 'fallback' => false, 'error' => '', 'deferred' => false ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			$this->resolutions[0][1]
+		);
+	}
+
+	public function test_rendered_source_uses_loopback_body() {
+		$post = $this->elementor_post();
+		$this->use_loopback();
+
+		$doc = $this->builder->generate( $post );
+
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $doc );
+		$this->assertMatchesRegularExpression( '/^lang: "[^"]*"\nsource: "rendered"\n/m', $doc );
+		$this->assertStringContainsString( "# Blackboard\n\n", $doc );
+		$this->assertSame( 1, substr_count( $doc, "# Blackboard\n" ), 'The H1 of the page is not duplicated.' );
+		$this->assertStringContainsString( 'Blackboard Learn es la plataforma LMS', $doc );
+		$this->assertStringContainsString( '## Beneficios de Blackboard', $doc );
+		$this->assertStringContainsString( '[Solicitar demo](' . home_url( '/contacto/' ) . ')', $doc );
+		$this->assertStringNotContainsString( 'Editor placeholder', $doc );
+		$this->assertStringNotContainsString( 'header text', $doc );
+		$this->assertStringNotContainsString( 'footer text', $doc );
+		$this->assertStringContainsString( 'description: "Blackboard Learn es la plataforma LMS', $doc, 'The description derives from the rendered body.' );
+		$this->assertCount( 1, $this->requests, 'Exactly one request.' );
+		$this->assertSame( get_permalink( $post ) . '?wpasl_render=1', $this->requests[0]['url'] );
+		$this->assertSame( '1', $this->requests[0]['args']['headers']['X-WPASL-Render'] );
+		$this->assertSame(
+			array( 'source' => 'rendered', 'reason' => 'builder:elementor', 'fallback' => false, 'error' => '', 'deferred' => false ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			end( $this->resolutions )[1]
+		);
+	}
+
+	public function test_loopback_failure_falls_back_to_editor_and_reports() {
+		$post = $this->elementor_post();
+		$this->use_loopback( array( 503, array( 'content-type' => 'text/html' ), 'Service Unavailable' ) );
+
+		$doc = $this->builder->generate( $post );
+
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+		$this->assertStringContainsString( 'Editor placeholder text of the Elementor page.', $doc );
+		$this->assertStringNotContainsString( 'Service Unavailable', $doc );
+		$this->assertCount( 1, $this->requests );
+		$this->assertSame(
+			array( 'source' => 'editor', 'reason' => 'builder:elementor', 'fallback' => true, 'error' => 'http_503', 'deferred' => false ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			end( $this->resolutions )[1]
+		);
+
+		// A connection error and a timeout carry the WP_Error code.
+		$this->response = new WP_Error( 'http_request_failed', 'cURL error 28' );
+		$doc            = $this->builder->generate( $post );
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+		$this->assertSame( 'request_error:http_request_failed', end( $this->resolutions )[1]['error'] );
+		$this->assertTrue( end( $this->resolutions )[1]['fallback'] );
+	}
+
+	public function test_no_content_region_falls_back() {
+		$post = $this->elementor_post();
+		$this->use_loopback( array( 200, array( 'content-type' => 'text/html' ), '<html><body><nav>Menu</nav><main><script>x()</script></main><footer>Foot</footer></body></html>' ) );
+
+		$doc = $this->builder->generate( $post );
+
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+		$this->assertStringContainsString( 'Editor placeholder text of the Elementor page.', $doc );
+		$this->assertStringNotContainsString( 'Menu', $doc );
+		$this->assertSame( 'no_content', end( $this->resolutions )[1]['error'] );
+		$this->assertTrue( end( $this->resolutions )[1]['fallback'] );
+	}
+
+	public function test_html_filter_applies_to_rendered_fragment() {
+		add_filter(
+			'wpasl_markdown_html',
+			static function ( $html ) {
+				return $html . '<p>Added paragraph by filter.</p>';
+			}
+		);
+		$editor = self::factory()->post->create_and_get( array( 'post_content' => '<p>Editor text.</p>' ) );
+		$doc    = $this->builder->generate( $editor );
+		$this->assertStringContainsString( 'Editor text.', $doc );
+		$this->assertStringContainsString( 'Added paragraph by filter.', $doc );
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+
+		$rendered = $this->elementor_post();
+		$this->use_loopback();
+		$doc = $this->builder->generate( $rendered );
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $doc );
+		$this->assertStringContainsString( 'Blackboard Learn es la plataforma LMS', $doc );
+		$this->assertStringContainsString( 'Added paragraph by filter.', $doc );
+		$this->assertSame( 1, substr_count( $doc, 'Added paragraph by filter.' ), 'Applied once to the rendered fragment.' );
+	}
+
+	public function test_builder_without_services_behaves_as_before() {
+		$post    = $this->elementor_post();
+		$builder = new DocumentBuilder( new LeagueConverter() );
+		$this->use_loopback();
+
+		$doc = $builder->generate( $post );
+
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+		$this->assertStringContainsString( 'Editor placeholder text of the Elementor page.', $doc );
+		$this->assertStringNotContainsString( 'Blackboard Learn', $doc );
+		$this->assertSame( array(), $this->requests, 'No loopback without the services.' );
+		$this->assertSame( 'default', end( $this->resolutions )[1]['reason'] );
+	}
+
+	public function test_empty_editor_is_rendered_and_its_body_is_reused_on_fallback() {
+		remove_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
+		$post = self::factory()->post->create_and_get( array( 'post_title' => 'Blackboard', 'post_content' => '<p>Short.</p>' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->use_loopback();
+		$doc = $this->builder->generate( $post );
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $doc );
+		$this->assertSame( 'empty_editor', end( $this->resolutions )[1]['reason'] );
+		$this->assertStringContainsString( 'Blackboard Learn es la plataforma LMS', $doc );
+
+		$this->response = array( 403, array( 'content-type' => 'text/html' ), 'Forbidden' );
+		$doc            = $this->builder->generate( $post );
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $doc );
+		$this->assertStringContainsString( "# Blackboard\n\nShort.\n", $doc, 'The body converted by the empty-editor check is reused.' );
+		$this->assertSame( 'http_403', end( $this->resolutions )[1]['error'] );
 	}
 
 	public function test_description_falls_back_to_content_and_taxonomies_are_omitted_when_empty() {

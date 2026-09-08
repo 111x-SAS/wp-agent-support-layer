@@ -49,11 +49,69 @@ class Test_Delivery extends WP_UnitTestCase {
 		remove_filter( 'wpasl_terminate_after_serve', '__return_false' );
 		remove_filter( 'wpasl_terminate_after_serve', array( $this, 'capture_served_headers' ), 20 );
 		remove_filter( 'redirect_canonical', '__return_false' );
+		remove_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20 );
 		unset( $_SERVER['HTTP_ACCEPT'], $_SERVER['HTTP_X_WPASL_RENDER'] );
 		Plugin::instance()->get( 'runner' )->clear();
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		parent::tear_down();
+	}
+
+	/**
+	 * Requests seen by the fake loopback.
+	 *
+	 * @var array<int, string>
+	 */
+	private $loopback_requests = array();
+
+	/**
+	 * Fake loopback response: array( code, headers, body ) or a WP_Error; null answers with the Elementor fixture.
+	 *
+	 * @var mixed
+	 */
+	private $loopback_response = null;
+
+	/**
+	 * Fake loopback for the rendered page of a post.
+	 */
+	public function fake_loopback( $pre, $args, $url ) {
+		$this->loopback_requests[] = $url;
+		$spec                      = $this->loopback_response;
+		if ( null === $spec ) {
+			$spec = array( 200, array( 'content-type' => 'text/html; charset=utf-8' ), file_get_contents( __DIR__ . '/fixtures/rendered-elementor.html' ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		}
+		if ( is_wp_error( $spec ) ) {
+			return $spec;
+		}
+		return array(
+			'response' => array( 'code' => $spec[0], 'message' => 'x' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			'headers'  => new WpOrg\Requests\Utility\CaseInsensitiveDictionary( $spec[1] ),
+			'body'     => $spec[2],
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	}
+
+	/**
+	 * Creates a post built with Elementor and installs the fake loopback.
+	 *
+	 * @param mixed $response Loopback response spec.
+	 * @return WP_Post
+	 */
+	private function elementor_post_with_loopback( $response = null ) {
+		$post = self::factory()->post->create_and_get(
+			array(
+				'post_title'   => 'Blackboard',
+				'post_name'    => 'blackboard',
+				'post_content' => '<p>Editor placeholder text.</p>',
+			)
+		);
+		update_post_meta( $post->ID, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $post->ID, '_elementor_data', '[{"id":"abc"}]' );
+		$this->loopback_requests = array();
+		$this->loopback_response = $response;
+		add_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20, 3 );
+		return $post;
 	}
 
 	/**
@@ -245,6 +303,82 @@ class Test_Delivery extends WP_UnitTestCase {
 		$from_request = ob_get_clean();
 
 		$this->assertSame( $from_cron, $from_request );
+
+		// The same holds for an item whose body comes from the rendered page.
+		unset( $_SERVER['HTTP_ACCEPT'] );
+		$this->go_to( home_url( '/' ) );
+		$rendered  = $this->elementor_post_with_loopback();
+		$from_cron = Plugin::instance()->get( 'runner' )->generate_item( $rendered );
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $from_cron );
+		$this->assertStringContainsString( 'Blackboard Learn es la plataforma LMS', $from_cron );
+
+		Plugin::instance()->get( 'runner' )->clear();
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		$this->go_to( get_permalink( $rendered ) );
+		$this->assertTrue( is_singular() );
+		ob_start();
+		$this->delivery->maybe_serve();
+		$from_request = ob_get_clean();
+		$this->assertSame( $from_cron, $from_request );
+		$this->assertCount( 2, $this->loopback_requests, 'One loopback per generation.' );
+	}
+
+	public function test_lazy_fill_of_rendered_item_does_loopback_in_request() {
+		$post = $this->elementor_post_with_loopback();
+		$path = Runner::document_path( 'post', $post->ID );
+		$this->assertFalse( $this->storage->exists( $path ) );
+
+		ob_start();
+		$this->go_to( home_url( '/blackboard.md' ) );
+		$out = ob_get_clean();
+
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $out );
+		$this->assertStringContainsString( "# Blackboard\n", $out );
+		$this->assertStringContainsString( 'Blackboard Learn es la plataforma LMS', $out );
+		$this->assertStringNotContainsString( 'Editor placeholder', $out );
+		$this->assertTrue( $this->storage->exists( $path ), 'Stored by the lazy fill.' );
+		$this->assertSame( $out, $this->storage->read( $path ) );
+		$this->assertSame( array( get_permalink( $post ) . '?wpasl_render=1' ), $this->loopback_requests, 'Exactly one loopback, in the request.' );
+		$this->assertSame( 1, Plugin::instance()->get( 'runner' )->status()['generated'] );
+
+		// The next request serves the stored file without another loopback.
+		ob_start();
+		$this->go_to( home_url( '/blackboard.md' ) );
+		ob_get_clean();
+		$this->assertCount( 1, $this->loopback_requests );
+	}
+
+	public function test_lazy_fill_serves_editor_when_loopback_fails() {
+		$post        = $this->elementor_post_with_loopback( new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out after 10000 milliseconds' ) );
+		$path        = Runner::document_path( 'post', $post->ID );
+		$resolutions = array();
+		add_action(
+			'wpasl_content_source_resolved',
+			static function ( $resolved, $info ) use ( &$resolutions ) {
+				$resolutions[] = array( $resolved->ID, $info );
+			},
+			10,
+			2
+		);
+
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		$this->go_to( get_permalink( $post ) );
+		ob_start();
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+
+		$this->assertTrue( $served );
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $out );
+		$this->assertStringContainsString( 'Editor placeholder text.', $out );
+		$this->assertTrue( $this->storage->exists( $path ), 'The fallback document is stored too.' );
+		$this->assertCount( 1, $this->loopback_requests );
+		$this->assertCount( 1, $resolutions );
+		$this->assertSame( $post->ID, $resolutions[0][0] );
+		$this->assertTrue( $resolutions[0][1]['fallback'] );
+		$this->assertSame( 'request_error:http_request_failed', $resolutions[0][1]['error'] );
+		$this->assertSame( 'builder:elementor', $resolutions[0][1]['reason'] );
+		$this->assertSame( 1, Plugin::instance()->get( 'runner' )->status()['generated'], 'Marked as generated; not a conversion failure.' );
+		$this->assertSame( 0, Plugin::instance()->get( 'runner' )->status()['failed'] );
 	}
 
 	public function test_negotiated_markdown_has_no_x_robots_tag() {

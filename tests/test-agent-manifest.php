@@ -234,6 +234,27 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertSame( 'Not found.', $doc['paths']['/wp/v2/posts']['get']['responses']['404']['description'] );
 	}
 
+	public function test_openapi_description_states_versioning_policy() {
+		$doc         = $this->builder->openapi();
+		$description = $doc['info']['description'];
+		$this->assertStringStartsWith( 'Read-only endpoints of the WordPress REST API', $description );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $description );
+		$this->assertStringContainsString( 'does not send Deprecation or Sunset headers', $description );
+		$this->assertStringContainsString( 'announced in the plugin changelog', $description );
+		$this->assertStringContainsString( 'WordPress release notes', $description );
+		$this->assertStringNotContainsString( 'application/problem+json', $description );
+		$this->assertSame( array( 'wp/v2', 'wpasl/v1' ), ManifestBuilder::namespaces_of( array_keys( $doc['paths'] ) ) );
+
+		$this->set_permalink_structure( '' );
+		$doc = $this->builder->openapi();
+		$this->assertArrayHasKey( '/?rest_route=/wp/v2/posts', $doc['paths'] );
+		$this->assertSame( array( 'wp/v2', 'wpasl/v1' ), ManifestBuilder::namespaces_of( array_keys( $doc['paths'] ) ), 'Plain permalinks: the namespaces are extracted from the rest_route form.' );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $doc['info']['description'] );
+
+		$this->assertSame( array( 'acme/v3', 'wp/v2' ), ManifestBuilder::namespaces_of( array( rest_url( 'wp/v2/posts' ), rest_url( 'acme/v3/things/{id}' ), home_url( '/llms.txt' ) ) ), 'Absolute URLs, sorted and unique.' );
+		$this->assertStringContainsString( '(wp/v2)', ManifestBuilder::versioning_policy( array() ), 'Never an empty list.' );
+	}
+
 	public function test_openapi_has_no_problem_json() {
 		$json = ManifestBuilder::encode( $this->builder->openapi() );
 		$this->assertStringNotContainsString( 'application/problem+json', $json );

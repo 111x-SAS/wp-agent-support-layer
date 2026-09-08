@@ -241,7 +241,8 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 					__( '%s public API', 'wp-agent-support-layer' ),
 					DocumentBuilder::plain_text( get_bloginfo( 'name' ) )
 				),
-				'description' => __( 'Read-only endpoints of the WordPress REST API that agents may use without authentication.', 'wp-agent-support-layer' ),
+				'description' => __( 'Read-only endpoints of the WordPress REST API that agents may use without authentication.', 'wp-agent-support-layer' )
+					. ' ' . self::versioning_policy( self::namespaces_of( array_keys( $paths ) ) ),
 				'version'     => WPASL_VERSION,
 				'contact'     => array( 'email' => $this->settings->contact_email() ),
 			),
@@ -258,6 +259,45 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 		 * @param array<string, mixed> $document Document.
 		 */
 		return (array) apply_filters( 'wpasl_openapi', $document );
+	}
+
+	/**
+	 * Versioned REST namespaces ("wp/v2", "wpasl/v1") found in a list of REST paths or URLs, sorted and unique.
+	 * Accepts OpenAPI path keys with pretty permalinks ("/wp/v2/posts"), with plain permalinks
+	 * ("/?rest_route=/wp/v2/posts") and absolute REST URLs.
+	 *
+	 * @param string[] $paths Paths or URLs.
+	 * @return string[]
+	 */
+	public static function namespaces_of( array $paths ) {
+		$namespaces = array();
+		foreach ( $paths as $path ) {
+			if ( preg_match( '#/(?:\?rest_route=/)?([a-z0-9_-]+/v\d+)/#i', (string) $path, $m ) ) {
+				$namespaces[] = $m[1];
+			}
+		}
+		$namespaces = array_values( array_unique( $namespaces ) );
+		sort( $namespaces );
+		return $namespaces;
+	}
+
+	/**
+	 * The API versioning and deprecation policy, shared by the OpenAPI description and auth.md. Written in
+	 * English on purpose and not translated: its readers are agents and scanners looking for these terms.
+	 * It states only what the site really does: versioned namespaces, release cycles, no Deprecation or
+	 * Sunset headers, incompatible changes announced in the changelog and the WordPress release notes.
+	 *
+	 * @param string[] $namespaces Versioned namespaces that actually appear in the routes.
+	 * @return string
+	 */
+	public static function versioning_policy( array $namespaces ) {
+		$namespaces = array_values( array_filter( array_map( 'strval', $namespaces ) ) );
+		$list       = empty( $namespaces ) ? 'wp/v2' : implode( ', ', $namespaces );
+		return 'This API is the WordPress REST API. Routes are grouped in versioned namespaces (' . $list . '). '
+			. 'Changes follow the release cycles of WordPress core and of the WP Agent Support Layer plugin. '
+			. 'This site does not send Deprecation or Sunset headers. '
+			. 'Backwards-incompatible changes to the wpasl/v1 routes are announced in the plugin changelog; '
+			. 'changes to core routes follow the WordPress release notes.';
 	}
 
 	/**

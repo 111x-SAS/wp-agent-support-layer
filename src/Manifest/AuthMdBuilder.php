@@ -161,6 +161,9 @@ final class AuthMdBuilder implements ArtifactGeneratorInterface {
 		$out .= 'No credential is required or accepted for the resources above. Authenticated and write operations of the WordPress REST API are not offered to agents; '
 			. "they follow WordPress's standard authentication and permission rules and are outside the scope of this document.\n\n";
 
+		$out .= "## API versioning and deprecation\n\n";
+		$out .= ManifestBuilder::versioning_policy( ManifestBuilder::namespaces_of( $this->rest_urls() ) ) . "\n\n";
+
 		$signals = $this->signals->values();
 		$out    .= "## Usage policy\n\n";
 		$out    .= 'Content signals: search=' . $signals['search'] . ', ai-input=' . $signals['ai-input'] . ', ai-train=' . $signals['ai-train'] . '. See ' . home_url( '/robots.txt' ) . ".\n\n";
@@ -179,6 +182,23 @@ final class AuthMdBuilder implements ArtifactGeneratorInterface {
 		 * @param string $out Markdown document.
 		 */
 		return (string) apply_filters( 'wpasl_auth_md', $out );
+	}
+
+	/**
+	 * URLs of the capabilities that live under the REST API base.
+	 *
+	 * @return string[]
+	 */
+	private function rest_urls() {
+		$rest_url = rest_url();
+		$urls     = array();
+		foreach ( $this->registry->all() as $capability ) {
+			$url = isset( $capability['url'] ) ? $capability['url'] : $capability['urlTemplate'];
+			if ( 0 === strpos( $url, $rest_url ) ) {
+				$urls[] = $url;
+			}
+		}
+		return $urls;
 	}
 
 	/**

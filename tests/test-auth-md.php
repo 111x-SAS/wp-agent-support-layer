@@ -262,6 +262,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 			'### Public endpoints',
 			'### Discovery documents',
 			'## Credential use',
+			'## API versioning and deprecation',
 			'## Usage policy',
 			'## Contact',
 		);
@@ -303,6 +304,26 @@ class Test_Auth_Md extends WP_UnitTestCase {
 
 		$this->settings( array( 'signal_ai_train' => 'yes' ) );
 		$this->assertStringContainsString( 'search=yes, ai-input=yes, ai-train=yes.', $this->builder->document() );
+	}
+
+	public function test_versioning_section() {
+		$doc     = $this->builder->document();
+		$start   = strpos( $doc, "\n## API versioning and deprecation\n" );
+		$end     = strpos( $doc, "\n## Usage policy\n" );
+		$section = substr( $doc, $start, $end - $start );
+		$this->assertNotFalse( $start );
+		$this->assertGreaterThan( strpos( $doc, "\n## Credential use\n" ), $start, 'Right after Credential use.' );
+		$this->assertStringContainsString( 'This API is the WordPress REST API.', $section );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $section );
+		$this->assertStringContainsString( 'does not send Deprecation or Sunset headers', $section );
+		$this->assertStringContainsString( 'announced in the plugin changelog', $section );
+		$this->assertStringNotContainsString( 'OAuth', $doc );
+		foreach ( array( 'will be supported', 'support period', 'end of life', 'sunset date' ) as $promise ) {
+			$this->assertStringNotContainsString( $promise, $section, 'No support or retirement promise: ' . $promise );
+		}
+
+		$this->set_permalink_structure( '' );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $this->builder->document(), 'Plain permalinks.' );
 	}
 
 	public function test_contact_email_falls_back_to_admin_email() {

@@ -8,12 +8,14 @@
 use WPASL\Http;
 use WPASL\Manifest\AuthMdBuilder;
 use WPASL\Manifest\AuthMdRouter;
+use WPASL\Manifest\CapabilityRegistry;
 use WPASL\Plugin;
 use WPASL\Settings;
 use WPASL\Storage;
 
 /**
- * Covers WPASL\Manifest\AuthMdBuilder and AuthMdRouter and the reserved /auth.md route in Delivery.
+ * Covers WPASL\Manifest\AuthMdBuilder and AuthMdRouter, the reserved /auth.md route in Delivery and the
+ * announcement of auth.md in the capability registry, the API catalog, robots.txt and the Manifests tab.
  */
 class Test_Auth_Md extends WP_UnitTestCase {
 
@@ -155,6 +157,13 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->assertTrue( AuthMdRouter::physical_file_exists() );
 		$this->assertSame( '', $this->request( home_url( '/auth.md' ) ), 'The plugin steps aside; the web server serves the physical file.' );
 		$this->assertFalse( $this->storage->exists( AuthMdBuilder::FILE ) );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$tabs = Plugin::instance()->get( 'page' )->tabs();
+		ob_start();
+		$tabs['manifests']->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'A physical auth.md file exists', $html );
 		unlink( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
 	}
 
@@ -372,5 +381,74 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->storage->write( AuthMdBuilder::FILE, "# stale\n" );
 		$runner->run_cycle();
 		$this->assertFalse( $this->storage->exists( AuthMdBuilder::FILE ), 'Disabled: the scheduled regeneration removes the stored document.' );
+	}
+
+	public function test_capability_catalog_and_robots_announce_auth_md() {
+		$registry = new CapabilityRegistry( Plugin::instance()->get( 'settings' ) );
+		$caps     = $registry->all();
+		$ids      = array_column( $caps, 'id' );
+		$this->assertContains( 'auth-md', $ids );
+		$this->assertSame( array_search( 'site-index', $ids, true ) + 1, array_search( 'auth-md', $ids, true ), 'Right after site-index.' );
+		$cap = $caps[ array_search( 'auth-md', $ids, true ) ];
+		$this->assertSame( home_url( '/auth.md' ), $cap['url'] );
+		$this->assertSame( 'GET', $cap['method'] );
+		$this->assertSame( 'none', $cap['authentication'] );
+		$this->assertSame( 'text/markdown', $cap['responseType'] );
+		$this->assertSame( array(), $cap['parameters'] );
+		$this->assertStringContainsString( 'no registration, no credentials', $cap['description'] );
+
+		$manifest = Plugin::instance()->get( 'manifest' );
+		$this->assertContains( home_url( '/auth.md' ), array_column( $manifest->agent_skills()['capabilities'], 'url' ) );
+		$this->assertStringNotContainsString( 'auth.md', wp_json_encode( $manifest->openapi() ), 'OpenAPI only describes REST endpoints.' );
+
+		$docs = $manifest->api_catalog()['linkset'][0]['service-doc'];
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ) );
+		$this->assertSame( 'text/markdown', $docs[1]['type'] );
+
+		$robots = Plugin::instance()->get( 'robots' );
+		$this->assertStringEndsWith( '# llms.txt: ' . home_url( '/llms.txt' ) . "\n# auth.md: " . home_url( '/auth.md' ) . "\n", $robots->rules_block() );
+		ob_start();
+		do_robots();
+		$served = ob_get_clean();
+		$this->assertStringContainsString( "\n# llms.txt: " . home_url( '/llms.txt' ) . "\n# auth.md: " . home_url( '/auth.md' ) . "\n", $served );
+
+		$out = $this->request( home_url( '/.well-known/api-catalog' ) );
+		$this->assertSame( home_url( '/auth.md' ), json_decode( $out, true )['linkset'][0]['service-doc'][1]['href'] );
+	}
+
+	public function test_nothing_announces_auth_md_when_disabled() {
+		$this->settings( array( 'auth_md_enabled' => false ) );
+		$registry = new CapabilityRegistry( Plugin::instance()->get( 'settings' ) );
+		$this->assertNotContains( 'auth-md', array_column( $registry->all(), 'id' ) );
+
+		$manifest = Plugin::instance()->get( 'manifest' );
+		foreach ( $manifest->agent_skills()['capabilities'] as $cap ) {
+			$this->assertStringNotContainsString( '/auth.md', isset( $cap['url'] ) ? $cap['url'] : $cap['urlTemplate'] );
+		}
+		$docs = $manifest->api_catalog()['linkset'][0]['service-doc'];
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ) );
+
+		$block = Plugin::instance()->get( 'robots' )->rules_block();
+		$this->assertStringEndsWith( '# llms.txt: ' . home_url( '/llms.txt' ) . "\n", $block );
+		$this->assertStringNotContainsString( '# auth.md:', $block );
+
+		$out = $this->request( home_url( '/agent-skills.json' ) );
+		$this->assertStringNotContainsString( '/auth.md', $out );
+	}
+
+	public function test_manifests_tab_renders_auth_md_fields() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->settings( array( 'auth_md_notes' => 'Rate limit: 60 requests per minute.' ) );
+		$tabs = Plugin::instance()->get( 'page' )->tabs();
+		ob_start();
+		$tabs['manifests']->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( '<code>' . home_url( '/auth.md' ) . '</code>', $html );
+		$this->assertStringContainsString( 'Publish auth.md', $html );
+		$this->assertStringContainsString( 'name="wpasl_settings[auth_md_enabled]" value="1"  checked=\'checked\'', $html );
+		$this->assertStringContainsString( 'name="wpasl_settings[auth_md_notes]" rows="6" class="large-text code"', $html );
+		$this->assertStringContainsString( 'Rate limit: 60 requests per minute.</textarea>', $html );
+		$this->assertStringContainsString( 'Do not paste credentials', $html );
+		$this->assertStringNotContainsString( 'A physical auth.md file exists', $html );
 	}
 }

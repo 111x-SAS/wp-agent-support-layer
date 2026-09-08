@@ -254,6 +254,7 @@ final class Report {
 		$expect = array(
 			'robots'       => array( 'text/plain', __( 'robots.txt', 'wp-agent-support-layer' ) ),
 			'llms'         => array( 'text/markdown', __( 'llms.txt', 'wp-agent-support-layer' ) ),
+			'auth'         => array( 'text/markdown', __( 'auth.md', 'wp-agent-support-layer' ) ),
 			'skills'       => array( 'application/ld+json', __( 'agent-skills.json', 'wp-agent-support-layer' ) ),
 			'catalog'      => array( 'application/linkset+json', __( 'API catalog', 'wp-agent-support-layer' ) ),
 			'markdown_url' => array( 'text/markdown', __( 'Markdown URL of the sample item', 'wp-agent-support-layer' ) ),

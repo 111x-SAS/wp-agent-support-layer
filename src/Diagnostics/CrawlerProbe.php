@@ -108,6 +108,7 @@ final class CrawlerProbe {
 		$targets = array(
 			'robots'  => home_url( '/robots.txt' ),
 			'llms'    => home_url( '/llms.txt' ),
+			'auth'    => home_url( '/auth.md' ),
 			'skills'  => home_url( '/agent-skills.json' ),
 			'catalog' => home_url( '/.well-known/api-catalog' ),
 		);

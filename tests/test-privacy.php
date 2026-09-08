@@ -6,7 +6,8 @@
  */
 
 /**
- * Only the diagnostics probe uses the HTTP API, and it refuses hosts other than the site's own.
+ * Only the diagnostics probe and the rendered page loopback use the HTTP API, and both refuse hosts other
+ * than the site's own.
  */
 class Test_Privacy extends WP_UnitTestCase {
 
@@ -22,7 +23,8 @@ class Test_Privacy extends WP_UnitTestCase {
 				$users[] = basename( $file->getPathname() );
 			}
 		}
-		$this->assertSame( array( 'CrawlerProbe.php' ), $users );
+		sort( $users );
+		$this->assertSame( array( 'CrawlerProbe.php', 'RenderedPage.php' ), $users );
 	}
 
 	public function test_no_telemetry_or_external_hosts_in_runtime_code() {

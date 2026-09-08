@@ -49,7 +49,7 @@ class Test_Delivery extends WP_UnitTestCase {
 		remove_filter( 'wpasl_terminate_after_serve', '__return_false' );
 		remove_filter( 'wpasl_terminate_after_serve', array( $this, 'capture_served_headers' ), 20 );
 		remove_filter( 'redirect_canonical', '__return_false' );
-		unset( $_SERVER['HTTP_ACCEPT'] );
+		unset( $_SERVER['HTTP_ACCEPT'], $_SERVER['HTTP_X_WPASL_RENDER'] );
 		Plugin::instance()->get( 'runner' )->clear();
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
@@ -151,6 +151,73 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertStringContainsString( "# Negociada\n", $out );
 		$this->assertStringContainsString( 'Cuerpo', $out );
 		$this->assertTrue( $this->storage->exists( Runner::document_path( 'post', $post->ID ) ), 'Lazy fill stored the document.' );
+	}
+
+	public function test_render_request_never_gets_markdown_nor_generates() {
+		$post   = self::factory()->post->create_and_get( array( 'post_name' => 'render-me', 'post_title' => 'Render me' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$path   = Runner::document_path( 'post', $post->ID );
+		$runner = Plugin::instance()->get( 'runner' );
+
+		// Header plus Accept: text/markdown on the canonical URL.
+		$_SERVER['HTTP_X_WPASL_RENDER'] = '1';
+		$_SERVER['HTTP_ACCEPT']         = 'text/markdown';
+		ob_start();
+		$this->go_to( get_permalink( $post ) );
+		$this->assertTrue( is_singular() );
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+		$this->assertFalse( $served );
+		$this->assertSame( '', $out );
+		$this->assertFalse( $this->storage->exists( $path ), 'Nothing generated.' );
+		$this->assertSame( 0, $runner->status()['generated'] );
+
+		// Header on the .md URL and on the 404 route: no Markdown either.
+		ob_start();
+		$this->go_to( home_url( '/render-me.md' ) );
+		$this->assertFalse( $this->delivery->maybe_serve_404() );
+		$out = ob_get_clean();
+		$this->assertSame( '', $out );
+		$this->assertFalse( $this->storage->exists( $path ) );
+
+		// Query argument plus Accept: text/markdown, and with the Markdown query var as well.
+		unset( $_SERVER['HTTP_X_WPASL_RENDER'] );
+		ob_start();
+		$this->go_to( add_query_arg( 'wpasl_render', '1', get_permalink( $post ) ) );
+		$this->assertTrue( is_singular(), 'The unregistered argument does not disturb the query.' );
+		$this->assertTrue( Delivery::is_render_request() );
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+		$this->assertFalse( $served );
+		$this->assertSame( '', $out );
+		ob_start();
+		$this->go_to( add_query_arg( array( 'wpasl' => 'md', 'wpasl_render' => '1' ), get_permalink( $post ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$served = $this->delivery->maybe_serve();
+		$out    = ob_get_clean();
+		$this->assertFalse( $served );
+		$this->assertSame( '', $out );
+		$this->assertFalse( $this->storage->exists( $path ) );
+		$this->assertSame( 0, $runner->status()['generated'], 'No generation mark.' );
+
+		// Without the marker the same request is served (and generates).
+		ob_start();
+		$this->go_to( get_permalink( $post ) );
+		$this->assertFalse( Delivery::is_render_request() );
+		$this->assertTrue( $this->delivery->maybe_serve() );
+		ob_get_clean();
+		$this->assertTrue( $this->storage->exists( $path ) );
+	}
+
+	public function test_render_request_on_static_front_page_resolves_front_page() {
+		$front                  = $this->make_static_front_page();
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		ob_start();
+		$this->go_to( home_url( '/?wpasl_render=1' ) );
+		$this->assertTrue( is_front_page() );
+		$this->assertTrue( is_page() );
+		$this->assertSame( $front->ID, get_queried_object_id() );
+		$this->assertFalse( $this->delivery->maybe_serve() );
+		$this->assertSame( '', ob_get_clean() );
+		$this->assertFalse( $this->storage->exists( Runner::document_path( 'page', $front->ID ) ) );
 	}
 
 	public function test_document_is_identical_from_cron_and_from_singular_request() {

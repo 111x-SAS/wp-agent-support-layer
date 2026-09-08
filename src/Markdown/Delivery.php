@@ -177,6 +177,24 @@ final class Delivery {
 	}
 
 	/**
+	 * Whether the current request is a render request: the loopback that fetches the rendered page of a
+	 * post (RenderedPage) marks it with the X-WPASL-Render header and the wpasl_render query argument. Such
+	 * a request always gets the usual HTML response, never Markdown, and never generates a document, so a
+	 * Markdown request that generates on demand cannot recurse through the loopback.
+	 *
+	 * @return bool
+	 */
+	public static function is_render_request() {
+		$header = isset( $_SERVER['HTTP_X_WPASL_RENDER'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WPASL_RENDER'] ) ) : '';
+		if ( '' !== $header ) {
+			return true;
+		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only marker; the response is the regular page.
+		$param = isset( $_GET[ RenderedPage::QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( $_GET[ RenderedPage::QUERY_ARG ] ) ) : '';
+		return '' !== $param;
+	}
+
+	/**
 	 * Resolves "/path.md" and "/path/.md" requests before WordPress parses the query.
 	 *
 	 * @param \WP $wp WordPress environment.
@@ -185,6 +203,9 @@ final class Delivery {
 	public function handle_md_suffix( $wp ) {
 		$this->md_request_post_id = 0;
 		// A new request is being parsed.
+		if ( self::is_render_request() ) {
+			return;
+		}
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 		$path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
 
@@ -319,7 +340,7 @@ final class Delivery {
 	 * @return bool Whether a document was served.
 	 */
 	public function maybe_serve() {
-		if ( $this->md_request_post_id > 0 ) {
+		if ( $this->md_request_post_id > 0 || self::is_render_request() ) {
 			return false;
 		}
 		$post = self::queried_markdown_post();
@@ -476,7 +497,7 @@ final class Delivery {
 	 * @return bool Whether the document was served.
 	 */
 	public function maybe_serve_404() {
-		if ( ! is_404() ) {
+		if ( ! is_404() || self::is_render_request() ) {
 			return false;
 		}
 		$accept    = isset( $_SERVER['HTTP_ACCEPT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '';

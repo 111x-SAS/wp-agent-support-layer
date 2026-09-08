@@ -960,6 +960,33 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'unexpected Content-Type "text/html; charset=utf-8" (expected text/markdown)', $report['site']['auth']['message'] );
 	}
 
+	public function test_report_accepts_catalog_with_profile() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$url = home_url( '/.well-known/api-catalog' );
+
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => \WPASL\Manifest\ManifestRouter::CATALOG_CONTENT_TYPE ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['catalog']['status'] );
+		$this->assertStringContainsString( 'API catalog: HTTP 200, application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"', $report['site']['catalog']['message'] );
+
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'application/linkset+json' ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['catalog']['status'], 'Without the profile parameter it is still accepted.' );
+
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'application/json' ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['site']['catalog']['status'] );
+	}
+
 	public function test_probe_only_sends_get_to_known_targets() {
 		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra' ) );
 		$this->probe->run();

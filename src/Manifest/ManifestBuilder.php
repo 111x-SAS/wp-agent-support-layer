@@ -288,7 +288,9 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 	}
 
 	/**
-	 * The RFC 9727 API catalog (linkset).
+	 * The RFC 9727 API catalog (linkset): linkset[0] is the catalog entry (anchor = the catalog URL, "item"
+	 * = the REST API base), linkset[1] the API entry (anchor = the REST API base, "service-desc" and
+	 * "service-doc").
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -310,10 +312,21 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 			'type' => 'application/ld+json',
 		);
 
+		$api = untrailingslashit( rest_url() );
+		// RFC 9727 appendix A.2: the entry anchored at the catalog lists the APIs with "item" (RFC 6573);
+		// appendix A.1: the entry anchored at each API carries its description and documentation. The site
+		// exposes one API, the WordPress REST API; a capability with another base added by filter does not
+		// create another entry (use wpasl_api_catalog for that).
 		$document = array(
 			'linkset' => array(
 				array(
-					'anchor'       => untrailingslashit( rest_url() ),
+					'anchor' => home_url( '/.well-known/api-catalog' ),
+					'item'   => array(
+						array( 'href' => $api ),
+					),
+				),
+				array(
+					'anchor'       => $api,
 					'service-desc' => array(
 						array(
 							'href' => self::openapi_url(),

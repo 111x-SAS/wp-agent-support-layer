@@ -401,7 +401,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->assertContains( home_url( '/auth.md' ), array_column( $manifest->agent_skills()['capabilities'], 'url' ) );
 		$this->assertStringNotContainsString( 'auth.md', wp_json_encode( $manifest->openapi() ), 'OpenAPI only describes REST endpoints.' );
 
-		$docs = $manifest->api_catalog()['linkset'][0]['service-doc'];
+		$docs = $manifest->api_catalog()['linkset'][1]['service-doc'];
 		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ) );
 		$this->assertSame( 'text/markdown', $docs[1]['type'] );
 
@@ -413,7 +413,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->assertStringContainsString( "\n# llms.txt: " . home_url( '/llms.txt' ) . "\n# auth.md: " . home_url( '/auth.md' ) . "\n", $served );
 
 		$out = $this->request( home_url( '/.well-known/api-catalog' ) );
-		$this->assertSame( home_url( '/auth.md' ), json_decode( $out, true )['linkset'][0]['service-doc'][1]['href'] );
+		$this->assertSame( home_url( '/auth.md' ), json_decode( $out, true )['linkset'][1]['service-doc'][1]['href'] );
 	}
 
 	public function test_nothing_announces_auth_md_when_disabled() {
@@ -425,7 +425,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		foreach ( $manifest->agent_skills()['capabilities'] as $cap ) {
 			$this->assertStringNotContainsString( '/auth.md', isset( $cap['url'] ) ? $cap['url'] : $cap['urlTemplate'] );
 		}
-		$docs = $manifest->api_catalog()['linkset'][0]['service-doc'];
+		$docs = $manifest->api_catalog()['linkset'][1]['service-doc'];
 		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ) );
 
 		$block = Plugin::instance()->get( 'robots' )->rules_block();

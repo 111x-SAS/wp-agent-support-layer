@@ -24,6 +24,11 @@ final class ManifestRouter {
 	const CATALOG_PATH = '.well-known/api-catalog';
 
 	/**
+	 * Content-Type of the API catalog: the linkset media type with the RFC 9727 profile.
+	 */
+	const CATALOG_CONTENT_TYPE = 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"';
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -227,8 +232,9 @@ final class ManifestRouter {
 	 */
 	public function headers( $path ) {
 		return array(
-			// RFC 9264 registers application/linkset+json without parameters and RFC 9727 requires that exact type.
-			'Content-Type'                => self::CATALOG_PATH === $path ? 'application/linkset+json' : 'application/ld+json; charset=utf-8',
+			// RFC 9727 requires application/linkset+json (RFC 9264) and recommends the profile parameter (RFC 9264
+			// section 5 allows it) that identifies the catalog profile; no charset, as JSON is UTF-8 by definition.
+			'Content-Type'                => self::CATALOG_PATH === $path ? self::CATALOG_CONTENT_TYPE : 'application/ld+json; charset=utf-8',
 			'Cache-Control'               => 'public, max-age=' . $this->delivery->max_age(),
 			'Access-Control-Allow-Origin' => '*',
 			'X-Content-Type-Options'      => 'nosniff',

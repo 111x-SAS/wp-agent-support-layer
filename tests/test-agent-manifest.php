@@ -234,12 +234,44 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$out  = ob_get_clean();
 		$data = json_decode( $out, true );
 		$this->assertIsArray( $data );
-		$this->assertSame( ManifestBuilder::openapi_url(), $data['linkset'][0]['service-desc'][0]['href'] );
-		$this->assertSame( 'application/openapi+json', $data['linkset'][0]['service-desc'][0]['type'] );
-		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $data['linkset'][0]['service-doc'], 'href' ) );
-		$this->assertSame( 'text/markdown', $data['linkset'][0]['service-doc'][1]['type'] );
-		$this->assertSame( 'application/linkset+json', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'], 'Exact RFC 9264 type, no parameters.' );
+		$this->assertCount( 2, $data['linkset'] );
+
+		// RFC 9727 appendix A.2: the catalog entry lists the APIs with "item".
+		$catalog = $data['linkset'][0];
+		$this->assertSame( home_url( '/.well-known/api-catalog' ), $catalog['anchor'] );
+		$this->assertSame( array( array( 'href' => untrailingslashit( rest_url() ) ) ), $catalog['item'] );
+		$this->assertArrayNotHasKey( 'service-desc', $catalog );
+		$this->assertArrayNotHasKey( 'service-doc', $catalog );
+
+		// RFC 9727 appendix A.1: the API entry carries the description and documentation.
+		$api = $data['linkset'][1];
+		$this->assertSame( untrailingslashit( rest_url() ), $api['anchor'] );
+		$this->assertSame( $catalog['item'][0]['href'], $api['anchor'], 'The item points at the API entry.' );
+		$this->assertSame( ManifestBuilder::openapi_url(), $api['service-desc'][0]['href'] );
+		$this->assertSame( 'application/openapi+json', $api['service-desc'][0]['type'] );
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $api['service-doc'], 'href' ) );
+		$this->assertSame( 'text/markdown', $api['service-doc'][1]['type'] );
+		$this->assertArrayNotHasKey( 'item', $api );
+
+		$this->assertSame( 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'], 'RFC 9264 type with the RFC 9727 profile.' );
 		$this->assertSame( 'application/ld+json; charset=utf-8', $this->router->headers( ManifestRouter::SKILLS_PATH )['Content-Type'] );
+
+		$this->settings( array( 'auth_md_enabled' => false ) );
+		$docs = $this->builder->api_catalog()['linkset'][1]['service-doc'];
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ), 'auth.md leaves the catalog when unpublished.' );
+		$this->assertArrayNotHasKey( 'service-doc', $this->builder->api_catalog()['linkset'][0] );
+	}
+
+	public function test_api_catalog_with_plain_permalinks() {
+		$this->set_permalink_structure( '' );
+		$this->assertStringContainsString( '?rest_route=', rest_url() );
+		$data = $this->builder->api_catalog();
+		$api  = untrailingslashit( rest_url() );
+		$this->assertStringEndsWith( '?rest_route=', $api, 'The REST base the site serves with plain permalinks.' );
+		$this->assertSame( home_url( '/.well-known/api-catalog' ), $data['linkset'][0]['anchor'] );
+		$this->assertSame( $api, $data['linkset'][0]['item'][0]['href'] );
+		$this->assertSame( $api, $data['linkset'][1]['anchor'] );
+		$this->assertSame( ManifestBuilder::openapi_url(), $data['linkset'][1]['service-desc'][0]['href'] );
 	}
 
 	public function test_non_canonical_root_paths_are_not_served() {

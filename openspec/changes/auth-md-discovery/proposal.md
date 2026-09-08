@@ -1,0 +1,36 @@
+## Why
+
+El escáner https://isitagentready.com marca en cognosonline.com la comprobación `authMd` como fallida ("auth.md not found"): la convención auth.md (skill `auth-md` del propio escáner) pide servir `/auth.md` desde la raíz como Markdown con un H1 que contenga `auth.md` y, cuando el sitio no publica metadatos de autorización, un documento autocontenido que identifique a la audiencia de agentes, diga si existe registro o aprovisionamiento de credenciales, liste los métodos de acceso soportados y explique el uso de credenciales. Hoy `https://cognosonline.com/auth.md` responde 404 porque el manejador del sufijo `.md` de la entrega en Markdown, que corre en `parse_request` con prioridad 1 antes que los routers de `llms.txt` y de los manifiestos, interpreta `/auth.md` como la versión Markdown de un contenido con slug `auth`, no lo encuentra y fuerza el 404. El plugin ya publica todo lo que auth.md debe contar (capacidades públicas sin autenticación, `llms.txt`, catálogo RFC 9727, OpenAPI y Markdown por URL o `Accept`), así que el documento puede generarse con valores reales del sitio y ser honesto: no hay registro ni credenciales para agentes; todo el acceso ofrecido es público y de solo lectura.
+
+## What Changes
+
+- Nueva ruta raíz `/auth.md` servida con `Content-Type: text/markdown; charset=utf-8`, las cabeceras de señales de contenido, `X-Markdown-Tokens`, `Cache-Control` con el mismo `max-age` que los demás archivos de descubrimiento y `X-Content-Type-Options: nosniff`, solo en su ruta exacta. Un `auth.md` físico en la raíz del sitio prevalece, igual que ocurre con `llms.txt`. Con la opción desactivada, o con los manifiestos deshabilitados, `/auth.md` responde 404.
+- La ruta `/auth.md` queda reservada para el documento: el manejador del sufijo `.md` deja de interpretarla como contenido con slug `auth` (el archivo raíz gana). Un contenido cuyo enlace permanente colisione con esa ruta conserva su Markdown por negociación `Accept` y por `?wpasl=md`, y la URL alternativa que se anuncia para él pasa a ser la forma con `?wpasl=md`, de modo que la invariante "toda URL alternativa anunciada se sirve" se mantiene.
+- Contenido generado en inglés, autocontenido y sin inventar nada: H1 `# <nombre del sitio> auth.md`; audiencia (agentes y crawlers de IA); declaración explícita de que no existe registro ni aprovisionamiento de credenciales y de que todo el acceso ofrecido es público, de solo lectura y sin credencial; lista de endpoints y recursos públicos con sus URLs reales derivada del registro de capacidades y de las URLs de descubrimiento (`llms.txt`, catálogo de API, `agent-skills.json`, OpenAPI y Markdown por `.md` y `Accept`); qué ocurre con las peticiones autenticadas o de escritura (no se ofrecen a agentes; el resto de la API REST sigue las reglas normales de WordPress); política de uso derivada de las señales de contenido y `robots.txt`; contacto técnico (`contact_email` o el correo del administrador); un bloque opcional de notas en Markdown escrito por el administrador. Sin metadatos de autorización de terceros, sin bloque `agent_auth` y sin mencionar contraseñas de aplicación.
+- Ajustes en la pestaña Manifiestos: casilla "Publish auth.md" (nueva clave del grupo `manifests`, activa por defecto, subordinada a "Publish manifests"), un área de texto opcional de notas en Markdown (saneada, con límite de longitud) y la URL de `auth.md` en la lista de enlaces de la pestaña, con aviso cuando exista un `auth.md` físico.
+- Descubrimiento: `auth.md` aparece como `service-doc` (`text/markdown`) en el catálogo RFC 9727, como capacidad de tipo documento en `agent-skills.json` (junto a `llms.txt` y OpenAPI) y como línea de comentario `# auth.md: <url>` en `robots.txt` junto a la de `llms.txt`, en los tres casos solo cuando el documento está publicado.
+- Diagnóstico: comprobación de sitio `auth.md` (HTTP 200 y `text/markdown`) junto a `llms.txt`, `agent-skills.json` y el catálogo; comando `curl` equivalente en "Repeat the checks from outside"; la lista de verificación menciona `auth.md` entre los archivos que no deben cachearse ni transformarse. El diagnóstico no sondea ningún endpoint de registro ni realiza peticiones distintas de GET al propio sitio.
+- Regeneración: el documento se genera bajo demanda y se guarda en el almacenamiento como los manifiestos; se regenera al final de cada ciclo y se invalida al guardar ajustes.
+- Sin cambio de versión ni de `readme.txt`, `README.md` o `languages/` (release). Tests PHPUnit para ruta, contenido, catálogo, `agent-skills.json`, `robots.txt`, ajustes y diagnóstico; `docs/spec-coverage.md` actualizado.
+
+## Capabilities
+
+### New Capabilities
+
+Ninguna: `auth.md` es un documento de descubrimiento más de la familia de manifiestos y se especifica dentro de `agent-manifest`.
+
+### Modified Capabilities
+
+- `agent-manifest`: nueva publicación de `/auth.md` (ruta, cabeceras, interruptor, archivo físico, precedencia sobre contenido con slug `auth`) y de su contenido; el catálogo RFC 9727 enlaza `auth.md` como `service-doc`; el registro de capacidades declara `auth.md`; la generación programada y la invalidación cubren el documento nuevo.
+- `markdown-delivery`: la ruta `/auth.md` queda reservada y no resuelve a contenido; la URL alternativa anunciada para un contenido que colisione con ella usa `?wpasl=md`.
+- `admin-settings`: la pestaña Manifiestos gana la casilla "Publish auth.md" (activa por defecto, subordinada a los manifiestos) y las notas en Markdown, con su saneado idempotente y su límite.
+- `ai-crawler-robots`: el bloque del robots.txt virtual añade la línea de comentario `# auth.md: <url>` junto a la de `llms.txt` cuando el documento está publicado.
+- `agent-diagnostics`: la prueba de rastreo comprueba `/auth.md` como comprobación de sitio y los comandos `curl` lo incluyen.
+
+## Impact
+
+- Código nuevo: `src/Manifest/AuthMdBuilder.php` (contenido y generador de artefacto) y `src/Manifest/AuthMdRouter.php` (ruta, archivo físico, invalidación, cabeceras).
+- Código modificado: `src/Markdown/Delivery.php` (ruta reservada y URL alternativa), `src/Settings.php` (claves `auth_md_enabled` y `auth_md_notes`), `src/Admin/Tabs/ManifestsTab.php`, `src/Manifest/CapabilityRegistry.php`, `src/Manifest/ManifestBuilder.php` (catálogo), `src/Robots/RobotsTxt.php`, `src/Diagnostics/CrawlerProbe.php`, `src/Diagnostics/Report.php`, `src/Admin/Tabs/DiagnosticsTab.php`, `src/Signals/ContentSignals.php` (documentación del contexto nuevo de `wpasl_before_serve`) y `src/Plugin.php` (cableado y registro del generador de artefacto).
+- Tests: `tests/test-agent-manifest.php` (o un `tests/test-auth-md.php` nuevo), `tests/test-delivery.php`, `tests/test-settings.php`, `tests/test-crawler-robots.php`, `tests/test-diagnostics.php`; `docs/spec-coverage.md`.
+- Sin dependencias nuevas, sin llamadas externas, sin escritura fuera del almacenamiento del plugin. Filtro nuevo `wpasl_physical_auth_md_path` (paridad con `wpasl_physical_llms_path`) y filtro `wpasl_auth_md` sobre el Markdown generado, documentados en el código; `readme.txt` se actualiza en la release.
+- Compatibilidad: un sitio con una página o entrada de slug `auth` deja de servir su Markdown en `/auth.md`; sigue disponible por `Accept: text/markdown` y `?wpasl=md`, y el enlace alternativo anunciado cambia a esa forma.

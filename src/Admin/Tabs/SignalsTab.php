@@ -7,7 +7,9 @@
 
 namespace WPASL\Admin\Tabs;
 
+use WPASL\Admin\Page;
 use WPASL\Admin\Tab;
+use WPASL\Diagnostics\PageCache;
 use WPASL\Settings;
 
 /**
@@ -64,8 +66,8 @@ final class SignalsTab implements Tab {
 	 * @return void
 	 */
 	public function render() {
-		$option  = Settings::OPTION;
-		$signals = array(
+		$option     = Settings::OPTION;
+		$signals    = array(
 			'signal_search'   => array(
 				'label'       => __( 'Search', 'wp-agent-support-layer' ),
 				'directive'   => 'search',
@@ -82,7 +84,31 @@ final class SignalsTab implements Tab {
 				'description' => __( 'Training or fine-tuning AI models. When set to No, the site also sends "noai, noimageai" in X-Robots-Tag and the robots meta tag.', 'wp-agent-support-layer' ),
 			),
 		);
+		$page_cache = PageCache::detect();
 		?>
+		<?php if ( null !== $page_cache ) : ?>
+			<div class="notice notice-warning inline"><p>
+			<?php
+			echo wp_kses(
+				sprintf(
+					/* translators: 1: page cache plugin name, 2: URL of the Diagnostics tab. */
+					__( '%1$s is active. HTML served from its page cache does not carry the Content-Signal, Content-Usage or X-Robots-Tag headers; see the <a href="%2$s">Diagnostics tab</a> for the web server configuration that restores them.', 'wp-agent-support-layer' ),
+					esc_html( $page_cache['name'] ),
+					esc_url(
+						add_query_arg(
+							array(
+								'page' => Page::SLUG,
+								'tab'  => 'diagnostics',
+							),
+							admin_url( 'tools.php' )
+						)
+					)
+				),
+				array( 'a' => array( 'href' => array() ) )
+			);
+			?>
+			</p></div>
+		<?php endif; ?>
 		<p><?php esc_html_e( 'These preferences are published in robots.txt (Content-Signal directive), in the Content-Signal HTTP header of every public response and as robots directives. They are declarations, not enforcement; use the Crawlers tab to decide which AI crawlers may fetch the site.', 'wp-agent-support-layer' ); ?></p>
 		<table class="form-table" role="presentation">
 			<?php foreach ( $signals as $key => $signal ) : ?>

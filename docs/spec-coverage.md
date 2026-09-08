@@ -1,7 +1,7 @@
 # Specification coverage
 
 Every scenario of the main specs (`openspec/specs`, including the deltas of the changes
-`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, and `fix-markdown-api-catalog-link`) mapped to the automated test that
+`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link` and `detect-cache-enabler-page-cache`) mapped to the automated test that
 exercises it (PHPUnit against the official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
@@ -176,6 +176,19 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Markdown no servido | `Test_Diagnostics::test_report_flags_html_returned_for_markdown_request`, `test_report_flags_waf_block_and_missing_headers` | A |
 | Informe de una versión anterior | `Test_Diagnostics::test_tab_renders_report_from_previous_version_without_notices` | A |
 | Cloudflare detectado | `Test_Diagnostics::test_report_detects_cloudflare_and_edge_markdown` | A |
+| Cache Enabler detectado por la cabecera X-Cache-Handler | `Test_Diagnostics::test_report_detects_cache_enabler_from_x_cache_handler` | A |
+| Cache Enabler activo sin cabecera X-Cache-Handler | `Test_Diagnostics::test_report_uses_local_detection_without_x_cache_handler` | A |
+| Otra caché de página (valor tal cual, textos genéricos) | `Test_Diagnostics::test_report_shows_other_page_cache_handler_verbatim` | A |
+| Sin caché de página (textos genéricos) | `Test_Diagnostics::test_report_without_page_cache_keeps_generic_messages`, `test_report_flags_waf_block_and_missing_headers` | A |
+| Informe anterior sin hallazgo de caché de página | `Test_Diagnostics::test_tab_renders_report_from_previous_version_without_notices` | A |
+| Aviso con Cache Enabler activo (texto, cabeceras perdidas, `Accept`, no afectados, servidor web o CDN) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets` | A |
+| Fragmentos con la configuración por defecto (`.htaccess` y nginx, condicionados a HTML, URL real del sitio) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets` | A |
+| Fragmento para OpenLiteSpeed sin X-Robots-Tag | `Test_Diagnostics::test_openlitespeed_snippet_omits_x_robots_tag` | A |
+| Fragmentos con entrenamiento permitido y sin manifiesto | `Test_Diagnostics::test_snippets_follow_settings` | A |
+| Recordatorio de Cloudflare (con y sin informe Cloudflare) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets`, `test_snippets_follow_settings` | A |
+| Sin Cache Enabler (sin aviso ni fragmentos) | `Test_Diagnostics::test_tab_hides_cache_notice_without_page_cache`, `test_report_detects_cache_enabler_from_x_cache_handler` (report without local notice) | A |
+| Detección local sustituida por filtro (`wpasl_diagnostics_page_cache`) | `Test_Diagnostics::test_page_cache_detection_is_null_here_and_replaceable_by_filter`, `test_report_uses_local_detection_without_x_cache_handler`, `test_tab_shows_cache_enabler_notice_and_snippets` | A |
+| Aviso en la pestaña Señales (con enlace a Diagnóstico; Manifiestos sin cambios) | `Test_Content_Signals::test_signals_tab_warns_about_cache_enabler`, `test_api_catalog_link_matches_the_header_sent` | A |
 | Almacenamiento expuesto | `Test_Diagnostics::test_report_flags_exposed_storage` | A+M |
 | Almacenamiento sin documentos generados (archivo sonda) | `Test_Diagnostics::test_storage_probe_runs_without_generated_documents` | A |
 | Comandos disponibles | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands`, `test_tab_curl_textarea_has_no_leading_whitespace` | A |

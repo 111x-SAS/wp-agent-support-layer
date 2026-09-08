@@ -39,7 +39,7 @@ final class CrawlerProbe {
 	 *
 	 * @var string[]
 	 */
-	const HEADERS = array( 'content-type', 'content-signal', 'content-usage', 'x-robots-tag', 'link', 'vary', 'x-markdown-tokens', 'cache-control', 'location', 'cf-ray', 'cf-cache-status', 'server', 'x-cache', 'via', 'x-served-by' );
+	const HEADERS = array( 'content-type', 'content-signal', 'content-usage', 'x-robots-tag', 'link', 'vary', 'x-markdown-tokens', 'cache-control', 'location', 'cf-ray', 'cf-cache-status', 'server', 'x-cache', 'via', 'x-served-by', 'x-cache-handler' );
 
 	/**
 	 * Site targets whose body is kept for the report.
@@ -154,13 +154,15 @@ final class CrawlerProbe {
 	/**
 	 * Starts a run: probes the site-wide targets and lists the crawlers still to simulate.
 	 *
-	 * @return array<string, mixed> Run state: generated_at, sample_post, site, crawlers (empty), pending.
+	 * @return array<string, mixed> Run state: generated_at, sample_post, page_cache (local detection at the time
+	 *                              of the run, or null), site, crawlers (empty), pending.
 	 */
 	public function begin() {
 		$post = $this->sample_post();
 		return array(
 			'generated_at' => time(),
 			'sample_post'  => $post ? $post->ID : 0,
+			'page_cache'   => PageCache::detect(),
 			'site'         => $this->probe_site(),
 			'crawlers'     => array(),
 			'pending'      => array_keys( $this->crawlers() ),

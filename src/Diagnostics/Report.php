@@ -112,10 +112,12 @@ final class Report {
 			'generated_at'   => 0,
 			'sample_post'    => 0,
 			'infrastructure' => array(
-				'cdn'             => '',
-				'server'          => '',
-				'edge_markdown'   => false,
-				'storage_exposed' => false,
+				'cdn'               => '',
+				'server'            => '',
+				'edge_markdown'     => false,
+				'storage_exposed'   => false,
+				'page_cache'        => '',
+				'page_cache_served' => false,
 			),
 			'site'           => array(),
 			'crawlers'       => array(),
@@ -172,17 +174,19 @@ final class Report {
 	}
 
 	/**
-	 * CDN / proxy detection and edge-conversion warning.
+	 * CDN / proxy detection, page cache detection and edge-conversion warning.
 	 *
 	 * @param array<string, mixed> $raw Probe results.
 	 * @return array<string, mixed>
 	 */
 	private function infrastructure( array $raw ) {
 		$info = array(
-			'cdn'             => '',
-			'server'          => '',
-			'edge_markdown'   => false,
-			'storage_exposed' => false,
+			'cdn'               => '',
+			'server'            => '',
+			'edge_markdown'     => false,
+			'storage_exposed'   => false,
+			'page_cache'        => '',
+			'page_cache_served' => false,
 		);
 
 		$all = array();
@@ -205,6 +209,19 @@ final class Report {
 			if ( '' === $info['server'] && isset( $headers['server'] ) ) {
 				$info['server'] = $headers['server'];
 			}
+			if ( isset( $headers['x-cache-handler'] ) ) {
+				$info['page_cache_served'] = true;
+				$label                     = PageCache::label( $headers['x-cache-handler'] );
+				if ( '' === $info['page_cache'] || PageCache::CACHE_ENABLER_NAME === $label ) {
+					$info['page_cache'] = $label;
+				}
+			}
+		}
+
+		// Cache Enabler active at the time of the run (recorded by the probe) counts even when the web server
+		// served the cache files without PHP, so no response carried X-Cache-Handler.
+		if ( PageCache::is_cache_enabler( isset( $raw['page_cache'] ) ? $raw['page_cache'] : null ) ) {
+			$info['page_cache'] = PageCache::CACHE_ENABLER_NAME;
 		}
 
 		if ( 'Cloudflare' === $info['cdn'] ) {
@@ -301,17 +318,19 @@ final class Report {
 			}
 		}
 
+		$cache_enabler = isset( $infra['page_cache'] ) && PageCache::CACHE_ENABLER_NAME === $infra['page_cache'];
+
 		if ( isset( $checks['post_html'] ) ) {
 			$html                            = (array) $checks['post_html'];
 			$headers                         = (array) $html['headers'];
 			$out['checks']['content_signal'] = isset( $headers['content-signal'] )
 				? self::check( self::OK, sprintf( /* translators: %s: header value. */ __( 'Content-Signal: %s', 'wp-agent-support-layer' ), $headers['content-signal'] ) )
-				: self::check( self::WARNING, __( 'Content-Signal header missing on the HTML response (a cache or proxy may strip it).', 'wp-agent-support-layer' ) );
+				: self::check( self::WARNING, $cache_enabler ? self::cache_enabler_missing_header( __( 'Content-Signal header missing on the HTML response.', 'wp-agent-support-layer' ), $headers ) : __( 'Content-Signal header missing on the HTML response (a cache or proxy may strip it).', 'wp-agent-support-layer' ) );
 
 			if ( ! $this->signals->allows_training() ) {
 				$out['checks']['x_robots_tag'] = isset( $headers['x-robots-tag'] ) && false !== stripos( $headers['x-robots-tag'], 'noai' )
 					? self::check( self::OK, sprintf( /* translators: %s: header value. */ __( 'X-Robots-Tag: %s', 'wp-agent-support-layer' ), $headers['x-robots-tag'] ) )
-					: self::check( self::WARNING, __( 'X-Robots-Tag noai missing on the HTML response.', 'wp-agent-support-layer' ) );
+					: self::check( self::WARNING, $cache_enabler ? self::cache_enabler_missing_header( __( 'X-Robots-Tag noai missing on the HTML response.', 'wp-agent-support-layer' ), $headers ) : __( 'X-Robots-Tag noai missing on the HTML response.', 'wp-agent-support-layer' ) );
 			}
 
 			$has_link                        = ! empty( $html['has_md_link'] ) || ( isset( $headers['link'] ) && false !== stripos( $headers['link'], 'text/markdown' ) );
@@ -355,13 +374,34 @@ final class Report {
 					$out['checks']['negotiation'] = self::check( self::OK, $message );
 				}
 			} elseif ( 200 === (int) $md['status'] ) {
-				$out['checks']['negotiation'] = self::check( self::ERROR, __( 'HTML returned for Accept: text/markdown. A page cache or CDN that ignores "Vary: Accept" is probably interfering; agents can still use the .md URL.', 'wp-agent-support-layer' ) );
+				$out['checks']['negotiation'] = self::check(
+					self::ERROR,
+					$cache_enabler
+						? __( 'HTML returned for Accept: text/markdown: Cache Enabler served the cached HTML because its cache key ignores Accept; agents can still use the .md URL. See the page cache notice.', 'wp-agent-support-layer' )
+						: __( 'HTML returned for Accept: text/markdown. A page cache or CDN that ignores "Vary: Accept" is probably interfering; agents can still use the .md URL.', 'wp-agent-support-layer' )
+				);
 			} else {
 				$out['checks']['negotiation'] = self::check( self::ERROR, sprintf( /* translators: 1: HTTP status, 2: error message. */ __( 'Accept: text/markdown -> HTTP %1$s %2$s', 'wp-agent-support-layer' ), $md['status'], $md['error'] ) );
 			}
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Message of a header missing on an HTML response when Cache Enabler is the page cache: names it as the
+	 * probable cause, distinguishing a response it served from its cache (X-Cache-Handler present) from the
+	 * mode in which the web server serves the cache files without PHP.
+	 *
+	 * @param string                $missing Sentence naming the missing header.
+	 * @param array<string, string> $headers Response headers.
+	 * @return string
+	 */
+	private static function cache_enabler_missing_header( $missing, array $headers ) {
+		if ( isset( $headers['x-cache-handler'] ) ) {
+			return $missing . ' ' . __( 'Cache Enabler served it from its page cache, which drops the headers this plugin sends; see the page cache notice.', 'wp-agent-support-layer' );
+		}
+		return $missing . ' ' . __( 'Cache Enabler is active and its page cache drops the headers this plugin sends; see the page cache notice.', 'wp-agent-support-layer' );
 	}
 
 	/**

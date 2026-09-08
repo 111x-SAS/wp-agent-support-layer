@@ -11,6 +11,7 @@ use WPASL\Admin\Page;
 use WPASL\Admin\Tab;
 use WPASL\Diagnostics\CrawlerProbe;
 use WPASL\Diagnostics\DiagnosticsController;
+use WPASL\Diagnostics\PageCache;
 use WPASL\Diagnostics\Report;
 use WPASL\Robots\Catalog;
 
@@ -34,14 +35,23 @@ final class DiagnosticsTab implements Tab {
 	private $page;
 
 	/**
+	 * Page cache detection and snippets.
+	 *
+	 * @var PageCache
+	 */
+	private $page_cache;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param CrawlerProbe $probe Probe.
-	 * @param Page         $page  Page.
+	 * @param CrawlerProbe $probe      Probe.
+	 * @param Page         $page       Page.
+	 * @param PageCache    $page_cache Page cache detection and snippets.
 	 */
-	public function __construct( CrawlerProbe $probe, Page $page ) {
-		$this->probe = $probe;
-		$this->page  = $page;
+	public function __construct( CrawlerProbe $probe, Page $page, PageCache $page_cache ) {
+		$this->probe      = $probe;
+		$this->page       = $page;
+		$this->page_cache = $page_cache;
 	}
 
 	/**
@@ -102,6 +112,7 @@ final class DiagnosticsTab implements Tab {
 			?>
 			</p></div>
 		<?php endif; ?>
+		<?php $this->render_page_cache_notice( $report ); ?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<input type="hidden" name="action" value="<?php echo esc_attr( DiagnosticsController::ACTION ); ?>" />
 			<?php wp_nonce_field( DiagnosticsController::ACTION, DiagnosticsController::NONCE ); ?>
@@ -115,6 +126,39 @@ final class DiagnosticsTab implements Tab {
 
 		<?php $this->render_checklist(); ?>
 		<?php $this->render_curl(); ?>
+		<?php
+	}
+
+	/**
+	 * Prints the page cache notice with the web server snippets when a page cache plugin (Cache Enabler) is
+	 * active, whether or not a report exists. The Cloudflare reminder depends on the stored report.
+	 *
+	 * @param array<string, mixed>|null $report Stored report, or null.
+	 * @return void
+	 */
+	private function render_page_cache_notice( $report ) {
+		$detected = PageCache::detect();
+		if ( null === $detected ) {
+			return;
+		}
+		$cloudflare = $this->page_cache->cloudflare_note( is_array( $report ) && isset( $report['infrastructure']['cdn'] ) ? $report['infrastructure']['cdn'] : '' );
+		?>
+		<div class="notice notice-warning inline wpasl-page-cache">
+			<h3><?php echo esc_html( $this->page_cache->notice_title( $detected ) ); ?></h3>
+			<?php foreach ( $this->page_cache->notice_paragraphs( $detected ) as $paragraph ) : ?>
+				<p><?php echo esc_html( $paragraph ); ?></p>
+			<?php endforeach; ?>
+			<?php foreach ( $this->page_cache->snippets() as $snippet ) : ?>
+				<h4><?php echo esc_html( $snippet['title'] ); ?></h4>
+				<?php if ( '' !== $snippet['note'] ) : ?>
+					<p class="description"><?php echo esc_html( $snippet['note'] ); ?></p>
+				<?php endif; ?>
+				<textarea readonly class="large-text code" rows="<?php echo esc_attr( (string) min( 24, substr_count( $snippet['text'], "\n" ) + 1 ) ); ?>"><?php echo esc_textarea( $snippet['text'] ); ?></textarea>
+			<?php endforeach; ?>
+			<?php if ( '' !== $cloudflare ) : ?>
+				<p><?php echo nl2br( esc_html( $cloudflare ) ); ?></p>
+			<?php endif; ?>
+		</div>
 		<?php
 	}
 
@@ -141,6 +185,18 @@ final class DiagnosticsTab implements Tab {
 			if ( '' !== $infra['server'] ) :
 				?>
 				<li><?php echo esc_html( sprintf( /* translators: %s: Server header. */ __( 'Server header: %s', 'wp-agent-support-layer' ), $infra['server'] ) ); ?></li><?php endif; ?>
+			<?php
+			if ( '' !== $infra['page_cache'] ) :
+				?>
+				<li>
+				<?php
+				echo esc_html(
+					! empty( $infra['page_cache_served'] )
+						? sprintf( /* translators: %s: page cache name. */ __( 'Page cache: %s (served at least one probed response at the time of the last run).', 'wp-agent-support-layer' ), $infra['page_cache'] )
+						: sprintf( /* translators: %s: page cache name. */ __( 'Page cache: %s (active at the time of the last run).', 'wp-agent-support-layer' ), $infra['page_cache'] )
+				);
+				?>
+				</li><?php endif; ?>
 			<?php
 			if ( ! empty( $infra['edge_markdown'] ) ) :
 				?>

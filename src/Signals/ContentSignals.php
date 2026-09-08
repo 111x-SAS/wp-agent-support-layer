@@ -136,8 +136,8 @@ final class ContentSignals {
 	/**
 	 * Sends the headers on front-end responses. Never in the admin.
 	 *
-	 * @param mixed $context The WP object on send_headers; "markdown", "llms-txt" or "manifest" when fired
-	 *                       by wpasl_before_serve.
+	 * @param mixed $context The WP object on send_headers; "markdown", "llms-txt", "manifest" or "auth-md"
+	 *                       when fired by wpasl_before_serve.
 	 * @return void
 	 */
 	public function send( $context = null ) {

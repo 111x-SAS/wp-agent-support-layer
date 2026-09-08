@@ -23,6 +23,8 @@ use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
 use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Llms\LlmsTxtRouter;
+use WPASL\Manifest\AuthMdBuilder;
+use WPASL\Manifest\AuthMdRouter;
 use WPASL\Manifest\CapabilityRegistry;
 use WPASL\Manifest\ManifestBuilder;
 use WPASL\Manifest\ManifestRouter;
@@ -110,10 +112,16 @@ final class Plugin {
 		$this->services['llms_router'] = new LlmsTxtRouter( $settings, $storage, $llms_builder, $this->services['delivery'], $scheduler );
 		$runner->add_artifact_generator( $llms_builder );
 
-		$manifest_builder                  = new ManifestBuilder( $settings, new CapabilityRegistry( $settings ), $this->services['signals'] );
+		$registry                          = new CapabilityRegistry( $settings );
+		$manifest_builder                  = new ManifestBuilder( $settings, $registry, $this->services['signals'] );
 		$this->services['manifest']        = $manifest_builder;
 		$this->services['manifest_router'] = new ManifestRouter( $settings, $storage, $manifest_builder, $this->services['delivery'], $this->services['signals'] );
 		$runner->add_artifact_generator( $manifest_builder );
+
+		$auth_md_builder                  = new AuthMdBuilder( $settings, $registry, $this->services['signals'] );
+		$this->services['auth_md']        = $auth_md_builder;
+		$this->services['auth_md_router'] = new AuthMdRouter( $settings, $storage, $auth_md_builder, $this->services['delivery'] );
+		$runner->add_artifact_generator( $auth_md_builder );
 
 		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage );
 		$page_cache                    = new PageCache( $settings, $this->services['signals'] );

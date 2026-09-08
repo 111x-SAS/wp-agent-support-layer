@@ -10,6 +10,7 @@ namespace WPASL\Markdown;
 use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
 use WPASL\Http;
+use WPASL\Manifest\AuthMdRouter;
 use WPASL\Settings;
 use WPASL\Storage;
 
@@ -114,7 +115,8 @@ final class Delivery {
 
 	/**
 	 * Whether the ".md" suffix cannot be appended to a permalink: plain permalinks, a permalink that already
-	 * carries a query string (post types without rewrite rules) or the site root (static front page).
+	 * carries a query string (post types without rewrite rules), the site root (static front page) or a
+	 * permalink whose ".md" form would be the reserved /auth.md route.
 	 *
 	 * @param string $permalink Permalink.
 	 * @return bool
@@ -126,7 +128,11 @@ final class Delivery {
 		if ( false !== strpos( $permalink, '?' ) ) {
 			return true;
 		}
-		return untrailingslashit( $permalink ) === untrailingslashit( home_url( '/' ) );
+		if ( untrailingslashit( $permalink ) === untrailingslashit( home_url( '/' ) ) ) {
+			return true;
+		}
+		// "/auth/" + ".md" would collide with the site's auth.md, which owns that path.
+		return 'auth' === self::relative_path( (string) wp_parse_url( $permalink, PHP_URL_PATH ) );
 	}
 
 	/**
@@ -176,6 +182,12 @@ final class Delivery {
 		// A new request is being parsed.
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? esc_url_raw( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
 		$path        = (string) wp_parse_url( $request_uri, PHP_URL_PATH );
+
+		// /auth.md is reserved for the site's auth.md document (served or 404'd by AuthMdRouter), never for
+		// the Markdown of content with slug "auth". "/auth/.md" is not the reserved path and still resolves.
+		if ( AuthMdRouter::requested( $request_uri ) ) {
+			return;
+		}
 
 		if ( preg_match( '#^(.*?)/?\.md$#', $path, $m ) ) {
 			$this->serve_md_suffix( $wp, self::relative_path( $m[1] ) );

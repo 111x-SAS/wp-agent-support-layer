@@ -34,6 +34,8 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertFalse( $settings->get( 'llms_full_enabled' ) );
 		$this->assertSame( 100, $settings->get( 'llms_limit' ) );
 		$this->assertTrue( $settings->get( 'manifest_enabled' ) );
+		$this->assertTrue( $settings->get( 'auth_md_enabled' ) );
+		$this->assertSame( '', $settings->get( 'auth_md_notes' ) );
 		$this->assertSame( get_option( 'admin_email' ), $settings->contact_email() );
 	}
 
@@ -120,7 +122,9 @@ class Test_Settings extends WP_UnitTestCase {
 			'llms_full_enabled'      => '1',
 			'llms_full_max_bytes_mb' => '5',
 			'manifest_enabled'       => '1',
+			'auth_md_enabled'        => '1',
 			'contact_email'          => 'a@example.org',
+			'auth_md_notes'          => str_repeat( 'n', Settings::AUTH_MD_NOTES_MAX + 500 ) . "\n<b>bold</b>",
 		);
 	}
 
@@ -131,6 +135,7 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( $once, $twice );
 		$this->assertSame( 5 * MB_IN_BYTES, $once['llms_full_max_bytes'] );
 		$this->assertArrayNotHasKey( 'llms_full_max_bytes_mb', $once );
+		$this->assertSame( Settings::AUTH_MD_NOTES_MAX, mb_strlen( $once['auth_md_notes'] ), 'Notes above the limit are truncated once.' );
 
 		// The real trigger: update_option() on a missing option falls back to add_option() and sanitizes twice.
 		Plugin::instance()->get( 'page' )->register_setting();
@@ -139,6 +144,44 @@ class Test_Settings extends WP_UnitTestCase {
 		$stored = get_option( Settings::OPTION );
 		$this->assertSame( 5 * MB_IN_BYTES, $stored['llms_full_max_bytes'] );
 		$this->assertSame( 40, $stored['llms_limit'] );
+	}
+
+	public function test_auth_md_notes_are_truncated_to_4000_chars() {
+		$settings = new Settings();
+		$notes    = str_repeat( 'á', 5000 );
+		$once     = $settings->sanitize(
+			array(
+				'_tab'          => 'manifests',
+				'auth_md_notes' => $notes,
+			)
+		);
+		$this->assertSame( 4000, mb_strlen( $once['auth_md_notes'] ) );
+		$this->assertSame( str_repeat( 'á', 4000 ), $once['auth_md_notes'], 'Multibyte characters are never cut in half.' );
+		$twice = $settings->sanitize( array_merge( $once, array( '_tab' => 'manifests' ) ) );
+		$this->assertSame( $once['auth_md_notes'], $twice['auth_md_notes'] );
+
+		$clean = $settings->sanitize(
+			array(
+				'_tab'          => 'manifests',
+				'auth_md_notes' => "Rate limit: <b>60 requests</b>\nper minute.",
+			)
+		);
+		$this->assertSame( "Rate limit: 60 requests\nper minute.", $clean['auth_md_notes'], 'Tags are stripped, line breaks kept.' );
+		$this->assertFalse( $clean['auth_md_enabled'], 'An absent checkbox of the submitted tab is unchecked.' );
+	}
+
+	public function test_saving_another_tab_keeps_auth_md_settings() {
+		$stored   = $this->store_non_defaults();
+		$settings = new Settings();
+		$clean    = $settings->sanitize(
+			array(
+				'_tab'       => 'general',
+				'post_types' => array( 'post' ),
+			)
+		);
+		$this->assertFalse( $clean['auth_md_enabled'] );
+		$this->assertSame( $stored['auth_md_notes'], $clean['auth_md_notes'] );
+		$this->assertSame( array( 'post' ), $clean['post_types'] );
 	}
 
 	/**
@@ -162,7 +205,9 @@ class Test_Settings extends WP_UnitTestCase {
 			'llms_full_enabled'    => true,
 			'llms_full_max_bytes'  => 7 * MB_IN_BYTES,
 			'manifest_enabled'     => false,
+			'auth_md_enabled'      => false,
 			'contact_email'        => 'a@example.org',
+			'auth_md_notes'        => 'Rate limit: 60 requests per minute.',
 		);
 		update_option( Settings::OPTION, $stored );
 		Plugin::instance()->get( 'settings' )->flush_cache();

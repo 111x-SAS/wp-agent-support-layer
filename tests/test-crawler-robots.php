@@ -160,7 +160,7 @@ class Test_Crawler_Robots extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Content-Signal: search=yes, ai-input=yes, ai-train=no', $output );
 		$this->assertStringContainsString( "\n\nUser-agent: GPTBot\nDisallow: /\n", $output );
 		$this->assertStringContainsString( "\n\nUser-agent: PerplexityBot\nAllow: /\n", $output );
-		$this->assertStringEndsWith( '# llms.txt: ' . home_url( '/llms.txt' ) . "\n", $output );
+		$this->assertStringEndsWith( '# llms.txt: ' . home_url( '/llms.txt' ) . "\n# auth.md: " . home_url( '/auth.md' ) . "\n", $output );
 		$this->assertLessThan( strpos( $output, 'User-agent: GPTBot' ), strpos( $output, 'Content-Signal' ), 'Signals stay in the wildcard group before the crawler groups.' );
 	}
 

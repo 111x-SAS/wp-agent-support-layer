@@ -293,6 +293,23 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 	 * @return array<string, mixed>
 	 */
 	public function api_catalog() {
+		$docs = array(
+			array(
+				'href' => home_url( '/llms.txt' ),
+				'type' => 'text/markdown',
+			),
+		);
+		if ( AuthMdBuilder::is_published( $this->settings ) ) {
+			$docs[] = array(
+				'href' => AuthMdBuilder::url(),
+				'type' => 'text/markdown',
+			);
+		}
+		$docs[] = array(
+			'href' => home_url( '/agent-skills.json' ),
+			'type' => 'application/ld+json',
+		);
+
 		$document = array(
 			'linkset' => array(
 				array(
@@ -303,16 +320,7 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 							'type' => 'application/openapi+json',
 						),
 					),
-					'service-doc'  => array(
-						array(
-							'href' => home_url( '/llms.txt' ),
-							'type' => 'text/markdown',
-						),
-						array(
-							'href' => home_url( '/agent-skills.json' ),
-							'type' => 'application/ld+json',
-						),
-					),
+					'service-doc'  => $docs,
 				),
 			),
 		);

@@ -24,13 +24,18 @@ final class Settings {
 		'signals'   => array( 'signal_search', 'signal_ai_input', 'signal_ai_train', 'content_usage_header' ),
 		'crawlers'  => array( 'crawler_overrides' ),
 		'llms'      => array( 'llms_description', 'llms_intro', 'llms_limit', 'llms_full_enabled', 'llms_full_max_bytes' ),
-		'manifests' => array( 'manifest_enabled', 'contact_email' ),
+		'manifests' => array( 'manifest_enabled', 'auth_md_enabled', 'contact_email', 'auth_md_notes' ),
 	);
 
 	/**
 	 * Form field (megabytes) that feeds the llms_full_max_bytes setting.
 	 */
 	const LLMS_FULL_MAX_FIELD_MB = 'llms_full_max_bytes_mb';
+
+	/**
+	 * Maximum length (characters) of the auth.md notes.
+	 */
+	const AUTH_MD_NOTES_MAX = 4000;
 
 	/**
 	 * Allowed cron intervals.
@@ -67,7 +72,9 @@ final class Settings {
 			'llms_full_enabled'    => false,
 			'llms_full_max_bytes'  => 5 * MB_IN_BYTES,
 			'manifest_enabled'     => true,
+			'auth_md_enabled'      => true,
 			'contact_email'        => '',
+			'auth_md_notes'        => '',
 		);
 	}
 
@@ -230,6 +237,7 @@ final class Settings {
 			case 'content_usage_header':
 			case 'llms_full_enabled':
 			case 'manifest_enabled':
+			case 'auth_md_enabled':
 				return ! empty( $value );
 
 			case 'crawler_overrides':
@@ -248,6 +256,11 @@ final class Settings {
 
 			case 'llms_intro':
 				return sanitize_textarea_field( (string) $value );
+
+			case 'auth_md_notes':
+				// Truncating an already truncated value is a no-op, so the double sanitization of the Settings
+				// API (update_option() falling back to add_option()) stores the same text.
+				return mb_substr( sanitize_textarea_field( (string) $value ), 0, self::AUTH_MD_NOTES_MAX );
 
 			case 'contact_email':
 				$email = sanitize_email( (string) $value );

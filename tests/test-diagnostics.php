@@ -199,7 +199,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'PerplexityBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'post_markdown', $raw['crawlers']['GPTBot'] );
 		$this->assertSame( array( 'home', 'post_html', 'post_markdown', 'post_md', 'robots' ), array_keys( $raw['crawlers']['GPTBot'] ), 'The .md URL and robots.txt are probed with each crawler user-agent.' );
-		$this->assertSame( array( 'robots', 'llms', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
+		$this->assertSame( array( 'robots', 'llms', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
 
 		$agents = array_unique( array_column( $this->requests, 'ua' ) );
 		$this->assertCount( 3, $agents, 'Two crawlers plus the diagnostics agent.' );
@@ -326,7 +326,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'robots', $run['site'] );
 		$this->assertNull( Report::load(), 'No report until the last batch.' );
 		$first_batch = count( $this->requests );
-		$this->assertSame( 6 + 5, $first_batch, 'Six site targets and the five requests of one crawler.' );
+		$this->assertSame( 7 + 5, $first_batch, 'Seven site targets and the five requests of one crawler.' );
 
 		// Second request: resumes with the first pending crawler only and publishes the report.
 		$this->requests = array();
@@ -934,6 +934,67 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Run crawler simulation', $html );
 	}
 
+	public function test_report_checks_auth_md() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$url = home_url( '/auth.md' );
+
+		$report = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['auth']['status'] );
+		$this->assertStringContainsString( 'auth.md: HTTP 200, text/markdown', $report['site']['auth']['message'] );
+		$this->assertSame( array( 'robots', 'llms', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $report['site'] ) );
+
+		$this->responses[ $url ] = array(
+			'code'    => 404,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::ERROR, $report['site']['auth']['status'] );
+		$this->assertStringContainsString( 'auth.md: HTTP 404', $report['site']['auth']['message'] );
+
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['site']['auth']['status'] );
+		$this->assertStringContainsString( 'unexpected Content-Type "text/html; charset=utf-8" (expected text/markdown)', $report['site']['auth']['message'] );
+	}
+
+	public function test_probe_only_sends_get_to_known_targets() {
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra' ) );
+		$this->probe->run();
+
+		$allowed = array(
+			home_url( '/' ),
+			get_permalink( $post ),
+			Plugin::instance()->get( 'delivery' )->markdown_url( $post ),
+			home_url( '/robots.txt' ),
+			home_url( '/llms.txt' ),
+			home_url( '/auth.md' ),
+			home_url( '/agent-skills.json' ),
+			home_url( '/.well-known/api-catalog' ),
+			$this->probe->storage_direct_url(),
+		);
+		$this->assertNotEmpty( $this->requests );
+		foreach ( $this->requests as $request ) {
+			$this->assertSame( 'GET', $request['args']['method'], $request['url'] );
+			$this->assertContains( $request['url'], $allowed, $request['url'] );
+			$this->assertArrayNotHasKey( 'body', array_filter( $request['args'] ), 'No request body.' );
+			foreach ( array( 'register', 'oauth', 'token', '/agent/auth' ) as $forbidden ) {
+				$this->assertStringNotContainsString( $forbidden, $request['url'] );
+			}
+		}
+		$auth = array_filter(
+			$this->requests,
+			static function ( $request ) {
+				return home_url( '/auth.md' ) === $request['url'];
+			}
+		);
+		$this->assertCount( 1, $auth, 'auth.md is a site check: probed once, not per crawler.' );
+		$this->assertSame( 'WP-Agent-Support-Layer-Diagnostics/' . WPASL_VERSION, reset( $auth )['ua'] );
+		$this->assertStringStartsWith( 'text/markdown', reset( $auth )['accept'] );
+	}
+
 	public function test_tab_renders_checklist_and_curl_commands() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
@@ -948,5 +1009,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'rate limiting', $html );
 		$this->assertStringContainsString( "curl -sI -A 'Mozilla/5.0 (compatible; GPTBot/1.0)' -H 'Accept: text/markdown' '" . home_url( '/muestra/' ) . "'", $html );
 		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'", $html );
+		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'\ncurl -s '" . home_url( '/auth.md' ) . "'\ncurl -s '" . home_url( '/agent-skills.json' ) . "'", $html );
+		$this->assertStringContainsString( 'Do not cache or transform robots.txt, llms.txt, auth.md, agent-skills.json and /.well-known/api-catalog', $html );
 	}
 }

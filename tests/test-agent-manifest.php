@@ -64,7 +64,7 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$registry = new CapabilityRegistry( Plugin::instance()->get( 'settings' ) );
 		$caps     = $registry->all();
 		$ids      = $this->ids( $caps );
-		foreach ( array( 'search-content', 'list-post', 'read-post', 'list-page', 'read-page', 'read-markdown', 'site-index', 'openapi' ) as $id ) {
+		foreach ( array( 'search-content', 'list-post', 'read-post', 'list-page', 'read-page', 'read-markdown', 'site-index', 'auth-md', 'openapi' ) as $id ) {
 			$this->assertContains( $id, $ids, $id );
 		}
 		foreach ( $caps as $cap ) {
@@ -83,6 +83,10 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$markdown = $caps[ array_search( 'read-markdown', $ids, true ) ];
 		$this->assertSame( home_url( '/{+path}.md' ), $markdown['urlTemplate'] );
 		$this->assertSame( 'text/markdown', $markdown['responseType'] );
+		$auth = $caps[ array_search( 'auth-md', $ids, true ) ];
+		$this->assertSame( home_url( '/auth.md' ), $auth['url'] );
+		$this->assertSame( 'text/markdown', $auth['responseType'] );
+		$this->assertStringNotContainsString( 'auth.md', wp_json_encode( array_keys( $this->builder->openapi()['paths'] ) ), 'OpenAPI keeps describing REST paths only.' );
 	}
 
 	public function test_post_type_without_rest_gets_no_rest_capabilities() {
@@ -232,6 +236,8 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertIsArray( $data );
 		$this->assertSame( ManifestBuilder::openapi_url(), $data['linkset'][0]['service-desc'][0]['href'] );
 		$this->assertSame( 'application/openapi+json', $data['linkset'][0]['service-desc'][0]['type'] );
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $data['linkset'][0]['service-doc'], 'href' ) );
+		$this->assertSame( 'text/markdown', $data['linkset'][0]['service-doc'][1]['type'] );
 		$this->assertSame( 'application/linkset+json', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'], 'Exact RFC 9264 type, no parameters.' );
 		$this->assertSame( 'application/ld+json; charset=utf-8', $this->router->headers( ManifestRouter::SKILLS_PATH )['Content-Type'] );
 	}

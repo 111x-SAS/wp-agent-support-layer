@@ -9,6 +9,7 @@ namespace WPASL\Robots;
 
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\CrawlersTab;
+use WPASL\Manifest\AuthMdBuilder;
 use WPASL\Settings;
 use WPASL\Signals\ContentSignals;
 
@@ -73,7 +74,7 @@ final class RobotsTxt {
 	}
 
 	/**
-	 * The block appended to robots.txt: one group per crawler plus the llms.txt pointer.
+	 * The block appended to robots.txt: one group per crawler plus the llms.txt and auth.md pointers.
 	 *
 	 * @return string
 	 */
@@ -86,6 +87,9 @@ final class RobotsTxt {
 		}
 		$lines[] = '';
 		$lines[] = '# llms.txt: ' . home_url( '/llms.txt' );
+		if ( AuthMdBuilder::is_published( $this->settings ) ) {
+			$lines[] = '# auth.md: ' . AuthMdBuilder::url();
+		}
 		return implode( "\n", $lines ) . "\n";
 	}
 

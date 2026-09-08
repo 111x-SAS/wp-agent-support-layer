@@ -11,7 +11,7 @@ use WPASL\Settings;
 
 /**
  * Derives the capability list from what the site really exposes: REST read endpoints of enabled
- * post types, search, Markdown delivery, llms.txt and the OpenAPI document. Never declares
+ * post types, search, Markdown delivery, llms.txt, auth.md and the OpenAPI document. Never declares
  * authenticated endpoints. Developers can add entries with the wpasl_agent_capabilities filter.
  */
 final class CapabilityRegistry {
@@ -133,6 +133,17 @@ final class CapabilityRegistry {
 			array(),
 			'text/markdown'
 		);
+
+		if ( AuthMdBuilder::is_published( $this->settings ) ) {
+			$capabilities[] = $this->capability(
+				'auth-md',
+				__( 'Agent access documentation (auth.md)', 'wp-agent-support-layer' ),
+				__( 'Markdown statement of how agents may access this site: no registration, no credentials, public read-only endpoints.', 'wp-agent-support-layer' ),
+				AuthMdBuilder::url(),
+				array(),
+				'text/markdown'
+			);
+		}
 
 		$capabilities[] = $this->capability(
 			'openapi',

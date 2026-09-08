@@ -219,32 +219,38 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 					'parameters'  => $parameters,
 					'security'    => array(),
 					'responses'   => array(
-						'200' => array(
+						'200'     => array(
 							'description' => __( 'Successful response.', 'wp-agent-support-layer' ),
 							'content'     => array(
 								$capability['responseType'] => array( 'schema' => $this->schema_for( $path ) ),
 							),
 						),
-						'404' => array( 'description' => __( 'Not found.', 'wp-agent-support-layer' ) ),
+						'400'     => self::error_response( __( 'Invalid parameter.', 'wp-agent-support-layer' ) ),
+						'404'     => self::error_response( __( 'Not found.', 'wp-agent-support-layer' ) ),
+						'default' => self::error_response( __( 'Error response of the WordPress REST API.', 'wp-agent-support-layer' ) ),
 					),
 				),
 			);
 		}//end foreach
 
 		$document = array(
-			'openapi' => '3.1.0',
-			'info'    => array(
+			'openapi'    => '3.1.0',
+			'info'       => array(
 				'title'       => sprintf(
 					/* translators: %s: site name. */
 					__( '%s public API', 'wp-agent-support-layer' ),
 					DocumentBuilder::plain_text( get_bloginfo( 'name' ) )
 				),
-				'description' => __( 'Read-only endpoints of the WordPress REST API that agents may use without authentication.', 'wp-agent-support-layer' ),
+				'description' => __( 'Read-only endpoints of the WordPress REST API that agents may use without authentication.', 'wp-agent-support-layer' )
+					. ' ' . self::versioning_policy( self::namespaces_of( array_keys( $paths ) ) ),
 				'version'     => WPASL_VERSION,
 				'contact'     => array( 'email' => $this->settings->contact_email() ),
 			),
-			'servers' => array( array( 'url' => $plain ? untrailingslashit( home_url() ) : untrailingslashit( $rest_url ) ) ),
-			'paths'   => $paths,
+			'servers'    => array( array( 'url' => $plain ? untrailingslashit( home_url() ) : untrailingslashit( $rest_url ) ) ),
+			'paths'      => $paths,
+			'components' => array(
+				'schemas' => array( 'Error' => self::error_schema() ),
+			),
 		);
 
 		/**
@@ -253,6 +259,96 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 		 * @param array<string, mixed> $document Document.
 		 */
 		return (array) apply_filters( 'wpasl_openapi', $document );
+	}
+
+	/**
+	 * Versioned REST namespaces ("wp/v2", "wpasl/v1") found in a list of REST paths or URLs, sorted and unique.
+	 * Accepts OpenAPI path keys with pretty permalinks ("/wp/v2/posts"), with plain permalinks
+	 * ("/?rest_route=/wp/v2/posts") and absolute REST URLs.
+	 *
+	 * @param string[] $paths Paths or URLs.
+	 * @return string[]
+	 */
+	public static function namespaces_of( array $paths ) {
+		$namespaces = array();
+		foreach ( $paths as $path ) {
+			if ( preg_match( '#/(?:\?rest_route=/)?([a-z0-9_-]+/v\d+)/#i', (string) $path, $m ) ) {
+				$namespaces[] = $m[1];
+			}
+		}
+		$namespaces = array_values( array_unique( $namespaces ) );
+		sort( $namespaces );
+		return $namespaces;
+	}
+
+	/**
+	 * The API versioning and deprecation policy, shared by the OpenAPI description and auth.md. Written in
+	 * English on purpose and not translated: its readers are agents and scanners looking for these terms.
+	 * It states only what the site really does: versioned namespaces, release cycles, no Deprecation or
+	 * Sunset headers, incompatible changes announced in the changelog and the WordPress release notes.
+	 *
+	 * @param string[] $namespaces Versioned namespaces that actually appear in the routes.
+	 * @return string
+	 */
+	public static function versioning_policy( array $namespaces ) {
+		$namespaces = array_values( array_filter( array_map( 'strval', $namespaces ) ) );
+		$list       = empty( $namespaces ) ? 'wp/v2' : implode( ', ', $namespaces );
+		return 'This API is the WordPress REST API. Routes are grouped in versioned namespaces (' . $list . '). '
+			. 'Changes follow the release cycles of WordPress core and of the WP Agent Support Layer plugin. '
+			. 'This site does not send Deprecation or Sunset headers. '
+			. 'Backwards-incompatible changes to the wpasl/v1 routes are announced in the plugin changelog; '
+			. 'changes to core routes follow the WordPress release notes.';
+	}
+
+	/**
+	 * Schema of the error body of the WordPress REST API (WP_Error as serialized by WP_REST_Server): the
+	 * site does not emit RFC 9457 problem details, so the document does not declare them.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public static function error_schema() {
+		return array(
+			'type'                 => 'object',
+			'required'             => array( 'code', 'message' ),
+			'properties'           => array(
+				'code'    => array(
+					'type'        => 'string',
+					'description' => __( 'Machine-readable error code, e.g. rest_no_route or rest_post_invalid_id.', 'wp-agent-support-layer' ),
+				),
+				'message' => array(
+					'type'        => 'string',
+					'description' => __( 'Human-readable message.', 'wp-agent-support-layer' ),
+				),
+				'data'    => array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'status' => array(
+							'type'        => 'integer',
+							'description' => __( 'HTTP status code.', 'wp-agent-support-layer' ),
+						),
+					),
+					'additionalProperties' => true,
+				),
+			),
+			'additionalProperties' => true,
+		);
+	}
+
+	/**
+	 * A Response Object whose JSON body follows the Error schema.
+	 *
+	 * @param string $description Description.
+	 * @return array<string, mixed>
+	 */
+	private static function error_response( $description ) {
+		return array(
+			'description' => $description,
+			'content'     => array(
+				'application/json' => array(
+					'schema' => array( '$ref' => '#/components/schemas/Error' ),
+				),
+			),
+		);
 	}
 
 	/**
@@ -288,7 +384,9 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 	}
 
 	/**
-	 * The RFC 9727 API catalog (linkset).
+	 * The RFC 9727 API catalog (linkset): linkset[0] is the catalog entry (anchor = the catalog URL, "item"
+	 * = the REST API base), linkset[1] the API entry (anchor = the REST API base, "service-desc" and
+	 * "service-doc").
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -310,10 +408,21 @@ final class ManifestBuilder implements ArtifactGeneratorInterface {
 			'type' => 'application/ld+json',
 		);
 
+		$api = untrailingslashit( rest_url() );
+		// RFC 9727 appendix A.2: the entry anchored at the catalog lists the APIs with "item" (RFC 6573);
+		// appendix A.1: the entry anchored at each API carries its description and documentation. The site
+		// exposes one API, the WordPress REST API; a capability with another base added by filter does not
+		// create another entry (use wpasl_api_catalog for that).
 		$document = array(
 			'linkset' => array(
 				array(
-					'anchor'       => untrailingslashit( rest_url() ),
+					'anchor' => home_url( '/.well-known/api-catalog' ),
+					'item'   => array(
+						array( 'href' => $api ),
+					),
+				),
+				array(
+					'anchor'       => $api,
 					'service-desc' => array(
 						array(
 							'href' => self::openapi_url(),

@@ -8,8 +8,10 @@
 namespace WPASL\Markdown;
 
 use WPASL\Content\Eligibility;
+use WPASL\Content\SitemapLocator;
 use WPASL\Generation\Runner;
 use WPASL\Http;
+use WPASL\Manifest\AuthMdBuilder;
 use WPASL\Manifest\AuthMdRouter;
 use WPASL\Settings;
 use WPASL\Storage;
@@ -82,6 +84,9 @@ final class Delivery {
 		add_action( 'parse_request', array( $this, 'handle_md_suffix' ), 1 );
 		add_action( 'template_redirect', array( $this, 'maybe_serve' ), 1 );
 		add_action( 'template_redirect', array( $this, 'send_html_headers' ), 2 );
+		// After redirect_canonical() and wp_old_slug_redirect() (priority 10): a 404 is final only once
+		// WordPress gave up redirecting the URL.
+		add_action( 'template_redirect', array( $this, 'maybe_serve_404' ), 11 );
 		add_action( 'wp_head', array( $this, 'print_alternate_link' ), 5 );
 	}
 
@@ -461,6 +466,103 @@ final class Delivery {
 			exit;
 		}
 		return true;
+	}
+
+	/**
+	 * Serves the Markdown 404 document when a 404 response goes to a client that asked for Markdown: a ".md"
+	 * request that did not resolve, "?wpasl=md", or an Accept header preferring text/markdown. Browsers and
+	 * any other client keep the theme's HTML 404 page.
+	 *
+	 * @return bool Whether the document was served.
+	 */
+	public function maybe_serve_404() {
+		if ( ! is_404() ) {
+			return false;
+		}
+		$accept    = isset( $_SERVER['HTTP_ACCEPT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_ACCEPT'] ) ) : '';
+		$requested = -1 === $this->md_request_post_id || 'md' === get_query_var( self::QUERY_VAR ) || self::prefers_markdown( $accept );
+		if ( ! $requested ) {
+			return false;
+		}
+
+		$document = $this->not_found_document();
+
+		// send_headers announced the API catalog (and possibly other Link relations) for the HTML response;
+		// the Markdown 404 announces the catalog itself through wpasl_before_serve, exactly once.
+		Http::remove_header( 'Link' );
+
+		/**
+		 * Fires right before the Markdown 404 document is sent (see the "markdown" context above).
+		 *
+		 * @param string $context "markdown-404".
+		 * @param null   $post    No post: the request did not resolve to content.
+		 */
+		do_action( 'wpasl_before_serve', 'markdown-404', null );
+
+		if ( ! headers_sent() ) {
+			status_header( 404 );
+		}
+		foreach ( $this->not_found_headers( $document ) as $name => $value ) {
+			Http::send_header( $name, $value, ! in_array( $name, array( 'Vary', 'Link' ), true ) );
+		}
+
+		echo $document; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text/markdown body.
+
+		/** This filter is documented above in serve(). */
+		if ( apply_filters( 'wpasl_terminate_after_serve', true ) ) {
+			exit;
+		}
+		return true;
+	}
+
+	/**
+	 * Headers of the Markdown 404 response. No canonical Link (there is no resource) and no caching: the
+	 * body depends on the settings and the URL may start to exist as soon as content is published.
+	 *
+	 * @param string $document Document.
+	 * @return array<string, string>
+	 */
+	public function not_found_headers( $document ) {
+		return array(
+			'Content-Type'           => self::MIME . '; charset=utf-8',
+			'Vary'                   => 'Accept',
+			'X-Markdown-Tokens'      => (string) DocumentBuilder::estimate_tokens( $document ),
+			'Cache-Control'          => 'no-store',
+			'X-Content-Type-Options' => 'nosniff',
+		);
+	}
+
+	/**
+	 * The Markdown 404 document: a short English note pointing agents at the site's discovery documents.
+	 * Written in English on purpose and not translated (its readers are agents), built from real site
+	 * values only, and never echoing the requested URL or any other request data.
+	 *
+	 * @return string
+	 */
+	public function not_found_document() {
+		$site_name = DocumentBuilder::plain_text( get_bloginfo( 'name' ) );
+
+		$out  = "# Not found\n\n";
+		$out .= 'The requested resource does not exist on ' . $site_name . ", is not public, or has no Markdown version.\n\n";
+		$out .= "## Where to look instead\n\n";
+		$out .= '- [Site index (llms.txt)](' . home_url( '/llms.txt' ) . "): curated Markdown index of the public content.\n";
+		if ( AuthMdBuilder::is_published( $this->settings ) ) {
+			$out .= '- [Agent access documentation (auth.md)](' . AuthMdBuilder::url() . "): how agents may access this site.\n";
+		}
+		$sitemap = SitemapLocator::url();
+		if ( null !== $sitemap ) {
+			$out .= '- [Sitemap](' . $sitemap . "): XML sitemap of the whole site.\n";
+		}
+		if ( $this->settings->get( 'manifest_enabled' ) ) {
+			$out .= '- [API catalog](' . home_url( '/.well-known/api-catalog' ) . "): RFC 9727 linkset with the OpenAPI description of the public REST API.\n";
+		}
+
+		/**
+		 * Filters the Markdown 404 document served to agents.
+		 *
+		 * @param string $out Markdown document.
+		 */
+		return (string) apply_filters( 'wpasl_markdown_404', $out );
 	}
 
 	/**

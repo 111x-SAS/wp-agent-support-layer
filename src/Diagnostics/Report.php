@@ -7,6 +7,7 @@
 
 namespace WPASL\Diagnostics;
 
+use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Robots\Policy;
 use WPASL\Signals\ContentSignals;
 
@@ -252,8 +253,17 @@ final class Report {
 		$checks = array();
 
 		$expect = array(
-			'robots'       => array( 'text/plain', __( 'robots.txt', 'wp-agent-support-layer' ) ),
-			'llms'         => array( 'text/markdown', __( 'llms.txt', 'wp-agent-support-layer' ) ),
+			'robots' => array( 'text/plain', __( 'robots.txt', 'wp-agent-support-layer' ) ),
+			'llms'   => array( 'text/markdown', __( 'llms.txt', 'wp-agent-support-layer' ) ),
+		);
+		// One check per per-type file present in the results, whatever the post types enabled when probing
+		// (a report stored by an earlier version carries none).
+		foreach ( array_keys( $site ) as $key ) {
+			if ( 0 === strpos( (string) $key, 'llms-' ) ) {
+				$expect[ $key ] = array( 'text/markdown', $key . '.txt' );
+			}
+		}
+		$expect += array(
 			'auth'         => array( 'text/markdown', __( 'auth.md', 'wp-agent-support-layer' ) ),
 			'skills'       => array( 'application/ld+json', __( 'agent-skills.json', 'wp-agent-support-layer' ) ),
 			'catalog'      => array( 'application/linkset+json', __( 'API catalog', 'wp-agent-support-layer' ) ),
@@ -271,10 +281,21 @@ final class Report {
 				$checks[ $key ] = self::check( self::ERROR, sprintf( /* translators: 1: target, 2: HTTP status, 3: error message. */ __( '%1$s: HTTP %2$s %3$s', 'wp-agent-support-layer' ), $spec[1], $result['status'], $result['error'] ) );
 			} elseif ( false === stripos( $type, $spec[0] ) ) {
 				$checks[ $key ] = self::check( self::WARNING, sprintf( /* translators: 1: target, 2: Content-Type received, 3: Content-Type expected. */ __( '%1$s: unexpected Content-Type "%2$s" (expected %3$s).', 'wp-agent-support-layer' ), $spec[1], $type, $spec[0] ) );
+			} elseif ( 'llms' === $key && isset( $result['body_length'] ) && (int) $result['body_length'] > LlmsTxtBuilder::RECOMMENDED_MAX_CHARS ) {
+				$checks[ $key ] = self::check(
+					self::WARNING,
+					sprintf(
+						/* translators: 1: Content-Type, 2: size in characters, 3: recommended maximum in characters. */
+						__( 'llms.txt: HTTP 200, %1$s, but %2$s characters; agents expect at most %3$s. Lower "Items per section in llms.txt".', 'wp-agent-support-layer' ),
+						$type,
+						number_format_i18n( (int) $result['body_length'] ),
+						number_format_i18n( LlmsTxtBuilder::RECOMMENDED_MAX_CHARS )
+					)
+				);
 			} else {
 				$checks[ $key ] = self::check( self::OK, sprintf( /* translators: 1: target, 2: Content-Type. */ __( '%1$s: HTTP 200, %2$s.', 'wp-agent-support-layer' ), $spec[1], $type ) );
 			}
-		}
+		}//end foreach
 
 		if ( isset( $site['storage'] ) ) {
 			$exposed           = 200 === (int) $site['storage']['status'];

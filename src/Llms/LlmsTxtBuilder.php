@@ -8,6 +8,7 @@
 namespace WPASL\Llms;
 
 use WPASL\Content\Eligibility;
+use WPASL\Content\SitemapLocator;
 use WPASL\Generation\ArtifactGeneratorInterface;
 use WPASL\Generation\Runner;
 use WPASL\Markdown\Delivery;
@@ -22,6 +23,18 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 
 	const FILE      = 'llms.txt';
 	const FULL_FILE = 'llms-full.txt';
+
+	/**
+	 * Post type names that cannot have a per-type file: "llms-full.txt" is the concatenated document.
+	 *
+	 * @var string[]
+	 */
+	const RESERVED_TYPES = array( 'full' );
+
+	/**
+	 * Size (characters) above which agents and scanners consider llms.txt too large to read in one go.
+	 */
+	const RECOMMENDED_MAX_CHARS = 30000;
 
 	/**
 	 * Settings.
@@ -67,7 +80,8 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	}
 
 	/**
-	 * Writes llms.txt and, when enabled, llms-full.txt; removes a stale llms-full.txt otherwise.
+	 * Writes llms.txt, one llms-<post_type>.txt per enabled post type and, when enabled, llms-full.txt;
+	 * removes the per-type files of post types no longer enabled and a stale llms-full.txt.
 	 *
 	 * @param Storage $storage Storage.
 	 * @return void
@@ -75,15 +89,24 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	public function generate( Storage $storage ) {
 		$sections = $this->sections();
 		$this->generate_file( $storage, self::FILE, $sections );
+		$files = $this->type_files();
+		foreach ( $files as $file ) {
+			$this->generate_file( $storage, $file, $sections );
+		}
+		foreach ( self::stored_type_files( $storage ) as $file ) {
+			if ( ! in_array( $file, $files, true ) ) {
+				$storage->delete( $file );
+			}
+		}
 		$this->generate_file( $storage, self::FULL_FILE, $sections );
 	}
 
 	/**
-	 * Writes one of the two files. llms-full.txt converts every missing item document, so callers on the
-	 * request path only ask for llms.txt.
+	 * Writes one file: llms.txt, a per-type llms-<post_type>.txt or llms-full.txt. llms-full.txt converts
+	 * every missing item document, so callers on the request path only ask for the other two kinds.
 	 *
 	 * @param Storage                   $storage  Storage.
-	 * @param string                    $file     self::FILE or self::FULL_FILE.
+	 * @param string                    $file     self::FILE, self::FULL_FILE or a name returned by type_file().
 	 * @param array<string, int[]>|null $sections Sections; computed when null.
 	 * @return bool Whether the file exists afterwards.
 	 */
@@ -91,6 +114,16 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 		if ( self::FULL_FILE === $file && ! $this->full_enabled() ) {
 			$storage->delete( self::FULL_FILE );
 			return false;
+		}
+		if ( self::FILE !== $file && self::FULL_FILE !== $file ) {
+			$type = self::type_of_file( $file );
+			if ( null === $type || ! isset( $this->type_files()[ $type ] ) ) {
+				$storage->delete( $file );
+				return false;
+			}
+			$sections = null === $sections ? $this->sections() : $sections;
+			$ids      = isset( $sections[ $type ] ) ? (array) $sections[ $type ] : array();
+			return $storage->write( $file, $this->build_type( $type, $ids ) );
 		}
 		$sections = null === $sections ? $this->sections() : $sections;
 		if ( self::FULL_FILE === $file ) {
@@ -100,20 +133,72 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	}
 
 	/**
-	 * Whether llms-full.txt is enabled.
+	 * Name of the per-type file of a post type ("llms-post.txt"), or null for a reserved name.
 	 *
-	 * @return bool
+	 * @param string $post_type Post type.
+	 * @return string|null
 	 */
-	public function full_enabled() {
-		return (bool) $this->settings->get( 'llms_full_enabled' );
+	public static function type_file( $post_type ) {
+		$post_type = (string) $post_type;
+		if ( in_array( $post_type, self::RESERVED_TYPES, true ) || ! preg_match( '/^[a-z0-9_-]{1,20}$/', $post_type ) ) {
+			return null;
+		}
+		return 'llms-' . $post_type . '.txt';
 	}
 
 	/**
-	 * Enabled post types with pages first, each with its ordered, limited list of eligible ids.
+	 * Post type of a per-type file name ("llms-post.txt" => "post"), or null for any other name, including
+	 * llms.txt and llms-full.txt.
 	 *
-	 * @return array<string, int[]> Post type => ids.
+	 * @param string $file File name.
+	 * @return string|null
 	 */
-	public function sections() {
+	public static function type_of_file( $file ) {
+		if ( ! preg_match( '/^llms-([a-z0-9_-]{1,20})\\.txt$/', (string) $file, $m ) || in_array( $m[1], self::RESERVED_TYPES, true ) ) {
+			return null;
+		}
+		return $m[1];
+	}
+
+	/**
+	 * Per-type files of the enabled post types, pages first (the order of sections()).
+	 *
+	 * @return array<string, string> Post type => file name.
+	 */
+	public function type_files() {
+		$files = array();
+		foreach ( $this->ordered_types() as $type ) {
+			$file = self::type_file( $type );
+			if ( null !== $file ) {
+				$files[ $type ] = $file;
+			}
+		}
+		return $files;
+	}
+
+	/**
+	 * Per-type files present in the storage root (llms-full.txt excluded).
+	 *
+	 * @param Storage $storage Storage.
+	 * @return string[] File names.
+	 */
+	public static function stored_type_files( Storage $storage ) {
+		$found = array();
+		foreach ( (array) glob( $storage->path( 'llms-*.txt' ) ) as $path ) {
+			$file = basename( (string) $path );
+			if ( null !== self::type_of_file( $file ) ) {
+				$found[] = $file;
+			}
+		}
+		return $found;
+	}
+
+	/**
+	 * Enabled post types with pages first.
+	 *
+	 * @return string[]
+	 */
+	private function ordered_types() {
 		$types = $this->settings->enabled_post_types();
 		usort(
 			$types,
@@ -127,10 +212,28 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 				return 0;
 			}
 		);
+		return $types;
+	}
 
-		$limit    = max( 1, (int) $this->settings->get( 'llms_limit' ) );
+	/**
+	 * Whether llms-full.txt is enabled.
+	 *
+	 * @return bool
+	 */
+	public function full_enabled() {
+		return (bool) $this->settings->get( 'llms_full_enabled' );
+	}
+
+	/**
+	 * Enabled post types with pages first, each with its ordered list of eligible ids up to the per-type
+	 * limit: the full lists that the per-type files and llms-full.txt use.
+	 *
+	 * @return array<string, int[]> Post type => ids.
+	 */
+	public function sections() {
+		$limit    = max( 1, (int) $this->settings->get( 'llms_type_limit' ) );
 		$sections = array();
-		foreach ( $types as $type ) {
+		foreach ( $this->ordered_types() as $type ) {
 			$args = array( 'posts_per_page' => $limit );
 			// Only pages follow the menu order; every other post type (hierarchical or not) is listed by date.
 			if ( 'page' === $type ) {
@@ -146,11 +249,34 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 		}
 
 		/**
-		 * Filters the llms.txt sections (post type => ids).
+		 * Filters the llms.txt sections (post type => ids): the full lists, before the preview cut.
 		 *
 		 * @param array<string, int[]> $sections Sections.
 		 */
 		return (array) apply_filters( 'wpasl_llms_sections', $sections );
+	}
+
+	/**
+	 * The preview shown in llms.txt: the first items of each section, up to the preview limit, in the same
+	 * order as the full list.
+	 *
+	 * @param array<string, int[]> $sections Full sections.
+	 * @return array<string, int[]> Post type => ids.
+	 */
+	public function preview_sections( array $sections ) {
+		$limit   = max( 1, (int) $this->settings->get( 'llms_preview_limit' ) );
+		$preview = array();
+		foreach ( $sections as $type => $ids ) {
+			$preview[ $type ] = array_slice( (array) $ids, 0, $limit );
+		}
+
+		/**
+		 * Filters the llms.txt preview sections (post type => ids shown in llms.txt).
+		 *
+		 * @param array<string, int[]> $preview  Preview sections.
+		 * @param array<string, int[]> $sections Full sections.
+		 */
+		return (array) apply_filters( 'wpasl_llms_preview_sections', $preview, $sections );
 	}
 
 	/**
@@ -179,12 +305,18 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 			$out .= $intro . "\n\n";
 		}
 
-		foreach ( $sections as $type => $ids ) {
+		// Fixed English heading, like "## Optional": the section is addressed to agents.
+		$when = trim( (string) $this->settings->get( 'llms_when_to_use' ) );
+		if ( '' !== $when ) {
+			$out .= "## When to use this site\n\n" . $when . "\n\n";
+		}
+
+		foreach ( $this->preview_sections( $sections ) as $type => $ids ) {
 			if ( empty( $ids ) ) {
 				continue;
 			}
-			$object = get_post_type_object( $type );
-			$out   .= '## ' . ( $object ? DocumentBuilder::plain_text( $object->labels->name ) : ucfirst( $type ) ) . "\n\n";
+			$label = self::type_label( $type );
+			$out  .= '## ' . $label . "\n\n";
 			foreach ( $ids as $id ) {
 				$post = get_post( $id );
 				if ( ! $post ) {
@@ -192,8 +324,14 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 				}
 				$out .= $this->item_line( $post );
 			}
+			$total = isset( $sections[ $type ] ) ? count( (array) $sections[ $type ] ) : 0;
+			$file  = self::type_file( $type );
+			if ( null !== $file && $total > count( $ids ) ) {
+				// A standard llms.txt link line, so parsers treat the full list as one more item.
+				$out .= '- [Full list of ' . $label . ' (' . $total . ' items)](' . home_url( '/' . $file ) . ")\n";
+			}
 			$out .= "\n";
-		}
+		}//end foreach
 
 		$optional = $this->optional_links();
 		if ( ! empty( $optional ) ) {
@@ -212,7 +350,50 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	}
 
 	/**
-	 * Builds llms-full.txt: the Markdown documents of the indexed items, concatenated, within the size limit.
+	 * Builds llms-<post_type>.txt: every eligible item of one post type up to the per-type limit, in the
+	 * llms.txt line format. English on purpose (addressed to agents), like the fixed llms.txt headings.
+	 *
+	 * @param string $type Post type.
+	 * @param int[]  $ids  Ordered ids (the full section).
+	 * @return string
+	 */
+	public function build_type( $type, array $ids ) {
+		$site  = DocumentBuilder::plain_text( get_bloginfo( 'name' ) );
+		$label = self::type_label( $type );
+		$ids   = array_values( $ids );
+
+		$out  = '# ' . $site . ' — ' . $label . "\n\n";
+		$out .= '> All public ' . $label . ' of ' . $site . ' (' . count( $ids ) . ' items). Index: ' . home_url( '/' . self::FILE ) . "\n\n";
+		foreach ( array_chunk( $ids, Eligibility::PRIME_CHUNK ) as $chunk ) {
+			_prime_post_caches( $chunk, false, false );
+			foreach ( $chunk as $id ) {
+				$post = get_post( $id );
+				if ( $post ) {
+					$out .= $this->item_line( $post );
+				}
+			}
+		}
+		$total = $this->eligibility->count( array( $type ) );
+		if ( $total > count( $ids ) ) {
+			$out .= "\n> Truncated: listing " . count( $ids ) . ' of ' . $total . " items.\n";
+		}
+		return $out;
+	}
+
+	/**
+	 * Plural label of a post type, as plain text.
+	 *
+	 * @param string $type Post type.
+	 * @return string
+	 */
+	private static function type_label( $type ) {
+		$object = get_post_type_object( $type );
+		return $object ? DocumentBuilder::plain_text( $object->labels->name ) : ucfirst( (string) $type );
+	}
+
+	/**
+	 * Builds llms-full.txt: the Markdown documents of the items of the full lists (the per-type files, not
+	 * only the llms.txt preview), concatenated, within the size limit.
 	 *
 	 * @param array<string, int[]>|null $sections Sections; computed when null.
 	 * @return string
@@ -294,10 +475,10 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	 * @return array<string, array{0:string,1:string}> Label => [url, description].
 	 */
 	private function optional_links() {
-		$links = array();
-		if ( function_exists( 'wp_sitemaps_get_server' ) && wp_sitemaps_get_server()->sitemaps_enabled() ) {
-			// The index URL depends on the permalink structure ("?sitemap=index" with plain permalinks).
-			$sitemap = function_exists( 'get_sitemap_url' ) ? (string) get_sitemap_url( 'index' ) : home_url( '/wp-sitemap.xml' );
+		$links   = array();
+		$sitemap = SitemapLocator::url();
+		if ( null !== $sitemap ) {
+			// Core index (following the permalink structure) or the one served by an SEO plugin.
 			$links[ __( 'Sitemap', 'wp-agent-support-layer' ) ] = array( $sitemap, __( 'XML sitemap of the whole site.', 'wp-agent-support-layer' ) );
 		}
 		if ( $this->settings->get( 'manifest_enabled' ) ) {

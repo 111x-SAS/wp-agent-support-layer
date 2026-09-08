@@ -23,7 +23,7 @@ final class Settings {
 		'general'   => array( 'post_types', 'schedule', 'batch_size' ),
 		'signals'   => array( 'signal_search', 'signal_ai_input', 'signal_ai_train', 'content_usage_header' ),
 		'crawlers'  => array( 'crawler_overrides' ),
-		'llms'      => array( 'llms_description', 'llms_intro', 'llms_limit', 'llms_full_enabled', 'llms_full_max_bytes' ),
+		'llms'      => array( 'llms_description', 'llms_intro', 'llms_when_to_use', 'llms_preview_limit', 'llms_type_limit', 'llms_full_enabled', 'llms_full_max_bytes' ),
 		'manifests' => array( 'manifest_enabled', 'auth_md_enabled', 'contact_email', 'auth_md_notes' ),
 	);
 
@@ -36,6 +36,18 @@ final class Settings {
 	 * Maximum length (characters) of the auth.md notes.
 	 */
 	const AUTH_MD_NOTES_MAX = 4000;
+
+	/**
+	 * Maximum length (characters) of the "when to use this site" guidance.
+	 */
+	const LLMS_WHEN_TO_USE_MAX = 4000;
+
+	/**
+	 * Bounds of the llms.txt preview (items per section in llms.txt) and of the per-type files. A stored
+	 * "llms_limit" from versions before 1.0.4 is neither read nor sanitized: it stays inert in the option.
+	 */
+	const LLMS_PREVIEW_LIMIT_MAX = 100;
+	const LLMS_TYPE_LIMIT_MAX    = 10000;
 
 	/**
 	 * Allowed cron intervals.
@@ -68,7 +80,9 @@ final class Settings {
 			'crawler_overrides'    => array(),
 			'llms_description'     => '',
 			'llms_intro'           => '',
-			'llms_limit'           => 100,
+			'llms_when_to_use'     => '',
+			'llms_preview_limit'   => 10,
+			'llms_type_limit'      => 1000,
 			'llms_full_enabled'    => false,
 			'llms_full_max_bytes'  => 5 * MB_IN_BYTES,
 			'manifest_enabled'     => true,
@@ -221,9 +235,13 @@ final class Settings {
 				$number = absint( $value );
 				return $number > 0 ? min( 500, $number ) : $defaults['batch_size'];
 
-			case 'llms_limit':
+			case 'llms_preview_limit':
 				$number = absint( $value );
-				return $number > 0 ? min( 1000, $number ) : $defaults['llms_limit'];
+				return $number > 0 ? min( self::LLMS_PREVIEW_LIMIT_MAX, $number ) : $defaults['llms_preview_limit'];
+
+			case 'llms_type_limit':
+				$number = absint( $value );
+				return $number > 0 ? min( self::LLMS_TYPE_LIMIT_MAX, $number ) : $defaults['llms_type_limit'];
 
 			case 'llms_full_max_bytes':
 				$bytes = absint( $value );
@@ -256,6 +274,10 @@ final class Settings {
 
 			case 'llms_intro':
 				return sanitize_textarea_field( (string) $value );
+
+			case 'llms_when_to_use':
+				// Same idempotent pattern as auth_md_notes.
+				return mb_substr( sanitize_textarea_field( (string) $value ), 0, self::LLMS_WHEN_TO_USE_MAX );
 
 			case 'auth_md_notes':
 				// Truncating an already truncated value is a no-op, so the double sanitization of the Settings

@@ -1,7 +1,7 @@
 # Specification coverage
 
 Every scenario of the main specs (`openspec/specs`, including the deltas of the changes
-`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache` and `auth-md-discovery`) mapped to the automated test that
+`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache`, `auth-md-discovery` and `agentic-readiness-round-1`) mapped to the automated test that
 exercises it (PHPUnit against the official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
@@ -22,7 +22,15 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Accept: ambos tipos con preferencia por HTML | `Test_Delivery::test_prefers_markdown` (html preferred) | A |
 | Accept: comodín con Markdown poco preferido / preferido | `Test_Delivery::test_prefers_markdown` (markdown below wildcard, wildcard only, agent with fallbacks) | A |
 | Sufijo .md sobre enlace permanente bonito | `Test_Delivery::test_md_suffix_serves_markdown`, `test_md_suffix_for_page_hierarchy` | A+M |
-| Sufijo .md sobre contenido inexistente | `Test_Delivery::test_md_suffix_for_unknown_content_is_404`, `test_md_suffix_for_home_is_404` | A+M |
+| Sufijo .md sobre contenido inexistente | `Test_Delivery::test_md_suffix_for_unknown_content_is_404`, `test_md_suffix_for_home_is_404`, `Test_Markdown_404::test_md_suffix_for_unknown_content_serves_markdown_404` | A+M |
+| 404 Markdown: sufijo .md sobre contenido inexistente (404, `text/markdown`, `no-store`, `nosniff`, enlaces) | `Test_Markdown_404::test_md_suffix_for_unknown_content_serves_markdown_404` | A |
+| 404 Markdown: sufijo .md sobre contenido no elegible (borrador, mismo cuerpo) | `Test_Markdown_404::test_md_suffix_for_draft_serves_markdown_404` | A |
+| 404 Markdown: Accept que prefiere Markdown en una URL inexistente (`Vary: Accept`, también `?wpasl=md`) | `Test_Markdown_404::test_accept_markdown_on_unknown_url_serves_markdown_404` | A |
+| 404 Markdown: navegador en una URL inexistente (404 HTML del tema; con `.md` manda el sufijo) | `Test_Markdown_404::test_browser_accept_keeps_html_404` | A |
+| 404 Markdown: enlaces según la configuración (`auth.md`, sitemap, catálogo y `Link` según ajustes) | `Test_Markdown_404::test_links_follow_configuration` | A |
+| 404 Markdown: sin reflejo de la petición | `Test_Markdown_404::test_body_never_reflects_the_request` | A |
+| 404 Markdown: cabeceras de señales (`Content-Signal`, sin `X-Robots-Tag`, un solo `Link rel="api-catalog"`) | `Test_Markdown_404::test_headers_and_single_api_catalog_link` | A |
+| 404 Markdown: filtro sobre el cuerpo (`wpasl_markdown_404`) | `Test_Markdown_404::test_body_filter` | A |
 | Portada estática (URL con `wpasl=md` y `/.md`) | `Test_Delivery::test_markdown_url_for_static_front_page_uses_query_arg`, `test_md_suffix_for_home_serves_static_front_page`, `test_md_suffix_for_home_is_404_when_front_page_is_excluded`, `test_static_front_page_alternate_links_are_servable` | A+M |
 | Página de entradas (`page_for_posts`) | `Test_Delivery::test_posts_page_is_served_by_md_suffix_accept_and_query_arg`, `Test_Llms_Txt::test_every_emitted_markdown_url_is_servable` | A |
 | Instalación en subdirectorio | `Test_Delivery::test_md_suffix_respects_base_path_segment_boundary` | A |
@@ -137,17 +145,33 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Petición a llms.txt sin arrastrar llms-full.txt | `Test_Llms_Txt::test_llms_txt_request_does_not_build_llms_full` | A |
 | Ruta no canónica (`/llms.txt/`, `//llms.txt`) | `Test_Llms_Txt::test_non_canonical_root_paths_are_not_served` | A |
 | Documento con post y page | `Test_Llms_Txt::test_structure_with_pages_and_posts`, `test_blockquote_falls_back_when_the_tagline_is_empty`, `test_pages_are_ordered_by_menu_order_then_title` | A |
+| Guía "cuándo usar este sitio" (`## When to use this site` tras la introducción; ausente cuando está vacía) | `Test_Llms_Txt::test_when_to_use_section` | A |
+| Vista previa con enlace a la lista completa (10 de 25 + `Full list of Posts (25 items)`) | `Test_Llms_Txt::test_preview_and_full_list_line` | A |
+| Tipo con menos ítems que la vista previa (3 páginas, sin línea "Full list") | `Test_Llms_Txt::test_preview_and_full_list_line` | A |
 | Descripción personalizada | `Test_Llms_Txt::test_custom_description_and_intro` | A |
 | Sitemap con enlaces permanentes simples | `Test_Llms_Txt::test_optional_sitemap_link_uses_query_form_with_plain_permalinks` | A |
+| Sitemap de un plugin SEO (línea `Sitemap:` de robots.txt o filtro `wpasl_sitemap_url`; clases verificadas en el código de Yoast, Rank Math, AIOSEO y SEOPress) | `Test_Llms_Txt::test_optional_sitemap_from_seo_plugin_or_filter` | A |
+| Sitemap indeterminable (sin enlace) | `Test_Llms_Txt::test_optional_omits_sitemap_when_unknown` | A |
 | Sin enlaces opcionales | `Test_Llms_Txt::test_optional_section_is_omitted_without_links` | A |
-| Más ítems que el límite | `Test_Llms_Txt::test_limit_keeps_the_most_recent_posts` | A |
-| Entrada excluida | `Test_Llms_Txt::test_excluded_and_non_eligible_items_are_not_listed` | A |
+| Más ítems que el límite (vista previa de 10 en llms.txt, las 150 en `/llms-post.txt`) | `Test_Llms_Txt::test_type_file_lists_all_items_and_truncates`, `test_limit_keeps_the_most_recent_posts` | A |
+| Más ítems que el límite por tipo (20 de 30 con nota de truncado y `(20 items)` en llms.txt) | `Test_Llms_Txt::test_type_file_lists_all_items_and_truncates` | A |
+| Entrada excluida (ni en llms.txt ni en el archivo por tipo) | `Test_Llms_Txt::test_excluded_and_non_eligible_items_are_not_listed` | A |
 | Post type jerárquico personalizado (orden por fecha) | `Test_Llms_Txt::test_hierarchical_cpt_is_ordered_by_date` | A |
 | llms-full habilitado (construido por la ejecución programada) | `Test_Llms_Txt::test_llms_full_enabled_concatenates_documents` | A |
+| llms-full concatena las listas completas (vista previa 2, 5 documentos) | `Test_Llms_Txt::test_llms_full_concatenates_full_lists` | A |
 | llms-full habilitado pero ausente (503, `Retry-After`, evento único) | `Test_Llms_Txt::test_missing_llms_full_returns_503_and_schedules_build`, `test_llms_full_build_event_is_not_duplicated`, `Test_Lifecycle::test_uninstall_clears_manual_event` | A |
 | llms-full deshabilitado | `Test_Llms_Txt::test_llms_full_disabled_is_404` | A+M |
 | Límite de tamaño | `Test_Llms_Txt::test_llms_full_truncates_at_the_last_complete_item` | A |
 | (physical file precedence, settings invalidation) | `Test_Llms_Txt::test_physical_file_takes_precedence`, `test_settings_change_invalidates_stored_files` | A |
+| Archivo por tipo: petición (200, cabeceras de llms.txt, `Content-Signal`, H1 con el nombre del sitio y `Posts`) | `Test_Llms_Txt::test_type_file_route_headers_and_lazy_generation` | A |
+| Archivo por tipo: documento ausente (solo ese archivo se genera; sin regenerar después) | `Test_Llms_Txt::test_type_file_route_headers_and_lazy_generation` | A |
+| Archivo por tipo: tipo no habilitado o inexistente (`/llms-attachment.txt`, `/llms-nada.txt`, tipo deshabilitado) | `Test_Llms_Txt::test_type_file_unknown_or_disabled_type_is_404` | A |
+| Archivo por tipo: ruta no canónica (`/llms-post.txt/`, `//llms-post.txt`) | `Test_Llms_Txt::test_type_file_non_canonical_paths` | A |
+| Archivo por tipo: archivo físico presente (segundo argumento de `wpasl_physical_llms_path`) | `Test_Llms_Txt::test_type_file_physical_precedence` | A |
+| Post type llamado full (sin archivo por tipo, sin línea "Full list", `/llms-full.txt` intacto) | `Test_Llms_Txt::test_reserved_type_full` | A |
+| Archivo por tipo: regeneración e invalidación (ciclo escribe, guardar ajustes borra) | `Test_Llms_Txt::test_invalidation_and_regeneration_remove_stale_type_files` | A |
+| Archivo por tipo: tipo deshabilitado (desaparece en el siguiente ciclo y responde 404) | `Test_Llms_Txt::test_invalidation_and_regeneration_remove_stale_type_files` | A |
+| Toda URL emitida se sirve (llms.txt, cada archivo por tipo y cada `/llms-<tipo>.txt` enlazado) | `Test_Llms_Txt::test_every_emitted_markdown_url_is_servable` | A |
 
 ## agent-manifest
 
@@ -160,15 +184,20 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Post type habilitado y expuesto en REST | `Test_Agent_Manifest::test_default_capabilities_cover_rest_markdown_index_and_openapi` | A |
 | Post type habilitado pero sin REST | `Test_Agent_Manifest::test_post_type_without_rest_gets_no_rest_capabilities` | A |
 | Capacidad añadida por filtro | `Test_Agent_Manifest::test_filter_adds_a_capability_and_authenticated_ones_are_dropped` | A |
-| Documento válido | `Test_Agent_Manifest::test_openapi_document`, `test_openapi_rest_route` | A+M |
+| Documento válido (`openapi`, `info`, `servers`, `paths`, `components.schemas.Error`) | `Test_Agent_Manifest::test_openapi_document`, `test_openapi_rest_route`, `test_openapi_error_schema_and_responses` | A+M |
 | Solo métodos GET | `Test_Agent_Manifest::test_openapi_document` | A |
 | Enlaces permanentes simples (`servers` sin query string) | `Test_Agent_Manifest::test_openapi_servers_url_has_no_query_string_with_plain_permalinks` | A |
-| Catálogo disponible (`application/linkset+json` exacto) | `Test_Agent_Manifest::test_api_catalog_route` | A+M |
+| Modelo de error tipado (`components.schemas.Error`, respuestas `400`, `404` y `default` con `$ref`) | `Test_Agent_Manifest::test_openapi_error_schema_and_responses` | A |
+| Sin RFC 9457 (`application/problem+json` ausente) | `Test_Agent_Manifest::test_openapi_has_no_problem_json`, `test_openapi_description_states_versioning_policy` | A |
+| Política de versionado en la descripción (`wp/v2`, `wpasl/v1`, sin `Deprecation`/`Sunset`, changelog; también con enlaces simples) | `Test_Agent_Manifest::test_openapi_description_states_versioning_policy` | A |
+| Catálogo disponible (`profile` RFC 9727, `linkset[0].item`, `linkset[1].service-desc`) | `Test_Agent_Manifest::test_api_catalog_route` | A+M |
+| Ruta no canónica del catálogo (`/.well-known/api-catalog/`) | `Test_Agent_Manifest::test_non_canonical_root_paths_are_not_served` | A |
+| Enlaces permanentes simples del catálogo (`item[0].href` y `linkset[1].anchor` en la forma `?rest_route=`) | `Test_Agent_Manifest::test_api_catalog_with_plain_permalinks` | A |
 | Cambio de correo de contacto | `Test_Agent_Manifest::test_contact_email_change_is_reflected_on_next_request` | A |
 | auth.md declarado como capacidad | `Test_Auth_Md::test_capability_catalog_and_robots_announce_auth_md`, `Test_Agent_Manifest::test_default_capabilities_cover_rest_markdown_index_and_openapi` | A |
 | auth.md desactivado no se declara | `Test_Auth_Md::test_nothing_announces_auth_md_when_disabled` | A |
-| auth.md en el catálogo | `Test_Auth_Md::test_capability_catalog_and_robots_announce_auth_md`, `Test_Agent_Manifest::test_api_catalog_route` | A+M |
-| auth.md desactivado fuera del catálogo | `Test_Auth_Md::test_nothing_announces_auth_md_when_disabled` | A |
+| auth.md en el catálogo (`linkset[1].service-doc`; `linkset[0]` sin `service-desc` ni `service-doc`) | `Test_Auth_Md::test_capability_catalog_and_robots_announce_auth_md`, `Test_Agent_Manifest::test_api_catalog_route` | A+M |
+| auth.md desactivado fuera del catálogo | `Test_Auth_Md::test_nothing_announces_auth_md_when_disabled`, `Test_Agent_Manifest::test_api_catalog_route` | A |
 | Petición a auth.md (cabeceras, `Content-Signal`, sin `X-Robots-Tag`) | `Test_Auth_Md::test_route_serves_auth_md_with_lazy_generation` | A+M |
 | auth.md: documento ausente (generación bajo demanda, sin regenerar después) | `Test_Auth_Md::test_route_serves_auth_md_with_lazy_generation` | A |
 | auth.md: publicación desactivada | `Test_Auth_Md::test_route_is_404_when_disabled` | A |
@@ -177,7 +206,9 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | auth.md: ruta no canónica (`/auth.md/`, `//auth.md`) | `Test_Auth_Md::test_non_canonical_root_paths_are_not_served` | A |
 | Contenido con slug auth y archivo raíz | `Test_Auth_Md::test_page_with_slug_auth_loses_the_suffix_but_keeps_accept_and_query_arg` | A |
 | Contenido con slug auth con la publicación desactivada | `Test_Auth_Md::test_page_with_slug_auth_loses_the_suffix_but_keeps_accept_and_query_arg` | A |
-| auth.md: estructura por defecto | `Test_Auth_Md::test_document_structure` | A+M |
+| auth.md: estructura por defecto (incluida `## API versioning and deprecation`) | `Test_Auth_Md::test_document_structure`, `test_versioning_section` | A+M |
+| auth.md: guía "cuándo usar este sitio" (entre `## Audience` y `## Registration and credential provisioning`; ausente cuando está vacía) | `Test_Auth_Md::test_when_to_use_section_present_and_absent` | A |
+| auth.md: política de versionado y deprecación (espacios de nombres reales, sin `Deprecation`/`Sunset`, changelog, sin promesas) | `Test_Auth_Md::test_versioning_section` | A |
 | auth.md: correo de contacto | `Test_Auth_Md::test_contact_email_falls_back_to_admin_email` | A |
 | auth.md: notas del administrador | `Test_Auth_Md::test_admin_notes_section` | A |
 | auth.md: sin credenciales ni autorización de terceros | `Test_Auth_Md::test_document_never_mentions_oauth_or_application_passwords` | A+M |
@@ -185,6 +216,12 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | auth.md: filtro sobre el documento | `Test_Auth_Md::test_filter_changes_the_document` | A |
 | Cambio de notas de auth.md (invalidación) | `Test_Auth_Md::test_settings_change_invalidates_stored_file` | A |
 | Regeneración de auth.md al final del ciclo (y borrado con la publicación desactivada) | `Test_Auth_Md::test_builder_is_registered_as_artifact_generator_and_respects_the_toggle` | A |
+| Enlaces de descubrimiento en la portada (`service-desc`, `api-catalog`, `describedby`, `service-doc`) | `Test_Discovery_Links::test_head_links_on_front_page` | A |
+| Enlaces de descubrimiento en una página interior (junto al `alternate` de la entrada) | `Test_Discovery_Links::test_head_links_on_singular_post_alongside_alternate` | A |
+| Enlaces de descubrimiento con auth.md desactivado (sin `service-doc`, los otros tres presentes) | `Test_Discovery_Links::test_no_auth_md_link_when_unpublished` | A |
+| Enlaces de descubrimiento con los manifiestos deshabilitados (head sin `link`, shortcode vacío) | `Test_Discovery_Links::test_nothing_when_manifests_disabled`, `test_links_are_never_printed_in_the_admin` | A |
+| Shortcode `[wpasl_agent_links]` (`ul.wpasl-agent-links`, cuatro `href` escapados) | `Test_Discovery_Links::test_shortcode_renders_list` | A |
+| Filtro compartido `wpasl_discovery_links` (head y shortcode) | `Test_Discovery_Links::test_links_filter` | A |
 
 ## agent-diagnostics
 
@@ -221,8 +258,12 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | auth.md servido | `Test_Diagnostics::test_report_checks_auth_md`, `test_probe_uses_crawler_user_agents_and_accept_headers` | A+M |
 | auth.md ausente | `Test_Diagnostics::test_report_checks_auth_md` | A |
 | auth.md con tipo inesperado | `Test_Diagnostics::test_report_checks_auth_md` | A |
-| Sin peticiones de registro (solo `GET` a los objetivos conocidos) | `Test_Diagnostics::test_probe_only_sends_get_to_known_targets`, `test_probe_only_contacts_its_own_host` | A |
-| Comando para auth.md y lista de verificación con auth.md | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands` | A |
+| Archivos por tipo comprobados (`llms-page.txt` correcto, `llms-post.txt` con 404 en error, entre `llms.txt` y `auth.md`) | `Test_Diagnostics::test_report_checks_type_files`, `test_probe_uses_crawler_user_agents_and_accept_headers`, `test_report_checks_auth_md` | A |
+| llms.txt demasiado grande (82.000 caracteres → advertencia; 20.000 → correcto) | `Test_Diagnostics::test_report_warns_on_large_llms_txt` | A |
+| Catálogo con profile (`application/linkset+json; profile="…rfc9727"`) | `Test_Diagnostics::test_report_accepts_catalog_with_profile` | A |
+| Sin peticiones de registro (solo `GET` a los objetivos conocidos, incluidos los archivos por tipo) | `Test_Diagnostics::test_probe_only_sends_get_to_known_targets`, `test_probe_only_contacts_its_own_host` | A |
+| Comando para auth.md y lista de verificación con auth.md y los archivos por tipo | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands` | A |
+| Comandos para los archivos por tipo (`curl -s '<home_url>/llms-page.txt'`, `/llms-post.txt`; solo tipos habilitados) | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands` | A |
 
 ## admin-settings
 
@@ -247,6 +288,14 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | auth.md: notas por encima del límite | `Test_Settings::test_auth_md_notes_are_truncated_to_4000_chars`, `test_sanitize_is_idempotent_for_every_field` | A |
 | auth.md: enlaces de la pestaña (URL, casilla, notas) | `Test_Auth_Md::test_manifests_tab_renders_auth_md_fields`, `Test_Agent_Manifest::test_manifests_tab_renders` | A |
 | Valor fuera de rango (límite de llms-full.txt) | `Test_Settings::test_llms_full_max_out_of_range_clamps_to_100_mb`, `Test_Llms_Txt::test_tab_renders_and_sanitizes_mb` | A |
+| llms.txt: valores por defecto (guía vacía, vista previa 10, límite por tipo 1000, sin `llms_limit`) | `Test_Settings::test_defaults` | A |
+| llms.txt: guardar la pestaña llms.txt (guía sin HTML, límites 5 y 2000, regeneración en la siguiente petición) | `Test_Settings::test_llms_when_to_use_is_sanitized_and_truncated`, `test_llms_limits_ranges_and_defaults`, `Test_Llms_Txt::test_settings_change_invalidates_stored_files`, `test_invalidation_and_regeneration_remove_stale_type_files` | A |
+| llms.txt: límites fuera de rango (500 → 100, 50000 → 10000; 0 o vacío → por defecto) | `Test_Settings::test_llms_limits_ranges_and_defaults`, `Test_Llms_Txt::test_tab_renders_and_sanitizes_mb` | A |
+| llms.txt: guía por encima del límite (5000 → 4000, idempotente) | `Test_Settings::test_llms_when_to_use_is_sanitized_and_truncated`, `test_sanitize_is_idempotent_for_every_field` | A |
+| llms.txt: guardar otra pestaña (guía y límites conservados) | `Test_Settings::test_saving_general_tab_keeps_llms_settings`, `test_llms_limits_ranges_and_defaults` | A |
+| llms.txt: valor antiguo de `llms_limit` (inerte: sin error, límites por defecto, sin efecto en llms.txt) | `Test_Settings::test_stored_llms_limit_from_previous_version_is_inert` | A |
+| llms.txt: aviso de tamaño (82.000 → aviso; 20.000 → sin aviso; sin archivo → no generado) | `Test_Llms_Txt::test_tab_shows_size_and_warning` | A |
+| llms.txt: URLs de los archivos por tipo en la pestaña (`/llms-page.txt`, `/llms-post.txt`) y campo de la guía | `Test_Llms_Txt::test_tab_shows_size_and_warning`, `test_tab_renders_when_to_use_field` | A |
 | Entrada parcial sin pestaña | `Test_Settings::test_sanitize_without_tab_updates_only_present_keys` | A |
 | Pestaña desconocida (tercero) | `Test_Settings::test_sanitize_with_unknown_tab_keeps_every_stored_value`, `test_third_party_tab_saves_without_wiping_settings` | A |
 | PHP inferior al mínimo | `Test_Requirements::test_php_below_minimum_produces_notice`, `test_wordpress_below_minimum_produces_notice`, `test_plugin_headers_declare_minimums` (the "nothing loads" branch is guarded by the bootstrap and covered by the activation refusal in `wpasl_activate()`) | A |

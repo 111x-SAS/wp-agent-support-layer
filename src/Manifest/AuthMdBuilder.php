@@ -127,6 +127,11 @@ final class AuthMdBuilder implements ArtifactGeneratorInterface {
 		$out .= "## Audience\n\n";
 		$out .= "AI agents, LLM-based assistants and AI crawlers that read this site's public content.\n\n";
 
+		$when = trim( (string) $this->settings->get( 'llms_when_to_use' ) );
+		if ( '' !== $when ) {
+			$out .= "## When to use this site\n\n" . $when . "\n\n";
+		}
+
 		$out .= "## Registration and credential provisioning\n\n";
 		$out .= 'This site does not offer agent registration or credential provisioning. There is no sign-up endpoint, no API key issuance and no authorization server. '
 			. "Do not attempt to register, and do not send credentials: every resource listed below is public.\n\n";
@@ -161,6 +166,9 @@ final class AuthMdBuilder implements ArtifactGeneratorInterface {
 		$out .= 'No credential is required or accepted for the resources above. Authenticated and write operations of the WordPress REST API are not offered to agents; '
 			. "they follow WordPress's standard authentication and permission rules and are outside the scope of this document.\n\n";
 
+		$out .= "## API versioning and deprecation\n\n";
+		$out .= ManifestBuilder::versioning_policy( ManifestBuilder::namespaces_of( $this->rest_urls() ) ) . "\n\n";
+
 		$signals = $this->signals->values();
 		$out    .= "## Usage policy\n\n";
 		$out    .= 'Content signals: search=' . $signals['search'] . ', ai-input=' . $signals['ai-input'] . ', ai-train=' . $signals['ai-train'] . '. See ' . home_url( '/robots.txt' ) . ".\n\n";
@@ -179,6 +187,23 @@ final class AuthMdBuilder implements ArtifactGeneratorInterface {
 		 * @param string $out Markdown document.
 		 */
 		return (string) apply_filters( 'wpasl_auth_md', $out );
+	}
+
+	/**
+	 * URLs of the capabilities that live under the REST API base.
+	 *
+	 * @return string[]
+	 */
+	private function rest_urls() {
+		$rest_url = rest_url();
+		$urls     = array();
+		foreach ( $this->registry->all() as $capability ) {
+			$url = isset( $capability['url'] ) ? $capability['url'] : $capability['urlTemplate'];
+			if ( 0 === strpos( $url, $rest_url ) ) {
+				$urls[] = $url;
+			}
+		}
+		return $urls;
 	}
 
 	/**

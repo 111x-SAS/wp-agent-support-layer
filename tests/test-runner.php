@@ -408,7 +408,7 @@ class Test_Runner extends WP_UnitTestCase {
 
 	public function test_run_with_full_llms_writes_state_once() {
 		$ids = self::factory()->post->create_many( 100 );
-		update_option( Settings::OPTION, array( 'llms_full_enabled' => true, 'llms_limit' => 100 ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		update_option( Settings::OPTION, array( 'llms_full_enabled' => true, 'llms_type_limit' => 100 ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		$this->assertTrue( Plugin::instance()->get( 'llms' )->full_enabled() );
 

@@ -36,7 +36,7 @@ class Test_Privacy extends WP_UnitTestCase {
 			foreach ( array_unique( $m[0] ) as $url ) {
 				$host = wp_parse_url( $url, PHP_URL_HOST );
 				$this->assertMatchesRegularExpression(
-					'/^(github\.com|contentsignals\.org|www\.w3\.org|schema\.org|platform\.openai\.com|support\.anthropic\.com|developers\.google\.com|support\.apple\.com|commoncrawl\.org|developers\.facebook\.com|developer\.amazon\.com|docs\.diffbot\.com|webz\.io|aspiegel\.com|docs\.perplexity\.ai|docs\.cohere\.com|duckduckgo\.com|about\.you\.com|docs\.mistral\.ai|example\.invalid)$/',
+					'/^(github\.com|contentsignals\.org|www\.w3\.org|www\.rfc-editor\.org|schema\.org|platform\.openai\.com|support\.anthropic\.com|developers\.google\.com|support\.apple\.com|commoncrawl\.org|developers\.facebook\.com|developer\.amazon\.com|docs\.diffbot\.com|webz\.io|aspiegel\.com|docs\.perplexity\.ai|docs\.cohere\.com|duckduckgo\.com|about\.you\.com|docs\.mistral\.ai|example\.invalid)$/',
 					$host,
 					'Only documentation links and vocabularies may appear in ' . basename( $file->getPathname() ) . ': ' . $url
 				);

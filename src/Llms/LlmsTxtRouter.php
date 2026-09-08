@@ -1,6 +1,6 @@
 <?php
 /**
- * Serves /llms.txt and /llms-full.txt.
+ * Serves /llms.txt, /llms-<post_type>.txt and /llms-full.txt.
  *
  * @package WPASL
  */
@@ -108,34 +108,39 @@ final class LlmsTxtRouter {
 	 * @return void
 	 */
 	public function register_tab( Page $page ) {
-		$page->add_tab( new LlmsTab( $this->settings ) );
+		$page->add_tab( new LlmsTab( $this->settings, $this->storage ) );
 	}
 
 	/**
-	 * Path of a physical llms.txt in the site root, filterable for tests.
+	 * Path of a physical file of the llms family in the site root, filterable for tests.
 	 *
+	 * @param string $file File name: "llms.txt" (default), "llms-full.txt" or "llms-<post_type>.txt".
 	 * @return string
 	 */
-	public static function physical_path() {
+	public static function physical_path( $file = LlmsTxtBuilder::FILE ) {
 		/**
-		 * Filters the path checked for a physical llms.txt.
+		 * Filters the path checked for a physical llms.txt, llms-full.txt or llms-<post_type>.txt. A callback
+		 * that ignores the second argument and returns a fixed path applies it to every file of the family.
 		 *
 		 * @param string $path Absolute path.
+		 * @param string $file File name being checked.
 		 */
-		return (string) apply_filters( 'wpasl_physical_llms_path', ABSPATH . LlmsTxtBuilder::FILE );
+		return (string) apply_filters( 'wpasl_physical_llms_path', ABSPATH . $file, $file );
 	}
 
 	/**
-	 * Whether a physical llms.txt exists.
+	 * Whether a physical file of the llms family exists.
 	 *
+	 * @param string $file File name (llms.txt by default).
 	 * @return bool
 	 */
-	public static function physical_file_exists() {
-		return is_file( self::physical_path() );
+	public static function physical_file_exists( $file = LlmsTxtBuilder::FILE ) {
+		return is_file( self::physical_path( $file ) );
 	}
 
 	/**
-	 * Deletes the stored files so they are rebuilt on the next request or run.
+	 * Deletes the stored files (llms.txt, llms-full.txt and every llms-<post_type>.txt, whatever the post
+	 * types enabled now) so they are rebuilt on the next request or run.
 	 *
 	 * @return void
 	 */
@@ -143,22 +148,35 @@ final class LlmsTxtRouter {
 		$this->settings->flush_cache();
 		$this->storage->delete( LlmsTxtBuilder::FILE );
 		$this->storage->delete( LlmsTxtBuilder::FULL_FILE );
+		foreach ( LlmsTxtBuilder::stored_type_files( $this->storage ) as $file ) {
+			$this->storage->delete( $file );
+		}
 	}
 
 	/**
-	 * Which file a request path targets: "llms.txt", "llms-full.txt" or null.
+	 * Which file a request path targets: "llms.txt", "llms-full.txt", "llms-<post_type>.txt" for an enabled
+	 * post type that has a per-type file, or null (left to core, which answers 404 for an unknown name).
 	 *
-	 * @param string $request_uri Request URI.
+	 * @param string        $request_uri Request URI.
+	 * @param Settings|null $settings    Settings used to check the enabled post types; a fresh instance when null.
 	 * @return string|null
 	 */
-	public static function requested_file( $request_uri ) {
+	public static function requested_file( $request_uri, ?Settings $settings = null ) {
 		$path      = (string) wp_parse_url( (string) $request_uri, PHP_URL_PATH );
 		$base_path = rtrim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
 		if ( '' !== $base_path && 0 === strpos( $path, $base_path ) ) {
 			$path = substr( $path, strlen( $base_path ) );
 		}
 		$path = ManifestRouter::exact_relative_path( $path );
-		return in_array( $path, array( LlmsTxtBuilder::FILE, LlmsTxtBuilder::FULL_FILE ), true ) ? $path : null;
+		if ( in_array( $path, array( LlmsTxtBuilder::FILE, LlmsTxtBuilder::FULL_FILE ), true ) ) {
+			return $path;
+		}
+		$type = LlmsTxtBuilder::type_of_file( $path );
+		if ( null === $type ) {
+			return null;
+		}
+		$settings = $settings ? $settings : new Settings();
+		return in_array( $type, $settings->enabled_post_types(), true ) ? $path : null;
 	}
 
 	/**
@@ -169,11 +187,11 @@ final class LlmsTxtRouter {
 	 */
 	public function handle_request( $wp ) {
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) wp_unslash( $_SERVER['REQUEST_URI'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Parsed by requested_file().
-		$file        = self::requested_file( $request_uri );
+		$file        = self::requested_file( $request_uri, $this->settings );
 		if ( null === $file ) {
 			return;
 		}
-		if ( LlmsTxtBuilder::FILE === $file && self::physical_file_exists() ) {
+		if ( self::physical_file_exists( $file ) ) {
 			return;
 		}
 		if ( LlmsTxtBuilder::FULL_FILE === $file && ! $this->builder->full_enabled() ) {
@@ -184,15 +202,16 @@ final class LlmsTxtRouter {
 	}
 
 	/**
-	 * Returns a file's contents. A missing llms.txt is generated on the spot; a missing llms-full.txt is
-	 * not (it converts every item document), so null is returned and the caller answers 503.
+	 * Returns a file's contents. A missing llms.txt or llms-<post_type>.txt is generated on the spot (only
+	 * that file); a missing llms-full.txt is not (it converts every item document), so null is returned and
+	 * the caller answers 503.
 	 *
-	 * @param string $file "llms.txt" or "llms-full.txt".
+	 * @param string $file "llms.txt", "llms-full.txt" or "llms-<post_type>.txt".
 	 * @return string|null
 	 */
 	public function document( $file ) {
 		$document = $this->storage->read( $file );
-		if ( null === $document && LlmsTxtBuilder::FILE === $file ) {
+		if ( null === $document && LlmsTxtBuilder::FULL_FILE !== $file ) {
 			$this->storage->ensure();
 			$this->builder->generate_file( $this->storage, $file );
 			$document = $this->storage->read( $file );

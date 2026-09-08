@@ -207,6 +207,59 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$this->assertArrayHasKey( '/wp/v2/search', $doc['paths'] );
 		$this->assertArrayHasKey( '/wpasl/v1/openapi', $doc['paths'] );
 		$this->assertArrayNotHasKey( '/{path}.md', $doc['paths'], 'Non-REST capabilities are not paths.' );
+		$this->assertArrayHasKey( 'Error', $doc['components']['schemas'] );
+	}
+
+	public function test_openapi_error_schema_and_responses() {
+		$doc   = $this->builder->openapi();
+		$error = $doc['components']['schemas']['Error'];
+		$this->assertSame( 'object', $error['type'] );
+		$this->assertSame( array( 'code', 'message' ), $error['required'] );
+		$this->assertSame( 'string', $error['properties']['code']['type'] );
+		$this->assertSame( 'string', $error['properties']['message']['type'] );
+		$this->assertSame( 'object', $error['properties']['data']['type'] );
+		$this->assertSame( 'integer', $error['properties']['data']['properties']['status']['type'] );
+		$this->assertTrue( $error['properties']['data']['additionalProperties'] );
+		$this->assertTrue( $error['additionalProperties'] );
+
+		foreach ( array( '/wp/v2/posts', '/wp/v2/posts/{id}', '/wp/v2/search', '/wpasl/v1/openapi' ) as $path ) {
+			$responses = $doc['paths'][ $path ]['get']['responses'];
+			$this->assertSame( array( '200', '400', '404', 'default' ), array_map( 'strval', array_keys( $responses ) ), $path );
+			foreach ( array( '400', '404', 'default' ) as $code ) {
+				$this->assertSame( '#/components/schemas/Error', $responses[ $code ]['content']['application/json']['schema']['$ref'], $path . ' ' . $code );
+				$this->assertNotEmpty( $responses[ $code ]['description'], $path . ' ' . $code );
+			}
+		}
+		$this->assertSame( 'Invalid parameter.', $doc['paths']['/wp/v2/posts']['get']['responses']['400']['description'] );
+		$this->assertSame( 'Not found.', $doc['paths']['/wp/v2/posts']['get']['responses']['404']['description'] );
+	}
+
+	public function test_openapi_description_states_versioning_policy() {
+		$doc         = $this->builder->openapi();
+		$description = $doc['info']['description'];
+		$this->assertStringStartsWith( 'Read-only endpoints of the WordPress REST API', $description );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $description );
+		$this->assertStringContainsString( 'does not send Deprecation or Sunset headers', $description );
+		$this->assertStringContainsString( 'announced in the plugin changelog', $description );
+		$this->assertStringContainsString( 'WordPress release notes', $description );
+		$this->assertStringNotContainsString( 'application/problem+json', $description );
+		$this->assertSame( array( 'wp/v2', 'wpasl/v1' ), ManifestBuilder::namespaces_of( array_keys( $doc['paths'] ) ) );
+
+		$this->set_permalink_structure( '' );
+		$doc = $this->builder->openapi();
+		$this->assertArrayHasKey( '/?rest_route=/wp/v2/posts', $doc['paths'] );
+		$this->assertSame( array( 'wp/v2', 'wpasl/v1' ), ManifestBuilder::namespaces_of( array_keys( $doc['paths'] ) ), 'Plain permalinks: the namespaces are extracted from the rest_route form.' );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $doc['info']['description'] );
+
+		$this->assertSame( array( 'acme/v3', 'wp/v2' ), ManifestBuilder::namespaces_of( array( rest_url( 'wp/v2/posts' ), rest_url( 'acme/v3/things/{id}' ), home_url( '/llms.txt' ) ) ), 'Absolute URLs, sorted and unique.' );
+		$this->assertStringContainsString( '(wp/v2)', ManifestBuilder::versioning_policy( array() ), 'Never an empty list.' );
+	}
+
+	public function test_openapi_has_no_problem_json() {
+		$json = ManifestBuilder::encode( $this->builder->openapi() );
+		$this->assertStringNotContainsString( 'application/problem+json', $json );
+		$this->assertStringNotContainsString( 'problem+json', $json );
+		$this->assertNotNull( json_decode( $json, true ) );
 	}
 
 	public function test_openapi_rest_route() {
@@ -234,12 +287,44 @@ class Test_Agent_Manifest extends WP_UnitTestCase {
 		$out  = ob_get_clean();
 		$data = json_decode( $out, true );
 		$this->assertIsArray( $data );
-		$this->assertSame( ManifestBuilder::openapi_url(), $data['linkset'][0]['service-desc'][0]['href'] );
-		$this->assertSame( 'application/openapi+json', $data['linkset'][0]['service-desc'][0]['type'] );
-		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $data['linkset'][0]['service-doc'], 'href' ) );
-		$this->assertSame( 'text/markdown', $data['linkset'][0]['service-doc'][1]['type'] );
-		$this->assertSame( 'application/linkset+json', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'], 'Exact RFC 9264 type, no parameters.' );
+		$this->assertCount( 2, $data['linkset'] );
+
+		// RFC 9727 appendix A.2: the catalog entry lists the APIs with "item".
+		$catalog = $data['linkset'][0];
+		$this->assertSame( home_url( '/.well-known/api-catalog' ), $catalog['anchor'] );
+		$this->assertSame( array( array( 'href' => untrailingslashit( rest_url() ) ) ), $catalog['item'] );
+		$this->assertArrayNotHasKey( 'service-desc', $catalog );
+		$this->assertArrayNotHasKey( 'service-doc', $catalog );
+
+		// RFC 9727 appendix A.1: the API entry carries the description and documentation.
+		$api = $data['linkset'][1];
+		$this->assertSame( untrailingslashit( rest_url() ), $api['anchor'] );
+		$this->assertSame( $catalog['item'][0]['href'], $api['anchor'], 'The item points at the API entry.' );
+		$this->assertSame( ManifestBuilder::openapi_url(), $api['service-desc'][0]['href'] );
+		$this->assertSame( 'application/openapi+json', $api['service-desc'][0]['type'] );
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $api['service-doc'], 'href' ) );
+		$this->assertSame( 'text/markdown', $api['service-doc'][1]['type'] );
+		$this->assertArrayNotHasKey( 'item', $api );
+
+		$this->assertSame( 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"', $this->router->headers( ManifestRouter::CATALOG_PATH )['Content-Type'], 'RFC 9264 type with the RFC 9727 profile.' );
 		$this->assertSame( 'application/ld+json; charset=utf-8', $this->router->headers( ManifestRouter::SKILLS_PATH )['Content-Type'] );
+
+		$this->settings( array( 'auth_md_enabled' => false ) );
+		$docs = $this->builder->api_catalog()['linkset'][1]['service-doc'];
+		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ), 'auth.md leaves the catalog when unpublished.' );
+		$this->assertArrayNotHasKey( 'service-doc', $this->builder->api_catalog()['linkset'][0] );
+	}
+
+	public function test_api_catalog_with_plain_permalinks() {
+		$this->set_permalink_structure( '' );
+		$this->assertStringContainsString( '?rest_route=', rest_url() );
+		$data = $this->builder->api_catalog();
+		$api  = untrailingslashit( rest_url() );
+		$this->assertStringEndsWith( '?rest_route=', $api, 'The REST base the site serves with plain permalinks.' );
+		$this->assertSame( home_url( '/.well-known/api-catalog' ), $data['linkset'][0]['anchor'] );
+		$this->assertSame( $api, $data['linkset'][0]['item'][0]['href'] );
+		$this->assertSame( $api, $data['linkset'][1]['anchor'] );
+		$this->assertSame( ManifestBuilder::openapi_url(), $data['linkset'][1]['service-desc'][0]['href'] );
 	}
 
 	public function test_non_canonical_root_paths_are_not_served() {

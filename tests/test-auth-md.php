@@ -262,6 +262,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 			'### Public endpoints',
 			'### Discovery documents',
 			'## Credential use',
+			'## API versioning and deprecation',
 			'## Usage policy',
 			'## Contact',
 		);
@@ -303,6 +304,36 @@ class Test_Auth_Md extends WP_UnitTestCase {
 
 		$this->settings( array( 'signal_ai_train' => 'yes' ) );
 		$this->assertStringContainsString( 'search=yes, ai-input=yes, ai-train=yes.', $this->builder->document() );
+	}
+
+	public function test_versioning_section() {
+		$doc     = $this->builder->document();
+		$start   = strpos( $doc, "\n## API versioning and deprecation\n" );
+		$end     = strpos( $doc, "\n## Usage policy\n" );
+		$section = substr( $doc, $start, $end - $start );
+		$this->assertNotFalse( $start );
+		$this->assertGreaterThan( strpos( $doc, "\n## Credential use\n" ), $start, 'Right after Credential use.' );
+		$this->assertStringContainsString( 'This API is the WordPress REST API.', $section );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $section );
+		$this->assertStringContainsString( 'does not send Deprecation or Sunset headers', $section );
+		$this->assertStringContainsString( 'announced in the plugin changelog', $section );
+		$this->assertStringNotContainsString( 'OAuth', $doc );
+		foreach ( array( 'will be supported', 'support period', 'end of life', 'sunset date' ) as $promise ) {
+			$this->assertStringNotContainsString( $promise, $section, 'No support or retirement promise: ' . $promise );
+		}
+
+		$this->set_permalink_structure( '' );
+		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $this->builder->document(), 'Plain permalinks.' );
+	}
+
+	public function test_when_to_use_section_present_and_absent() {
+		$this->settings( array( 'llms_when_to_use' => 'Use this site for official course descriptions.' ) );
+		$doc = $this->builder->document();
+		$this->assertStringContainsString( "## Audience\n\nAI agents, LLM-based assistants and AI crawlers that read this site's public content.\n\n## When to use this site\n\nUse this site for official course descriptions.\n\n## Registration and credential provisioning\n", $doc );
+		$this->assertStringContainsString( 'Use this site for official course descriptions.', $this->request( home_url( '/auth.md' ) ) );
+
+		$this->settings( array( 'llms_when_to_use' => '' ) );
+		$this->assertStringNotContainsString( 'When to use this site', $this->builder->document() );
 	}
 
 	public function test_contact_email_falls_back_to_admin_email() {
@@ -366,6 +397,13 @@ class Test_Auth_Md extends WP_UnitTestCase {
 
 		$this->assertFalse( $this->storage->exists( AuthMdBuilder::FILE ) );
 		$this->assertStringContainsString( "## Notes\n\nRate limit: 60 requests per minute.\n", $this->request( home_url( '/auth.md' ) ) );
+		$this->assertTrue( $this->storage->exists( AuthMdBuilder::FILE ) );
+
+		// Saving the llms.txt tab (the guidance lives there) invalidates auth.md as well.
+		Plugin::instance()->get( 'page' )->register_setting();
+		update_option( Settings::OPTION, array( '_tab' => 'llms', 'llms_when_to_use' => 'Use this site for official course descriptions.' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertFalse( $this->storage->exists( AuthMdBuilder::FILE ) );
+		$this->assertStringContainsString( "## When to use this site\n\nUse this site for official course descriptions.\n", $this->request( home_url( '/auth.md' ) ) );
 	}
 
 	public function test_builder_is_registered_as_artifact_generator_and_respects_the_toggle() {
@@ -401,7 +439,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->assertContains( home_url( '/auth.md' ), array_column( $manifest->agent_skills()['capabilities'], 'url' ) );
 		$this->assertStringNotContainsString( 'auth.md', wp_json_encode( $manifest->openapi() ), 'OpenAPI only describes REST endpoints.' );
 
-		$docs = $manifest->api_catalog()['linkset'][0]['service-doc'];
+		$docs = $manifest->api_catalog()['linkset'][1]['service-doc'];
 		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/auth.md' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ) );
 		$this->assertSame( 'text/markdown', $docs[1]['type'] );
 
@@ -413,7 +451,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->assertStringContainsString( "\n# llms.txt: " . home_url( '/llms.txt' ) . "\n# auth.md: " . home_url( '/auth.md' ) . "\n", $served );
 
 		$out = $this->request( home_url( '/.well-known/api-catalog' ) );
-		$this->assertSame( home_url( '/auth.md' ), json_decode( $out, true )['linkset'][0]['service-doc'][1]['href'] );
+		$this->assertSame( home_url( '/auth.md' ), json_decode( $out, true )['linkset'][1]['service-doc'][1]['href'] );
 	}
 
 	public function test_nothing_announces_auth_md_when_disabled() {
@@ -425,7 +463,7 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		foreach ( $manifest->agent_skills()['capabilities'] as $cap ) {
 			$this->assertStringNotContainsString( '/auth.md', isset( $cap['url'] ) ? $cap['url'] : $cap['urlTemplate'] );
 		}
-		$docs = $manifest->api_catalog()['linkset'][0]['service-doc'];
+		$docs = $manifest->api_catalog()['linkset'][1]['service-doc'];
 		$this->assertSame( array( home_url( '/llms.txt' ), home_url( '/agent-skills.json' ) ), array_column( $docs, 'href' ) );
 
 		$block = Plugin::instance()->get( 'robots' )->rules_block();

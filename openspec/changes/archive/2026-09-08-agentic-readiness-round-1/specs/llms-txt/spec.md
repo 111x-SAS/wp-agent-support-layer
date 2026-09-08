@@ -1,28 +1,4 @@
-# llms-txt Specification
-
-## Purpose
-Publica en la raíz del dominio un mapa curado del sitio en Markdown, conforme a la especificación llms.txt, para que los modelos de lenguaje localicen el contenido relevante con el mínimo contexto.
-
-## Requirements
-
-### Requirement: Publicación de /llms.txt
-El sistema SHALL responder en `/llms.txt` con `Content-Type: text/markdown; charset=utf-8` y código 200, sirviendo el documento generado por programación o generándolo bajo demanda si no existe. La generación bajo demanda de `llms.txt` MUST construir únicamente `llms.txt`: MUST NOT construir `llms-full.txt` ni convertir documentos de ítems en esa petición. El documento SHALL responder solo en su ruta exacta; las variantes con barra final o barras dobles (`/llms.txt/`, `//llms.txt`) MUST responder como cualquier ruta inexistente. Si existe un archivo `llms.txt` físico en la raíz, el archivo físico SHALL prevalecer y la página de ajustes SHALL mostrar un aviso.
-
-#### Scenario: Petición a llms.txt
-- **WHEN** un cliente solicita `/llms.txt`
-- **THEN** la respuesta es 200 con `Content-Type: text/markdown; charset=utf-8`
-
-#### Scenario: Documento ausente
-- **WHEN** no existe documento generado y un cliente solicita `/llms.txt`
-- **THEN** el sistema genera el documento, lo almacena y lo sirve
-
-#### Scenario: Petición a llms.txt sin arrastrar llms-full.txt
-- **WHEN** `llms-full.txt` está habilitado, un administrador acaba de guardar ajustes y un cliente anónimo solicita `/llms.txt`
-- **THEN** la respuesta es 200, `llms-full.txt` no existe todavía en el almacenamiento y no se escribió ningún documento de ítem en esa petición
-
-#### Scenario: Ruta no canónica
-- **WHEN** un cliente solicita `/llms.txt/` o `//llms.txt`
-- **THEN** la respuesta es 404
+## MODIFIED Requirements
 
 ### Requirement: Estructura conforme a la especificación
 El documento SHALL comenzar con un encabezado de nivel 1 con el nombre del sitio, seguido de un blockquote con la descripción configurada (por defecto la descripción corta del sitio), un bloque opcional de Markdown libre configurado por el administrador, una sección `## When to use this site` con la guía configurada por el administrador cuando no esté vacía (y MUST omitirse cuando lo esté, sin texto por defecto), y una sección de nivel 2 por cada post type habilitado. Cada sección SHALL listar como vista previa sus primeros ítems como `- [Título](URL): descripción`, donde la URL es la versión Markdown del ítem y la descripción es el extracto, y, cuando el tipo tenga más ítems elegibles que los mostrados, SHALL terminar con una línea `- [Full list of <etiqueta del tipo> (<n> items)](<URL absoluta de /llms-<post_type>.txt>)` donde `<n>` es el número de ítems que contiene el archivo del tipo. El documento SHALL terminar con una sección `## Optional` que enlace al sitemap, a `agent-skills.json` y al documento OpenAPI, y MUST omitir esa sección cuando no exista ningún enlace que incluir. La URL del sitemap SHALL ser la que el sitio realmente sirve: la del índice de sitemaps de WordPress según la estructura de enlaces permanentes cuando los sitemaps del núcleo están habilitados, o la del plugin SEO que los sustituya cuando el sistema pueda determinarla localmente; cuando no pueda determinarla, MUST omitir el enlace. Las etiquetas y descripciones fijas de la sección `## Optional` SHALL ser traducibles.
@@ -104,6 +80,8 @@ Cuando el administrador lo habilite (por defecto deshabilitado), el sistema SHAL
 #### Scenario: Habilitado pero ausente
 - **WHEN** `llms-full.txt` está habilitado, no existe en el almacenamiento y un cliente lo solicita
 - **THEN** la respuesta es 503 con `Retry-After`, queda programado un evento único de generación y la siguiente ejecución de ese evento escribe `llms-full.txt`
+
+## ADDED Requirements
 
 ### Requirement: Archivos por tipo de contenido en /llms-<post_type>.txt
 Por cada post type habilitado cuyo nombre no sea `full`, el sistema SHALL responder en `/llms-<post_type>.txt` con código 200 y las mismas cabeceras que `/llms.txt` (`Content-Type: text/markdown; charset=utf-8`, `X-Markdown-Tokens`, `Cache-Control: public` con el intervalo de regeneración, `X-Content-Type-Options: nosniff` y las señales de contenido), sirviendo el documento generado por programación o generándolo bajo demanda si no existe; la generación bajo demanda MUST construir únicamente ese archivo. El documento SHALL estar en inglés, SHALL comenzar con un encabezado de nivel 1 con el nombre del sitio y la etiqueta del tipo, seguido de un blockquote que indique el número de ítems y enlace a `/llms.txt`, y SHALL listar todos los ítems elegibles del tipo hasta el límite por tipo con el mismo formato de línea que `llms.txt`; cuando el número de ítems elegibles supere el límite, SHALL terminar con una nota indicando cuántos se listan del total. Un post type llamado `full` MUST NOT tener archivo por tipo, para no colisionar con `/llms-full.txt`, y su sección en `llms.txt` MUST NOT emitir la línea "Full list". El documento SHALL responder solo en su ruta exacta; una ruta `/llms-<nombre>.txt` cuyo nombre no sea un post type habilitado, o cualquier variante no canónica, MUST responder como cualquier ruta inexistente. Si existe un archivo físico `llms-<post_type>.txt` en la raíz del sitio, el archivo físico SHALL prevalecer. Los archivos por tipo SHALL regenerarse junto con `llms.txt` al final de cada ciclo, SHALL invalidarse al guardar ajustes igual que `llms.txt`, y los archivos de tipos que dejen de estar habilitados SHALL eliminarse del almacenamiento en la siguiente regeneración. Toda URL Markdown emitida en un archivo por tipo MUST ser una URL que el sistema sirva, igual que en `llms.txt`.

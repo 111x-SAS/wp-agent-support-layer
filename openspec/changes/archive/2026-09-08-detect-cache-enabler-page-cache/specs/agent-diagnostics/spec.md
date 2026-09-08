@@ -1,55 +1,4 @@
-# agent-diagnostics Specification
-
-## Purpose
-Permite al administrador comprobar desde el propio sitio cómo lo ven los crawlers de IA reales y qué debe revisar en la infraestructura, sin modificar nada ni contactar servicios externos.
-
-## Requirements
-
-### Requirement: Ejecución de la prueba de rastreo
-La página de diagnóstico SHALL ofrecer una acción que realice peticiones HTTP desde el servidor a URLs del propio sitio (portada, una entrada elegible de muestra, su URL `.md`, `/robots.txt`, `/llms.txt`, `/agent-skills.json` y `/.well-known/api-catalog`) usando los user-agents del catálogo de crawlers y las cabeceras `Accept: text/markdown` y `Accept: text/html`. Las comprobaciones de sitio (`/llms.txt`, `/agent-skills.json`, `/.well-known/api-catalog`, la sonda de almacenamiento) SHALL realizarse una vez con el user-agent del plugin; por cada crawler del catálogo SHALL solicitarse, con su user-agent, la portada, la entrada de muestra con `Accept: text/html`, la entrada de muestra con `Accept: text/markdown`, la URL `.md` de muestra y `/robots.txt`. La acción MUST requerir `manage_options` y nonce válido, MUST limitar cada petición a 5 segundos, MUST NOT seguir redirecciones, MUST limitar el tamaño de cada respuesta leída y MUST NOT contactar ningún host distinto del propio sitio. La prueba SHALL ejecutarse en lotes repartidos en varias peticiones del navegador encadenadas automáticamente: cada petición del administrador MUST terminar dentro de un presupuesto de tiempo configurable por filtro (por defecto 30 segundos) y, si quedan crawlers por sondear, MUST guardar el progreso y continuar en la siguiente petición sin intervención del administrador ni JavaScript. Ninguna petición del administrador MUST superar los 100 segundos. El informe SHALL publicarse solo cuando el último lote termine; un progreso interrumpido MUST descartarse al cabo de una hora.
-
-#### Scenario: Ejecución completa
-- **WHEN** un administrador lanza la prueba
-- **THEN** se obtiene un resultado por cada comprobación de sitio y, por cada crawler, un resultado para la portada, la entrada de muestra en HTML y en Markdown negociado, la URL `.md` de muestra y `/robots.txt`, con código HTTP, `Content-Type` y cabeceras relevantes
-
-#### Scenario: Sin permisos
-- **WHEN** un usuario sin `manage_options` intenta lanzar la prueba
-- **THEN** el sistema rechaza la acción
-
-#### Scenario: Prueba dividida en lotes
-- **WHEN** el presupuesto de tiempo se agota con crawlers pendientes
-- **THEN** la petición actual guarda los resultados parciales y redirige a la siguiente petición, que continúa por el primer crawler pendiente hasta completar el informe
-
-#### Scenario: Peticiones lentas
-- **WHEN** cada URL sondeada tarda 5 segundos en responder
-- **THEN** ninguna petición del administrador dura más del presupuesto configurado más la duración de un crawler, y el informe final contiene todos los crawlers
-
-#### Scenario: Redirección en una URL sondeada
-- **WHEN** la portada responde 301 hacia otra URL
-- **THEN** el resultado registra el código 301 sin seguirlo y el informe marca la comprobación como advertencia
-
-#### Scenario: Bloqueo por user-agent en la URL .md
-- **WHEN** la infraestructura responde 403 a la URL `.md` de muestra solo cuando el user-agent es `ClaudeBot`
-- **THEN** el informe marca la comprobación de la URL `.md` como error únicamente en ClaudeBot y como correcta en el resto de crawlers
-
-### Requirement: Informe por crawler
-El informe SHALL mostrar, por cada crawler, el veredicto de robots.txt para su user-agent, si obtuvo la portada y la entrada de muestra, si recibió Markdown al pedir `text/markdown` y en la URL `.md`, si `/robots.txt` respondió con su user-agent, y si las cabeceras `Content-Signal`, `X-Robots-Tag` y `Link rel="alternate"` estaban presentes. El veredicto de robots.txt SHALL obtenerse del cuerpo de `/robots.txt` realmente servido, localizando el grupo `User-agent` del crawler y su directiva `Disallow`/`Allow`, y SHALL compararse con la política configurada: coincidencia como comprobación correcta; grupo ausente o directiva distinta como advertencia que indique que el robots.txt servido no refleja la configuración. Cada comprobación SHALL etiquetarse como correcta, advertencia o error, y el informe SHALL guardarse durante una hora para consultarlo sin repetir las peticiones. Un informe almacenado por una versión anterior del plugin, con claves ausentes, SHALL renderizarse sin avisos ni errores de PHP, mostrando las comprobaciones ausentes como no disponibles.
-
-#### Scenario: Crawler bloqueado en robots.txt
-- **WHEN** GPTBot tiene política `block` y el cuerpo servido de `/robots.txt` contiene `User-agent: GPTBot` seguido de `Disallow: /`
-- **THEN** el informe muestra para GPTBot el veredicto "bloqueado por robots.txt" como comprobación correcta, coherente con la configuración
-
-#### Scenario: robots.txt servido sin el grupo del crawler
-- **WHEN** GPTBot tiene política `block` y el cuerpo servido de `/robots.txt` no contiene ningún grupo `User-agent: GPTBot`
-- **THEN** el informe marca el veredicto de robots.txt de GPTBot como advertencia indicando que el robots.txt servido no contiene la regla configurada
-
-#### Scenario: Markdown no servido
-- **WHEN** la petición con `Accept: text/markdown` a la entrada de muestra devuelve HTML
-- **THEN** el informe marca la comprobación de negociación de contenido como error e indica que una caché o CDN puede estar interfiriendo
-
-#### Scenario: Informe de una versión anterior
-- **WHEN** el transient del informe contiene un informe sin la clave de exposición del almacenamiento ni las comprobaciones nuevas por crawler
-- **THEN** la pestaña Diagnóstico se renderiza sin avisos de PHP y muestra esas comprobaciones como no disponibles
+## MODIFIED Requirements
 
 ### Requirement: Detección de CDN y advertencias de infraestructura
 El informe SHALL indicar si las respuestas provienen de un CDN o proxy conocido a partir de cabeceras como `cf-ray`, `server` o `x-cache`, y SHALL advertir cuando detecte que Cloudflare ya convierte a Markdown en el borde. El informe SHALL indicar además si una caché de página sirvió alguna de las respuestas sondeadas, a partir de la cabecera de respuesta `X-Cache-Handler` (el valor `cache-enabler-engine` SHALL identificarse como Cache Enabler; cualquier otro valor SHALL mostrarse tal cual), y SHALL registrar si Cache Enabler estaba activo en el sitio en el momento de la prueba aunque ninguna respuesta llevara esa cabecera (modo en que el servidor web sirve los ficheros de caché sin PHP). Cuando la caché de página sea Cache Enabler, las comprobaciones por crawler que detecten la ausencia de `Content-Signal` o de `X-Robots-Tag` en la respuesta HTML, o HTML devuelto para `Accept: text/markdown`, SHALL nombrar Cache Enabler como causa probable en lugar del texto genérico "una caché o proxy". El informe SHALL comprobar si los archivos del almacenamiento son accesibles por acceso directo y marcarlo como error si lo son. El almacenamiento SHALL contener siempre un archivo sonda para esta comprobación, de modo que se realice aunque no exista ningún documento generado. Un informe almacenado por una versión anterior sin el hallazgo de caché de página SHALL renderizarse sin avisos de PHP, con ese hallazgo vacío.
@@ -86,16 +35,7 @@ El informe SHALL indicar si las respuestas provienen de un CDN o proxy conocido 
 - **WHEN** el transient del informe contiene un informe generado por una versión anterior, sin la clave de caché de página
 - **THEN** la pestaña Diagnóstico se renderiza sin avisos de PHP y sin mencionar ninguna caché de página
 
-### Requirement: Lista de verificación de infraestructura y comandos externos
-La página SHALL mostrar una lista de verificación estática para la auditoría de WAF, rate-limiting y filtrado de IP orientada a crawlers verificados, y SHALL mostrar comandos `curl` equivalentes a las pruebas realizadas para que puedan repetirse desde fuera del servidor. Los comandos SHALL ser seguros de pegar en una shell POSIX: la URL y el user-agent SHALL ir citados de forma que ninguna comilla, espacio o carácter especial presente en ellos rompa el comando.
-
-#### Scenario: Comandos disponibles
-- **WHEN** un administrador abre la página de diagnóstico
-- **THEN** ve la lista de verificación y al menos un comando `curl` por crawler con su user-agent y la cabecera `Accept` correspondiente
-
-#### Scenario: Comando con comilla en el user-agent
-- **WHEN** el catálogo contiene, por filtro, un user-agent con una comilla simple en su nombre
-- **THEN** el comando `curl` mostrado sigue siendo un comando válido que envía ese user-agent literal
+## ADDED Requirements
 
 ### Requirement: Aviso de caché de página con fragmentos de configuración
 Cuando Cache Enabler esté activo en el sitio, la pestaña Diagnóstico SHALL mostrar, sin necesidad de ejecutar la simulación, un aviso que indique: que el HTML servido desde la caché de página pierde las cabeceras `Content-Signal`, `Content-Usage`, `X-Robots-Tag`, `Link rel="api-catalog"` y `Link rel="alternate" type="text/markdown"`; que una petición con `Accept: text/markdown` que también acepte `text/html` recibe el HTML cacheado en lugar de Markdown; que las URLs `.md`, `llms.txt`, `robots.txt` y los manifiestos no se ven afectados; que solo la petición que regenera la caché lleva las cabeceras; y que la solución está en el servidor web o el CDN, no en el plugin. La detección local SHALL basarse en la presencia del plugin Cache Enabler y SHALL poder sustituirse mediante un filtro, de modo que pueda simularse en tests y adaptarse por terceros. El plugin MUST NOT escribir en `.htaccess` ni en la configuración del servidor.

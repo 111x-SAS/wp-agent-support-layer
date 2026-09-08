@@ -56,16 +56,25 @@ final class DiagnosticsController {
 	private $page;
 
 	/**
+	 * Page cache detection and snippets.
+	 *
+	 * @var PageCache
+	 */
+	private $page_cache;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param CrawlerProbe $probe  Probe.
-	 * @param Report       $report Report builder.
-	 * @param Page         $page   Page.
+	 * @param CrawlerProbe $probe      Probe.
+	 * @param Report       $report     Report builder.
+	 * @param Page         $page       Page.
+	 * @param PageCache    $page_cache Page cache detection and snippets.
 	 */
-	public function __construct( CrawlerProbe $probe, Report $report, Page $page ) {
-		$this->probe  = $probe;
-		$this->report = $report;
-		$this->page   = $page;
+	public function __construct( CrawlerProbe $probe, Report $report, Page $page, PageCache $page_cache ) {
+		$this->probe      = $probe;
+		$this->report     = $report;
+		$this->page       = $page;
+		$this->page_cache = $page_cache;
 	}
 
 	/**
@@ -85,7 +94,7 @@ final class DiagnosticsController {
 	 * @return void
 	 */
 	public function register_tab( Page $page ) {
-		$page->add_tab( new DiagnosticsTab( $this->probe, $this->page ) );
+		$page->add_tab( new DiagnosticsTab( $this->probe, $this->page, $this->page_cache ) );
 	}
 
 	/**

@@ -8,6 +8,7 @@
 use WPASL\Admin\Tabs\DiagnosticsTab;
 use WPASL\Diagnostics\CrawlerProbe;
 use WPASL\Diagnostics\DiagnosticsController;
+use WPASL\Diagnostics\PageCache;
 use WPASL\Diagnostics\Report;
 use WPASL\Plugin;
 use WPASL\Settings;
@@ -71,6 +72,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		delete_transient( Report::TRANSIENT );
 		delete_transient( DiagnosticsController::run_key() );
 		remove_all_filters( 'wpasl_diagnostics_time_budget' );
+		remove_all_filters( 'wpasl_diagnostics_page_cache' );
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		Plugin::instance()->get( 'runner' )->clear();
@@ -79,6 +81,43 @@ class Test_Diagnostics extends WP_UnitTestCase {
 
 	public function two_crawlers( $crawlers ) {
 		return array_intersect_key( $crawlers, array_flip( array( 'GPTBot', 'PerplexityBot' ) ) );
+	}
+
+	/**
+	 * Simulates an active Cache Enabler through the detection filter (the plugin is not installed in the
+	 * test environment and a constant cannot be undefined between tests).
+	 */
+	public function fake_cache_enabler() {
+		return array(
+			'id'      => 'cache-enabler',
+			'name'    => 'Cache Enabler',
+			'version' => '1.8.16',
+		);
+	}
+
+	/**
+	 * Registers responses served "from the Cache Enabler page cache": HTML without the plugin headers, also
+	 * for the negotiated Markdown request, with or without the X-Cache-Handler signature.
+	 */
+	private function serve_cached_html( $post, $with_handler = true ) {
+		$headers = array( 'content-type' => 'text/html; charset=utf-8' );
+		if ( $with_handler ) {
+			$headers['x-cache-handler'] = 'cache-enabler-engine';
+		}
+		$cached = array(
+			'code'    => 200,
+			'headers' => $headers,
+			'body'    => '<html><head><link rel="alternate" type="text/markdown" href="muestra.md"><meta name="robots" content="noai, noimageai"></head></html>',
+		);
+		foreach ( array( home_url( '/' ), get_permalink( $post ) . '|html', get_permalink( $post ) . '|md' ) as $key ) {
+			$this->responses[ $key ] = $cached;
+		}
+	}
+
+	private function render_diagnostics_tab() {
+		ob_start();
+		Plugin::instance()->get( 'page' )->tabs()['diagnostics']->render();
+		return ob_get_clean();
 	}
 
 	public function capture_redirect( $location ) {
@@ -647,6 +686,8 @@ class Test_Diagnostics extends WP_UnitTestCase {
 
 		$report = Report::load();
 		$this->assertFalse( $report['infrastructure']['storage_exposed'] );
+		$this->assertSame( '', $report['infrastructure']['page_cache'] );
+		$this->assertFalse( $report['infrastructure']['page_cache_served'] );
 		$this->assertSame( Report::NOT_AVAILABLE, $report['crawlers']['GPTBot']['checks']['markdown_url']['status'] );
 		$this->assertSame( 'ok', $report['crawlers']['GPTBot']['checks']['home']['status'] );
 
@@ -656,6 +697,241 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'home ok', $html );
 		$this->assertStringContainsString( 'Not available', $html );
 		$this->assertStringContainsString( 'No CDN or proxy detected.', $html );
+		$this->assertStringNotContainsString( 'Page cache:', $html );
+	}
+
+	public function test_page_cache_detection_is_null_here_and_replaceable_by_filter() {
+		$this->assertNull( PageCache::detect(), 'Cache Enabler is not installed in the test environment.' );
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		$this->assertSame( $this->fake_cache_enabler(), PageCache::detect() );
+		$this->assertTrue( PageCache::is_cache_enabler( PageCache::detect() ) );
+		remove_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+
+		add_filter( 'wpasl_diagnostics_page_cache', '__return_null' );
+		$this->assertNull( PageCache::detect() );
+
+		$this->assertSame( 'Cache Enabler', PageCache::label( 'cache-enabler-engine' ) );
+		$this->assertSame( 'Cache Enabler', PageCache::label( ' Cache-Enabler-Engine ' ) );
+		$this->assertSame( 'foo-cache', PageCache::label( 'foo-cache' ) );
+		$this->assertInstanceOf( PageCache::class, Plugin::instance()->get( 'page_cache' ) );
+	}
+
+	public function test_report_detects_cache_enabler_from_x_cache_handler() {
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra' ) );
+		$this->serve_cached_html( $post );
+
+		$raw = $this->probe->run();
+		$this->assertNull( $raw['page_cache'], 'Local detection is recorded with the run.' );
+		$this->assertSame( 'cache-enabler-engine', $raw['crawlers']['GPTBot']['post_html']['headers']['x-cache-handler'] );
+
+		$report = $this->controller->run();
+		$this->assertSame( 'Cache Enabler', $report['infrastructure']['page_cache'] );
+		$this->assertTrue( $report['infrastructure']['page_cache_served'] );
+		foreach ( array( 'GPTBot', 'PerplexityBot' ) as $agent ) {
+			$checks = $report['crawlers'][ $agent ]['checks'];
+			$this->assertSame( Report::WARNING, $checks['content_signal']['status'] );
+			$this->assertStringContainsString( 'Cache Enabler served it from its page cache', $checks['content_signal']['message'] );
+			$this->assertSame( Report::WARNING, $checks['x_robots_tag']['status'] );
+			$this->assertStringContainsString( 'Cache Enabler served it from its page cache', $checks['x_robots_tag']['message'] );
+			$this->assertSame( Report::ERROR, $checks['negotiation']['status'] );
+			$this->assertStringContainsString( 'Cache Enabler served the cached HTML', $checks['negotiation']['message'] );
+			$this->assertSame( Report::OK, $checks['alternate_link']['status'], 'The <link> in the body survives in the cached HTML.' );
+			$this->assertSame( Report::OK, $checks['markdown_url']['status'] );
+			$this->assertSame( Report::OK, $checks['home']['status'] );
+		}
+		foreach ( array( 'llms', 'robots', 'skills', 'catalog', 'markdown_url' ) as $key ) {
+			$this->assertSame( Report::OK, $report['site'][ $key ]['status'], $key );
+		}
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'Page cache: Cache Enabler (served at least one probed response', $html );
+		$this->assertStringNotContainsString( 'mod_headers', $html, 'No local notice: the plugin is not active here.' );
+	}
+
+	public function test_report_uses_local_detection_without_x_cache_handler() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra' ) );
+		$this->serve_cached_html( $post, false );
+
+		$raw = $this->probe->run();
+		$this->assertSame( 'cache-enabler', $raw['page_cache']['id'] );
+		$this->assertArrayNotHasKey( 'x-cache-handler', $raw['crawlers']['GPTBot']['post_html']['headers'] );
+
+		$report = $this->controller->run();
+		$this->assertSame( 'Cache Enabler', $report['infrastructure']['page_cache'] );
+		$this->assertFalse( $report['infrastructure']['page_cache_served'] );
+		$checks = $report['crawlers']['GPTBot']['checks'];
+		$this->assertSame( Report::WARNING, $checks['content_signal']['status'] );
+		$this->assertStringContainsString( 'Cache Enabler is active', $checks['content_signal']['message'] );
+		$this->assertSame( Report::WARNING, $checks['x_robots_tag']['status'] );
+		$this->assertStringContainsString( 'Cache Enabler is active', $checks['x_robots_tag']['message'] );
+		$this->assertSame( Report::ERROR, $checks['negotiation']['status'] );
+		$this->assertStringContainsString( 'Cache Enabler', $checks['negotiation']['message'] );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'Page cache: Cache Enabler (active at the time of the last run)', $html );
+	}
+
+	public function test_report_shows_other_page_cache_handler_verbatim() {
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra' ) );
+		$this->serve_cached_html( $post );
+		foreach ( array( home_url( '/' ), get_permalink( $post ) . '|html', get_permalink( $post ) . '|md' ) as $key ) {
+			$this->responses[ $key ]['headers']['x-cache-handler'] = 'foo-cache';
+		}
+
+		$report = $this->controller->run();
+		$this->assertSame( 'foo-cache', $report['infrastructure']['page_cache'] );
+		$this->assertTrue( $report['infrastructure']['page_cache_served'] );
+		$checks = $report['crawlers']['GPTBot']['checks'];
+		$this->assertStringContainsString( 'a cache or proxy may strip it', $checks['content_signal']['message'] );
+		$this->assertSame( 'X-Robots-Tag noai missing on the HTML response.', $checks['x_robots_tag']['message'] );
+		$this->assertStringContainsString( 'A page cache or CDN that ignores "Vary: Accept"', $checks['negotiation']['message'] );
+		$this->assertStringNotContainsString( 'Cache Enabler', wp_json_encode( $report ) );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->assertStringContainsString( 'Page cache: foo-cache', $this->render_diagnostics_tab() );
+	}
+
+	public function test_report_without_page_cache_keeps_generic_messages() {
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra' ) );
+		$this->responses[ get_permalink( $post ) . '|html' ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/html' ),
+			'body'    => '<html></html>',
+		);
+		$report = $this->controller->run();
+		$this->assertSame( '', $report['infrastructure']['page_cache'] );
+		$this->assertFalse( $report['infrastructure']['page_cache_served'] );
+		$this->assertStringContainsString( 'a cache or proxy may strip it', $report['crawlers']['GPTBot']['checks']['content_signal']['message'] );
+		$this->assertStringNotContainsString( 'Cache Enabler', wp_json_encode( $report ) );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->assertStringNotContainsString( 'Page cache:', $this->render_diagnostics_tab() );
+	}
+
+	public function test_tab_shows_cache_enabler_notice_and_snippets() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		$this->assertNull( Report::load(), 'No report yet.' );
+
+		$html = $this->render_diagnostics_tab();
+		$text = html_entity_decode( $html, ENT_QUOTES, 'UTF-8' );
+		$this->assertStringContainsString( 'Cache Enabler 1.8.16 is active on this site', $text );
+		$this->assertStringContainsString( 'notice notice-warning inline', $html );
+		foreach ( array( 'Content-Signal', 'Content-Usage', 'X-Robots-Tag', 'Accept: text/markdown', '.md', 'llms.txt', 'robots.txt', 'manifests', 'web server or CDN', 'never writes .htaccess' ) as $needle ) {
+			$this->assertStringContainsString( $needle, $text );
+		}
+		$this->assertLessThan( strpos( $html, 'Run crawler simulation' ), strpos( $html, 'wpasl-page-cache' ), 'The notice comes before the form.' );
+
+		$catalog = home_url( '/.well-known/api-catalog' );
+		// .htaccess block.
+		$this->assertStringContainsString( '<IfModule mod_headers.c>', $text );
+		$this->assertStringContainsString( 'Header onsuccess unset Content-Signal "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
+		$this->assertStringContainsString( 'Header always set Content-Signal "search=yes, ai-input=yes, ai-train=no" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
+		$this->assertStringContainsString( 'Header always set Content-Usage "train-ai=n, search=y" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
+		$this->assertStringContainsString( 'Header always setifempty X-Robots-Tag "noai, noimageai" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
+		$this->assertStringContainsString( 'Header always setifempty Link "<' . $catalog . '>; rel=\"api-catalog\"" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
+		// nginx block.
+		$this->assertStringContainsString( 'map $sent_http_content_type $wpasl_content_signal {', $text );
+		$this->assertStringContainsString( '"~^text/html" "search=yes, ai-input=yes, ai-train=no";', $text );
+		$this->assertStringContainsString( '"~^text/html" \'<' . $catalog . '>; rel="api-catalog"\';', $text );
+		$this->assertStringContainsString( 'add_header Content-Signal $wpasl_content_signal always;', $text );
+		$this->assertStringContainsString( 'add_header X-Robots-Tag $wpasl_x_robots_tag always;', $text );
+		$this->assertStringContainsString( 'add_header Link $wpasl_link always;', $text );
+		// OpenLiteSpeed block.
+		$this->assertStringContainsString( 'END_extraHeaders', $text );
+		$this->assertStringContainsString( 'X-Robots-Tag is not included', $text );
+		$this->assertStringNotContainsString( 'example.com', $text );
+		$this->assertStringNotContainsString( 'cognosonline', $text );
+		$notice = substr( $html, strpos( $html, 'wpasl-page-cache' ), strpos( $html, 'Run crawler simulation' ) - strpos( $html, 'wpasl-page-cache' ) );
+		$this->assertSame( 3, preg_match_all( '/<textarea readonly class="large-text code"[^>]*>#/', $notice ), 'Three snippets, each starting with its first comment.' );
+		$this->assertStringNotContainsString( 'Cloudflare', $notice, 'No reminder without a report (the static checklist mentions Cloudflare on its own).' );
+		$this->assertStringNotContainsString( 'Transform Rule', $text );
+
+		Report::save( array_merge( Report::defaults(), array( 'infrastructure' => array_merge( Report::defaults()['infrastructure'], array( 'cdn' => 'Cloudflare' ) ) ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$text = html_entity_decode( $this->render_diagnostics_tab(), ENT_QUOTES, 'UTF-8' );
+		$this->assertStringContainsString( 'Transform Rule', $text );
+		$this->assertStringContainsString( 'Content-Signal: search=yes, ai-input=yes, ai-train=no', $text );
+		$this->assertStringContainsString( 'Link: <' . $catalog . '>; rel="api-catalog"', $text );
+	}
+
+	public function test_openlitespeed_snippet_omits_x_robots_tag() {
+		$page_cache = Plugin::instance()->get( 'page_cache' );
+		$catalog    = home_url( '/.well-known/api-catalog' );
+		$snippet    = $page_cache->openlitespeed_snippet();
+
+		$this->assertStringContainsString( 'context / {', $snippet );
+		$this->assertStringContainsString( 'extraHeaders            <<<END_extraHeaders', $snippet );
+		$this->assertStringContainsString( 'set Content-Signal "search=yes, ai-input=yes, ai-train=no"', $snippet );
+		$this->assertStringContainsString( 'set Content-Usage "train-ai=n, search=y"', $snippet );
+		$this->assertStringContainsString( 'merge Link "<' . $catalog . '>; rel=api-catalog"', $snippet );
+		$this->assertStringContainsString( "\n  END_extraHeaders\n", $snippet );
+		foreach ( array( 'vHost Conf', 'Header Operations', 'Graceful Restart', 'systemctl restart lsws', 'X-Robots-Tag is left out on purpose' ) as $needle ) {
+			$this->assertStringContainsString( $needle, $snippet );
+		}
+
+		preg_match( '/<<<END_extraHeaders\n(.*?)\n\s*END_extraHeaders/s', $snippet, $m );
+		$this->assertSame(
+			array(
+				'set Content-Signal "search=yes, ai-input=yes, ai-train=no"',
+				'set Content-Usage "train-ai=n, search=y"',
+				'merge Link "<' . $catalog . '>; rel=api-catalog"',
+			),
+			explode( "\n", $m[1] ),
+			'The header lines never include X-Robots-Tag or noai.'
+		);
+		$this->assertSame(
+			array(
+				'Content-Signal' => 'search=yes, ai-input=yes, ai-train=no',
+				'Content-Usage'  => 'train-ai=n, search=y',
+				'Link'           => '<' . $catalog . '>; rel=api-catalog',
+			),
+			$page_cache->openlitespeed_headers()
+		);
+		$this->assertStringContainsString( 'X-Robots-Tag "noai, noimageai"', $page_cache->htaccess_snippet() );
+		$this->assertStringContainsString( 'X-Robots-Tag', $page_cache->nginx_snippet() );
+	}
+
+	public function test_snippets_follow_settings() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'signal_ai_train'      => 'yes',
+				'content_usage_header' => false,
+				'manifest_enabled'     => false,
+			)
+		);
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$page_cache = Plugin::instance()->get( 'page_cache' );
+
+		$this->assertSame( array( 'Content-Signal' => 'search=yes, ai-input=yes, ai-train=yes' ), $page_cache->headers() );
+		$this->assertSame( array( 'Content-Signal' => 'search=yes, ai-input=yes, ai-train=yes' ), $page_cache->openlitespeed_headers() );
+		foreach ( array( $page_cache->htaccess_snippet(), $page_cache->nginx_snippet(), $page_cache->openlitespeed_snippet(), $page_cache->cloudflare_note( 'Cloudflare' ) ) as $snippet ) {
+			$this->assertStringContainsString( 'ai-train=yes', $snippet );
+			$this->assertStringNotContainsString( 'Content-Usage "', $snippet );
+			$this->assertStringNotContainsString( 'Content-Usage:', $snippet );
+			$this->assertStringNotContainsString( 'wpasl_content_usage', $snippet );
+			$this->assertStringNotContainsString( 'X-Robots-Tag "', $snippet );
+			$this->assertStringNotContainsString( 'X-Robots-Tag:', $snippet );
+			$this->assertStringNotContainsString( 'wpasl_x_robots_tag', $snippet );
+			$this->assertStringNotContainsString( 'Link "', $snippet );
+			$this->assertStringNotContainsString( 'Link:', $snippet );
+			$this->assertStringNotContainsString( 'api-catalog', $snippet );
+		}
+		$this->assertSame( '', $page_cache->cloudflare_note( '' ) );
+		$this->assertSame( '', $page_cache->cloudflare_note( 'Fastly' ) );
+	}
+
+	public function test_tab_hides_cache_notice_without_page_cache() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		add_filter( 'wpasl_diagnostics_page_cache', '__return_null' );
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringNotContainsString( 'Cache Enabler', $html );
+		$this->assertStringNotContainsString( 'mod_headers', $html );
+		$this->assertStringNotContainsString( 'wpasl-page-cache', $html );
+		$this->assertStringContainsString( 'Run crawler simulation', $html );
 	}
 
 	public function test_tab_renders_checklist_and_curl_commands() {

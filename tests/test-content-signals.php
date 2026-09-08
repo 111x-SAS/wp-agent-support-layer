@@ -26,6 +26,7 @@ class Test_Content_Signals extends WP_UnitTestCase {
 	}
 
 	public function tear_down() {
+		remove_all_filters( 'wpasl_diagnostics_page_cache' );
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		set_current_screen( 'front' );
@@ -123,6 +124,50 @@ class Test_Content_Signals extends WP_UnitTestCase {
 		Http::reset();
 		$this->signals->send( 'llms-txt' );
 		$this->assertArrayNotHasKey( 'link', Http::effective_headers() );
+	}
+
+	public function test_api_catalog_link_matches_the_header_sent() {
+		$expected = '<' . home_url( '/.well-known/api-catalog' ) . '>; rel="api-catalog"';
+		$this->assertSame( $expected, $this->signals->api_catalog_link() );
+
+		Http::reset();
+		$this->signals->send();
+		$this->assertSame( array( $this->signals->api_catalog_link() ), Http::effective_headers()['link'] );
+	}
+
+	public function test_signals_tab_warns_about_cache_enabler() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$tab = Plugin::instance()->get( 'page' )->tabs()['signals'];
+
+		add_filter(
+			'wpasl_diagnostics_page_cache',
+			static function () {
+				return array(
+					'id'      => 'cache-enabler',
+					'name'    => 'Cache Enabler',
+					'version' => '1.8.16',
+				);
+			}
+		);
+		ob_start();
+		$tab->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'Cache Enabler is active.', $html );
+		$this->assertStringContainsString( 'notice notice-warning inline', $html );
+		$this->assertMatchesRegularExpression( '/<a href="[^"]*tools\.php\?page=wp-agent-support-layer&(amp;)?tab=diagnostics">Diagnostics tab<\/a>/', $html );
+		$this->assertStringContainsString( 'wpasl_settings[signal_ai_train]', $html, 'The form fields are still rendered.' );
+
+		remove_all_filters( 'wpasl_diagnostics_page_cache' );
+		add_filter( 'wpasl_diagnostics_page_cache', '__return_null' );
+		ob_start();
+		$tab->render();
+		$html = ob_get_clean();
+		$this->assertStringNotContainsString( 'Cache Enabler', $html );
+		$this->assertStringNotContainsString( 'notice-warning', $html );
+
+		ob_start();
+		Plugin::instance()->get( 'page' )->tabs()['manifests']->render();
+		$this->assertStringNotContainsString( 'Cache Enabler', ob_get_clean(), 'The Manifests tab does not change.' );
 	}
 
 	public function test_no_api_catalog_link_when_manifest_disabled() {

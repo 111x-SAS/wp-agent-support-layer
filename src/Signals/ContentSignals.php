@@ -155,8 +155,17 @@ final class ContentSignals {
 		}
 		if ( ( $html || 'markdown' === $context ) && $this->settings->get( 'manifest_enabled' ) ) {
 			// RFC 9727 §4: discovery of the API catalog from any resource of the origin. Never replace other Link headers.
-			Http::send_header( 'Link', '<' . home_url( '/.well-known/api-catalog' ) . '>; rel="api-catalog"', false );
+			Http::send_header( 'Link', $this->api_catalog_link(), false );
 		}
+	}
+
+	/**
+	 * Value of the Link header that announces the API catalog (RFC 9727 §4).
+	 *
+	 * @return string The /.well-known/api-catalog URL of the site in angle brackets, followed by '; rel="api-catalog"'.
+	 */
+	public function api_catalog_link() {
+		return '<' . home_url( '/.well-known/api-catalog' ) . '>; rel="api-catalog"';
 	}
 
 	/**

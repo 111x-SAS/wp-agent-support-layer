@@ -127,6 +127,11 @@ final class AuthMdBuilder implements ArtifactGeneratorInterface {
 		$out .= "## Audience\n\n";
 		$out .= "AI agents, LLM-based assistants and AI crawlers that read this site's public content.\n\n";
 
+		$when = trim( (string) $this->settings->get( 'llms_when_to_use' ) );
+		if ( '' !== $when ) {
+			$out .= "## When to use this site\n\n" . $when . "\n\n";
+		}
+
 		$out .= "## Registration and credential provisioning\n\n";
 		$out .= 'This site does not offer agent registration or credential provisioning. There is no sign-up endpoint, no API key issuance and no authorization server. '
 			. "Do not attempt to register, and do not send credentials: every resource listed below is public.\n\n";

@@ -144,6 +144,35 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Just another site', $txt );
 	}
 
+	public function test_when_to_use_section() {
+		self::factory()->post->create( array( 'post_title' => 'Primera' ) );
+		$this->settings(
+			array(
+				'llms_intro'       => 'Intro propia.',
+				'llms_when_to_use' => "Use this site for official course descriptions.\n\n- Read llms.txt first.",
+			)
+		);
+		$txt = $this->builder->build();
+		$this->assertStringContainsString( "Intro propia.\n\n## When to use this site\n\nUse this site for official course descriptions.\n\n- Read llms.txt first.\n\n## Posts\n\n", $txt );
+		$this->assertLessThan( strpos( $txt, '## When to use this site' ), strpos( $txt, 'Intro propia.' ), 'After the introduction.' );
+		$this->assertLessThan( strpos( $txt, '## Posts' ), strpos( $txt, '## When to use this site' ), 'Before the first post type section.' );
+
+		$this->settings( array( 'llms_when_to_use' => "  \n " ) );
+		$this->assertStringNotContainsString( 'When to use this site', $this->builder->build(), 'Empty: no section, no default text.' );
+	}
+
+	public function test_tab_renders_when_to_use_field() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$this->settings( array( 'llms_when_to_use' => 'Use this site for <official> descriptions.' ) );
+		ob_start();
+		Plugin::instance()->get( 'page' )->tabs()['llms']->render();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'When to use this site (Markdown)', $html );
+		$this->assertStringContainsString( 'name="wpasl_settings[llms_when_to_use]" rows="6" maxlength="4000"', $html );
+		$this->assertStringContainsString( 'Use this site for &lt;official&gt; descriptions.</textarea>', $html );
+		$this->assertStringContainsString( 'Shown in llms.txt and auth.md. Leave empty to omit the section.', $html );
+	}
+
 	public function test_limit_keeps_the_most_recent_posts() {
 		$this->settings( array( 'llms_limit' => 5 ) );
 		$ids = array();

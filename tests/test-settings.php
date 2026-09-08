@@ -36,6 +36,8 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertTrue( $settings->get( 'manifest_enabled' ) );
 		$this->assertTrue( $settings->get( 'auth_md_enabled' ) );
 		$this->assertSame( '', $settings->get( 'auth_md_notes' ) );
+		$this->assertSame( '', $settings->get( 'llms_when_to_use' ) );
+		$this->assertContains( 'llms_when_to_use', Settings::TAB_KEYS['llms'] );
 		$this->assertSame( get_option( 'admin_email' ), $settings->contact_email() );
 	}
 
@@ -118,6 +120,7 @@ class Test_Settings extends WP_UnitTestCase {
 			'crawler_overrides'      => array( 'GPTBot' => 'allow' ),
 			'llms_description'       => 'Desc',
 			'llms_intro'             => "Intro\nline",
+			'llms_when_to_use'       => str_repeat( 'w', Settings::LLMS_WHEN_TO_USE_MAX + 100 ) . '<i>x</i>',
 			'llms_limit'             => '40',
 			'llms_full_enabled'      => '1',
 			'llms_full_max_bytes_mb' => '5',
@@ -136,6 +139,7 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( 5 * MB_IN_BYTES, $once['llms_full_max_bytes'] );
 		$this->assertArrayNotHasKey( 'llms_full_max_bytes_mb', $once );
 		$this->assertSame( Settings::AUTH_MD_NOTES_MAX, mb_strlen( $once['auth_md_notes'] ), 'Notes above the limit are truncated once.' );
+		$this->assertSame( Settings::LLMS_WHEN_TO_USE_MAX, mb_strlen( $once['llms_when_to_use'] ) );
 
 		// The real trigger: update_option() on a missing option falls back to add_option() and sanitizes twice.
 		Plugin::instance()->get( 'page' )->register_setting();
@@ -170,6 +174,46 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertFalse( $clean['auth_md_enabled'], 'An absent checkbox of the submitted tab is unchecked.' );
 	}
 
+	public function test_llms_when_to_use_is_sanitized_and_truncated() {
+		$settings = new Settings();
+		$clean    = $settings->sanitize(
+			array(
+				'_tab'             => 'llms',
+				'llms_when_to_use' => "Use this site for <b>official</b> course descriptions.\n\n- Read llms.txt first.",
+			)
+		);
+		$this->assertSame( "Use this site for official course descriptions.\n\n- Read llms.txt first.", $clean['llms_when_to_use'], 'Tags are stripped, line breaks kept.' );
+
+		$once = $settings->sanitize(
+			array(
+				'_tab'             => 'llms',
+				'llms_when_to_use' => str_repeat( 'é', 5000 ),
+			)
+		);
+		$this->assertSame( 4000, mb_strlen( $once['llms_when_to_use'] ) );
+		$this->assertSame( str_repeat( 'é', 4000 ), $once['llms_when_to_use'] );
+		$twice = $settings->sanitize( array_merge( $once, array( '_tab' => 'llms' ) ) );
+		$this->assertSame( $once['llms_when_to_use'], $twice['llms_when_to_use'], 'Idempotent.' );
+
+		$clean = $settings->sanitize( array( '_tab' => 'llms' ) );
+		$this->assertSame( '', $clean['llms_when_to_use'], 'Absent field of the submitted tab: empty.' );
+	}
+
+	public function test_saving_general_tab_keeps_llms_settings() {
+		$stored   = $this->store_non_defaults();
+		$settings = new Settings();
+		$clean    = $settings->sanitize(
+			array(
+				'_tab'       => 'general',
+				'post_types' => array( 'post' ),
+			)
+		);
+		$this->assertSame( $stored['llms_when_to_use'], $clean['llms_when_to_use'] );
+		$this->assertSame( $stored['llms_description'], $clean['llms_description'] );
+		$this->assertSame( $stored['llms_intro'], $clean['llms_intro'] );
+		$this->assertSame( array( 'post' ), $clean['post_types'] );
+	}
+
 	public function test_saving_another_tab_keeps_auth_md_settings() {
 		$stored   = $this->store_non_defaults();
 		$settings = new Settings();
@@ -201,6 +245,7 @@ class Test_Settings extends WP_UnitTestCase {
 			'crawler_overrides'    => array( 'GPTBot' => 'allow' ),
 			'llms_description'     => 'Desc',
 			'llms_intro'           => 'Intro',
+			'llms_when_to_use'     => 'Use this site for official course descriptions.',
 			'llms_limit'           => 40,
 			'llms_full_enabled'    => true,
 			'llms_full_max_bytes'  => 7 * MB_IN_BYTES,

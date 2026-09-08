@@ -326,6 +326,16 @@ class Test_Auth_Md extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'versioned namespaces (wp/v2, wpasl/v1)', $this->builder->document(), 'Plain permalinks.' );
 	}
 
+	public function test_when_to_use_section_present_and_absent() {
+		$this->settings( array( 'llms_when_to_use' => 'Use this site for official course descriptions.' ) );
+		$doc = $this->builder->document();
+		$this->assertStringContainsString( "## Audience\n\nAI agents, LLM-based assistants and AI crawlers that read this site's public content.\n\n## When to use this site\n\nUse this site for official course descriptions.\n\n## Registration and credential provisioning\n", $doc );
+		$this->assertStringContainsString( 'Use this site for official course descriptions.', $this->request( home_url( '/auth.md' ) ) );
+
+		$this->settings( array( 'llms_when_to_use' => '' ) );
+		$this->assertStringNotContainsString( 'When to use this site', $this->builder->document() );
+	}
+
 	public function test_contact_email_falls_back_to_admin_email() {
 		$this->assertStringContainsString( 'Technical contact: ' . get_option( 'admin_email' ) . "\n", $this->builder->document() );
 		$this->settings( array( 'contact_email' => 'agents@example.org' ) );
@@ -387,6 +397,13 @@ class Test_Auth_Md extends WP_UnitTestCase {
 
 		$this->assertFalse( $this->storage->exists( AuthMdBuilder::FILE ) );
 		$this->assertStringContainsString( "## Notes\n\nRate limit: 60 requests per minute.\n", $this->request( home_url( '/auth.md' ) ) );
+		$this->assertTrue( $this->storage->exists( AuthMdBuilder::FILE ) );
+
+		// Saving the llms.txt tab (the guidance lives there) invalidates auth.md as well.
+		Plugin::instance()->get( 'page' )->register_setting();
+		update_option( Settings::OPTION, array( '_tab' => 'llms', 'llms_when_to_use' => 'Use this site for official course descriptions.' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertFalse( $this->storage->exists( AuthMdBuilder::FILE ) );
+		$this->assertStringContainsString( "## When to use this site\n\nUse this site for official course descriptions.\n", $this->request( home_url( '/auth.md' ) ) );
 	}
 
 	public function test_builder_is_registered_as_artifact_generator_and_respects_the_toggle() {

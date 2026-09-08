@@ -96,6 +96,13 @@ final class LlmsTab implements Tab {
 				</td>
 			</tr>
 			<tr>
+				<th scope="row"><label for="wpasl-llms-when-to-use"><?php esc_html_e( 'When to use this site (Markdown)', 'wp-agent-support-layer' ); ?></label></th>
+				<td>
+					<textarea id="wpasl-llms-when-to-use" name="<?php echo esc_attr( $option ); ?>[llms_when_to_use]" rows="6" maxlength="<?php echo esc_attr( (string) Settings::LLMS_WHEN_TO_USE_MAX ); ?>" class="large-text code"><?php echo esc_textarea( (string) $this->settings->get( 'llms_when_to_use' ) ); ?></textarea>
+					<p class="description"><?php esc_html_e( 'Name your best-fit use cases and how an agent should call this site (which documents to read first, which endpoints to use). Shown in llms.txt and auth.md. Leave empty to omit the section.', 'wp-agent-support-layer' ); ?></p>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><label for="wpasl-llms-limit"><?php esc_html_e( 'Items per section', 'wp-agent-support-layer' ); ?></label></th>
 				<td>
 					<input type="number" id="wpasl-llms-limit" name="<?php echo esc_attr( $option ); ?>[llms_limit]" value="<?php echo esc_attr( (string) (int) $this->settings->get( 'llms_limit' ) ); ?>" min="1" max="1000" class="small-text" />

@@ -180,6 +180,12 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 			$out .= $intro . "\n\n";
 		}
 
+		// Fixed English heading, like "## Optional": the section is addressed to agents.
+		$when = trim( (string) $this->settings->get( 'llms_when_to_use' ) );
+		if ( '' !== $when ) {
+			$out .= "## When to use this site\n\n" . $when . "\n\n";
+		}
+
 		foreach ( $sections as $type => $ids ) {
 			if ( empty( $ids ) ) {
 				continue;

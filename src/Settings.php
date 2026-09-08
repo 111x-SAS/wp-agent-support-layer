@@ -23,7 +23,7 @@ final class Settings {
 		'general'   => array( 'post_types', 'schedule', 'batch_size' ),
 		'signals'   => array( 'signal_search', 'signal_ai_input', 'signal_ai_train', 'content_usage_header' ),
 		'crawlers'  => array( 'crawler_overrides' ),
-		'llms'      => array( 'llms_description', 'llms_intro', 'llms_limit', 'llms_full_enabled', 'llms_full_max_bytes' ),
+		'llms'      => array( 'llms_description', 'llms_intro', 'llms_when_to_use', 'llms_limit', 'llms_full_enabled', 'llms_full_max_bytes' ),
 		'manifests' => array( 'manifest_enabled', 'auth_md_enabled', 'contact_email', 'auth_md_notes' ),
 	);
 
@@ -36,6 +36,11 @@ final class Settings {
 	 * Maximum length (characters) of the auth.md notes.
 	 */
 	const AUTH_MD_NOTES_MAX = 4000;
+
+	/**
+	 * Maximum length (characters) of the "when to use this site" guidance.
+	 */
+	const LLMS_WHEN_TO_USE_MAX = 4000;
 
 	/**
 	 * Allowed cron intervals.
@@ -68,6 +73,7 @@ final class Settings {
 			'crawler_overrides'    => array(),
 			'llms_description'     => '',
 			'llms_intro'           => '',
+			'llms_when_to_use'     => '',
 			'llms_limit'           => 100,
 			'llms_full_enabled'    => false,
 			'llms_full_max_bytes'  => 5 * MB_IN_BYTES,
@@ -256,6 +262,10 @@ final class Settings {
 
 			case 'llms_intro':
 				return sanitize_textarea_field( (string) $value );
+
+			case 'llms_when_to_use':
+				// Same idempotent pattern as auth_md_notes.
+				return mb_substr( sanitize_textarea_field( (string) $value ), 0, self::LLMS_WHEN_TO_USE_MAX );
 
 			case 'auth_md_notes':
 				// Truncating an already truncated value is a no-op, so the double sanitization of the Settings

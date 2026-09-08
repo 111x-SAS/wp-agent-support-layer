@@ -416,8 +416,14 @@ final class Delivery {
 			return false;
 		}
 
+		// send_headers may already have announced the API catalog (and other Link relations) for the HTML
+		// representation before content negotiation picked Markdown; the Markdown response builds its own
+		// Link set, so every relation is announced exactly once.
+		Http::remove_header( 'Link' );
+
 		/**
-		 * Fires right before a Markdown document is sent. Modules add headers here.
+		 * Fires right before a Markdown document is sent, before the response's own headers. Modules add
+		 * headers here; a Link header must be sent with replace = false so it survives the canonical Link.
 		 *
 		 * @param string   $context "markdown".
 		 * @param \WP_Post $post    Post.
@@ -427,8 +433,9 @@ final class Delivery {
 		if ( ! headers_sent() ) {
 			status_header( 200 );
 		}
+		// Never replace Vary or Link: modules listening to wpasl_before_serve add theirs to this response.
 		foreach ( $this->markdown_headers( $post, $document ) as $name => $value ) {
-			Http::send_header( $name, $value, 'Vary' !== $name );
+			Http::send_header( $name, $value, ! in_array( $name, array( 'Vary', 'Link' ), true ) );
 		}
 
 		echo $document; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Plain text/markdown body.

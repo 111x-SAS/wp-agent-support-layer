@@ -1,8 +1,8 @@
 # Specification coverage
 
 Every scenario of the main specs (`openspec/specs`, including the deltas of the changes
-`fix-review-findings`, 1.0.2, and `fix-review-1-0-2`, 1.0.3) mapped to the automated test that exercises it (PHPUnit against the
-official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
+`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, and `fix-markdown-api-catalog-link`) mapped to the automated test that
+exercises it (PHPUnit against the official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
 Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 1.0.3 smoke is `2026-09-02-smoke-1.0.3.md`), **A+M** both.
@@ -33,6 +33,8 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Estimación de tokens coherente | `Test_Delivery::test_markdown_headers`, `Test_Document_Builder::test_token_estimate` | A |
 | Sin X-Robots-Tag en Markdown negociado | `Test_Delivery::test_negotiated_markdown_has_no_x_robots_tag` | A |
 | Cabecera Link adicional preservada | `Test_Delivery::test_html_link_header_does_not_replace_existing_link` (also keeps the `api-catalog` link added by the signals) | A |
+| Cabecera Link del catálogo conservada en Markdown (`Accept`, sufijo `.md` y `?wpasl=md`) | `Test_Delivery::test_markdown_response_keeps_api_catalog_link` | A |
+| Sin cabecera Link del catálogo con el manifiesto deshabilitado | `Test_Delivery::test_markdown_response_has_no_api_catalog_link_when_manifest_disabled` | A |
 | Enlace alternativo en una entrada elegible | `Test_Delivery::test_html_headers_and_alternate_link_for_eligible_post` | A+M |
 | Sin enlace en contenido no elegible | `Test_Delivery::test_no_alternate_link_for_disabled_post_type` | A |
 | Enlace alternativo en la página de entradas | `Test_Delivery::test_posts_page_html_announces_alternate_link` | A |
@@ -98,7 +100,9 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Cabecera experimental desactivada | `Test_Content_Signals::test_headers_without_experimental_header` | A |
 | Área de administración | `Test_Content_Signals::test_nothing_in_admin` | A |
 | Documento OpenAPI por REST | `Test_Agent_Manifest::test_openapi_rest_route` | A |
-| Descubrimiento del catálogo de API (`Link rel="api-catalog"`) | `Test_Content_Signals::test_html_and_markdown_announce_api_catalog_link`, `test_no_api_catalog_link_when_manifest_disabled`, `Test_Delivery::test_html_link_header_does_not_replace_existing_link` | A |
+| Descubrimiento del catálogo de API (`Link rel="api-catalog"`) | `Test_Content_Signals::test_html_and_markdown_announce_api_catalog_link`, `test_no_api_catalog_link_when_manifest_disabled`, `Test_Delivery::test_html_link_header_does_not_replace_existing_link`, `test_markdown_response_keeps_api_catalog_link` | A |
+| Descubrimiento del catálogo de API en Markdown | `Test_Delivery::test_markdown_response_keeps_api_catalog_link` (full delivery through `Delivery::serve()`, catalog announced exactly once) | A |
+| Catálogo no anunciado en Markdown con el manifiesto deshabilitado | `Test_Delivery::test_markdown_response_has_no_api_catalog_link_when_manifest_disabled` | A |
 | Entrenamiento no permitido | `Test_Content_Signals::test_headers_by_default`, `test_meta_robots_gets_noai_and_keeps_existing_directives` | A+M |
 | Entrenamiento permitido | `Test_Content_Signals::test_headers_when_training_allowed`, `test_meta_robots_untouched_when_training_allowed` | A |
 | Convivencia con directivas existentes | `Test_Content_Signals::test_meta_robots_gets_noai_and_keeps_existing_directives` | A |

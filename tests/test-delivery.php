@@ -28,6 +28,13 @@ class Test_Delivery extends WP_UnitTestCase {
 	 */
 	private $storage;
 
+	/**
+	 * Headers in effect at the point where production ends the request (see capture_served_headers()).
+	 *
+	 * @var array<string, string[]>|null
+	 */
+	private $served_headers;
+
 	public function set_up() {
 		parent::set_up();
 		$this->set_permalink_structure( '/%postname%/' );
@@ -40,6 +47,7 @@ class Test_Delivery extends WP_UnitTestCase {
 
 	public function tear_down() {
 		remove_filter( 'wpasl_terminate_after_serve', '__return_false' );
+		remove_filter( 'wpasl_terminate_after_serve', array( $this, 'capture_served_headers' ), 20 );
 		remove_filter( 'redirect_canonical', '__return_false' );
 		unset( $_SERVER['HTTP_ACCEPT'] );
 		Plugin::instance()->get( 'runner' )->clear();
@@ -198,6 +206,74 @@ class Test_Delivery extends WP_UnitTestCase {
 		ob_get_clean();
 		$removed = array_filter( Http::log(), static function ( $entry ) { return 'remove' === $entry[0] && 'X-Robots-Tag' === $entry[1]; } ); // phpcs:ignore
 		$this->assertCount( 1, $removed );
+	}
+
+	/**
+	 * Records the headers in effect right after a document was served: the point where production exits.
+	 * On the parse_request route (".md" suffix, "?wpasl=md" on a static front page) tests do not exit, so
+	 * WP::main() goes on to send_headers and emits the HTML set again after the Markdown response.
+	 *
+	 * @param bool $terminate Whether the request ends.
+	 * @return bool
+	 */
+	public function capture_served_headers( $terminate ) {
+		$this->served_headers = Http::effective_headers();
+		return $terminate;
+	}
+
+	public function test_markdown_response_keeps_api_catalog_link() {
+		$this->assertTrue( (bool) Plugin::instance()->get( 'settings' )->get( 'manifest_enabled' ), 'Manifest enabled by default.' );
+		add_filter( 'wpasl_terminate_after_serve', array( $this, 'capture_served_headers' ), 20 );
+		$catalog  = '<' . home_url( '/.well-known/api-catalog' ) . '>; rel="api-catalog"';
+		$post     = self::factory()->post->create_and_get( array( 'post_name' => 'con-catalogo' ) );
+		$expected = array( $catalog, '<' . get_permalink( $post ) . '>; rel="canonical"' );
+
+		// Accept negotiation on the canonical URL: send_headers already announced the catalog for HTML.
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		Http::reset();
+		$this->go_to( get_permalink( $post ) );
+		$this->assertContains( $catalog, Http::effective_headers()['link'], 'send_headers announced the catalog for the HTML pass.' );
+		ob_start();
+		$this->assertTrue( $this->delivery->maybe_serve() );
+		ob_get_clean();
+		$this->assertSame( $expected, Http::effective_headers()['link'], 'Negotiated route.' );
+		$this->assertSame( $expected, $this->served_headers['link'], 'Negotiated route, at the exit point.' );
+
+		// ".md" suffix: parse_request route, no HTML pass before serving.
+		unset( $_SERVER['HTTP_ACCEPT'] );
+		$this->served_headers = null;
+		Http::reset();
+		ob_start();
+		$this->go_to( home_url( '/con-catalogo.md' ) );
+		ob_get_clean();
+		$this->assertSame( $expected, $this->served_headers['link'], '.md suffix route.' );
+
+		// "?wpasl=md" on a static front page: the production evidence route.
+		$front                = $this->make_static_front_page();
+		$this->served_headers = null;
+		Http::reset();
+		ob_start();
+		$this->go_to( home_url( '/?wpasl=md' ) );
+		$this->delivery->maybe_serve();
+		ob_get_clean();
+		$this->assertSame( array( $catalog, '<' . get_permalink( $front ) . '>; rel="canonical"' ), $this->served_headers['link'], '?wpasl=md on the static front page.' );
+	}
+
+	public function test_markdown_response_has_no_api_catalog_link_when_manifest_disabled() {
+		update_option( Settings::OPTION, array( 'manifest_enabled' => false ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$post                   = self::factory()->post->create_and_get( array( 'post_name' => 'sin-catalogo' ) );
+		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
+		Http::reset();
+		$this->go_to( get_permalink( $post ) );
+
+		ob_start();
+		$this->assertTrue( $this->delivery->maybe_serve() );
+		ob_get_clean();
+
+		$headers = Http::effective_headers();
+		$this->assertSame( array( '<' . get_permalink( $post ) . '>; rel="canonical"' ), $headers['link'] );
+		$this->assertArrayHasKey( 'content-signal', $headers );
 	}
 
 	public function test_markdown_and_json_responses_send_nosniff() {

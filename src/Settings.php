@@ -44,7 +44,7 @@ final class Settings {
 
 	/**
 	 * Bounds of the llms.txt preview (items per section in llms.txt) and of the per-type files. A stored
-	 * "llms_limit" from versions before 1.0.5 is neither read nor sanitized: it stays inert in the option.
+	 * "llms_limit" from versions before 1.0.4 is neither read nor sanitized: it stays inert in the option.
 	 */
 	const LLMS_PREVIEW_LIMIT_MAX = 100;
 	const LLMS_TYPE_LIMIT_MAX    = 10000;

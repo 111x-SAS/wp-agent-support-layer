@@ -26,6 +26,7 @@ use WPASL\Llms\LlmsTxtRouter;
 use WPASL\Manifest\AuthMdBuilder;
 use WPASL\Manifest\AuthMdRouter;
 use WPASL\Manifest\CapabilityRegistry;
+use WPASL\Manifest\DiscoveryLinks;
 use WPASL\Manifest\ManifestBuilder;
 use WPASL\Manifest\ManifestRouter;
 use WPASL\Markdown\LeagueConverter;
@@ -122,6 +123,7 @@ final class Plugin {
 		$this->services['auth_md']        = $auth_md_builder;
 		$this->services['auth_md_router'] = new AuthMdRouter( $settings, $storage, $auth_md_builder, $this->services['delivery'] );
 		$runner->add_artifact_generator( $auth_md_builder );
+		$this->services['discovery_links'] = new DiscoveryLinks( $settings );
 
 		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage, $llms_builder );
 		$page_cache                    = new PageCache( $settings, $this->services['signals'] );

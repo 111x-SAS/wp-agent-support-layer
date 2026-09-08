@@ -7,6 +7,8 @@
 
 namespace WPASL;
 
+use WPASL\Markdown\ContentExtractor;
+
 /**
  * Reads, sanitizes and writes the single plugin option.
  */
@@ -20,7 +22,7 @@ final class Settings {
 	 * @var array<string, string[]>
 	 */
 	const TAB_KEYS = array(
-		'general'   => array( 'post_types', 'schedule', 'batch_size' ),
+		'general'   => array( 'post_types', 'schedule', 'batch_size', 'content_source', 'content_selector' ),
 		'signals'   => array( 'signal_search', 'signal_ai_input', 'signal_ai_train', 'content_usage_header' ),
 		'crawlers'  => array( 'crawler_overrides' ),
 		'llms'      => array( 'llms_description', 'llms_intro', 'llms_when_to_use', 'llms_preview_limit', 'llms_type_limit', 'llms_full_enabled', 'llms_full_max_bytes' ),
@@ -57,6 +59,13 @@ final class Settings {
 	const SCHEDULES = array( 'hourly', 'twicedaily', 'daily', 'weekly' );
 
 	/**
+	 * Content sources an administrator may force per post type; an absent value means "auto".
+	 *
+	 * @var string[]
+	 */
+	const CONTENT_SOURCES = array( 'editor', 'rendered' );
+
+	/**
 	 * Cached option value.
 	 *
 	 * @var array<string, mixed>|null
@@ -73,6 +82,8 @@ final class Settings {
 			'post_types'           => array( 'post', 'page' ),
 			'schedule'             => 'daily',
 			'batch_size'           => 50,
+			'content_source'       => array(),
+			'content_selector'     => '',
 			'signal_search'        => 'yes',
 			'signal_ai_input'      => 'yes',
 			'signal_ai_train'      => 'no',
@@ -168,6 +179,18 @@ final class Settings {
 	}
 
 	/**
+	 * Content source of a post type: "auto" unless an administrator forced "editor" or "rendered".
+	 *
+	 * @param string $post_type Post type.
+	 * @return string auto, editor or rendered.
+	 */
+	public function content_source( $post_type ) {
+		$sources = (array) $this->get( 'content_source' );
+		$source  = isset( $sources[ $post_type ] ) ? (string) $sources[ $post_type ] : '';
+		return in_array( $source, self::CONTENT_SOURCES, true ) ? $source : 'auto';
+	}
+
+	/**
 	 * Settings API sanitize callback. Merges the submitted tab over the stored values.
 	 *
 	 * @param mixed $input Raw submitted value.
@@ -234,6 +257,30 @@ final class Settings {
 			case 'batch_size':
 				$number = absint( $value );
 				return $number > 0 ? min( 500, $number ) : $defaults['batch_size'];
+
+			case 'content_source':
+				// Only forced values are stored: "auto" (and anything else) is the absence of a value, so a
+				// post type enabled later inherits "auto" and the default option stays empty.
+				$clean = array();
+				foreach ( self::selectable_post_types() as $type ) {
+					$source = isset( $value[ $type ] ) ? sanitize_key( (string) $value[ $type ] ) : '';
+					if ( in_array( $source, self::CONTENT_SOURCES, true ) ) {
+						$clean[ $type ] = $source;
+					}
+				}
+				return $clean;
+
+			case 'content_selector':
+				$selector = ContentExtractor::normalize_selector( sanitize_text_field( (string) $value ) );
+				if ( null === $selector ) {
+					add_settings_error(
+						self::OPTION,
+						'content_selector',
+						__( 'The content selector was not saved: only tags, #id, .class, [attr], [attr="value"], their combinations on one element, the descendant and child combinators and comma-separated lists are supported (for example "div.entry-content > .inner, main article").', 'wp-agent-support-layer' )
+					);
+					return (string) $this->get( 'content_selector' );
+				}
+				return $selector;
 
 			case 'llms_preview_limit':
 				$number = absint( $value );

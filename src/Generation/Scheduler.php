@@ -63,7 +63,8 @@ final class Scheduler {
 	}
 
 	/**
-	 * Reschedules when the interval changes and discards the queue when the post types change.
+	 * Reschedules when the interval changes and discards the queue when the post types, the content source
+	 * of a post type or the content selector change (the stored documents and their marks are kept).
 	 *
 	 * @param mixed $old_value Previous option value.
 	 * @param mixed $value     New option value.
@@ -76,9 +77,39 @@ final class Scheduler {
 			$this->settings->flush_cache();
 			$this->schedule( $new );
 		}
-		if ( self::post_types_of( $old_value ) !== self::post_types_of( $value ) ) {
+		if ( self::post_types_of( $old_value ) !== self::post_types_of( $value )
+			|| self::content_sources_of( $old_value ) !== self::content_sources_of( $value )
+			|| self::content_selector_of( $old_value ) !== self::content_selector_of( $value ) ) {
 			$this->state->clear_queue();
 		}
+	}
+
+	/**
+	 * Normalised forced content sources of a raw settings value (only editor/rendered, sorted by type).
+	 *
+	 * @param mixed $value Raw option value.
+	 * @return array<string, string>
+	 */
+	private static function content_sources_of( $value ) {
+		$sources = is_array( $value ) && isset( $value['content_source'] ) ? (array) $value['content_source'] : array();
+		$clean   = array();
+		foreach ( $sources as $type => $source ) {
+			if ( in_array( $source, Settings::CONTENT_SOURCES, true ) ) {
+				$clean[ (string) $type ] = (string) $source;
+			}
+		}
+		ksort( $clean );
+		return $clean;
+	}
+
+	/**
+	 * Content selector of a raw settings value.
+	 *
+	 * @param mixed $value Raw option value.
+	 * @return string
+	 */
+	private static function content_selector_of( $value ) {
+		return is_array( $value ) && isset( $value['content_selector'] ) ? trim( (string) $value['content_selector'] ) : '';
 	}
 
 	/**

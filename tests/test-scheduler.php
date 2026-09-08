@@ -90,6 +90,60 @@ class Test_Scheduler extends WP_UnitTestCase {
 		$this->assertNull( $this->scheduler->next_run() );
 	}
 
+	public function test_changing_content_source_or_selector_clears_queue_and_keeps_generated() {
+		$state = new WPASL\Generation\State();
+		$queue = array(
+			'queue'         => array( 1, 2 ),
+			'generated'     => array( 3 => 10 ),
+			'cycle_started' => 50,
+		);
+		update_option( Settings::OPTION, Settings::defaults() );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+
+		$state->save( $queue, false );
+		update_option( Settings::OPTION, array_merge( Settings::defaults(), array( 'content_source' => array( 'page' => 'rendered' ) ) ) );
+		$saved = $state->load();
+		$this->assertSame( array(), $saved['queue'], 'A forced content source discards the queue.' );
+		$this->assertSame( 0, $saved['cycle_started'] );
+		$this->assertSame( array( 3 => 10 ), $saved['generated'], 'Generation marks are kept.' );
+
+		$state->save( $queue, false );
+		update_option( Settings::OPTION, array_merge( Settings::defaults(), array( 'content_source' => array( 'page' => 'rendered' ), 'content_selector' => 'main article' ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$saved = $state->load();
+		$this->assertSame( array(), $saved['queue'], 'A new selector discards the queue.' );
+		$this->assertSame( array( 3 => 10 ), $saved['generated'] );
+
+		$state->save( $queue, false );
+		update_option( Settings::OPTION, array_merge( Settings::defaults(), array( 'content_selector' => 'main article' ) ) );
+		$this->assertSame( array(), $state->load()['queue'], 'Back to auto: discarded as well.' );
+	}
+
+	public function test_saving_general_without_changes_keeps_queue() {
+		$state  = new WPASL\Generation\State();
+		$stored = array_merge( Settings::defaults(), array( 'content_source' => array( 'page' => 'rendered' ), 'content_selector' => 'main article' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		update_option( Settings::OPTION, $stored );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$state->save(
+			array(
+				'queue'     => array( 1, 2 ),
+				'generated' => array( 3 => 10 ),
+			),
+			false
+		);
+
+		// Same values, different representation: "auto" is the absence of a value, the order is irrelevant
+		// and another General setting changes.
+		$changed                   = $stored;
+		$changed['batch_size']     = 25;
+		$changed['content_source'] = array(
+			'post' => 'auto',
+			'page' => 'rendered',
+		);
+		update_option( Settings::OPTION, $changed );
+		$this->assertSame( array( 1, 2 ), $state->load()['queue'] );
+		$this->assertSame( array( 3 => 10 ), $state->load()['generated'] );
+	}
+
 	private function count_events() {
 		$count = 0;
 		foreach ( _get_cron_array() as $hooks ) {

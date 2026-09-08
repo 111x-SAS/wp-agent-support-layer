@@ -37,5 +37,31 @@ function _manually_load_plugin() {
 
 tests_add_filter( 'muplugins_loaded', '_manually_load_plugin' );
 
+/**
+ * Safety net: tests never make real HTTP requests. Test classes that simulate responses hook
+ * pre_http_request at priority 10 or higher and override this error.
+ *
+ * @param false|array|WP_Error $pre  Short-circuit value.
+ * @param array                $args Request arguments.
+ * @param string               $url  URL.
+ * @return WP_Error
+ */
+function wpasl_tests_block_http( $pre, $args, $url ) {
+	return new WP_Error( 'wpasl_tests_http_blocked', 'Tests never make HTTP requests: ' . $url );
+}
+tests_add_filter( 'pre_http_request', 'wpasl_tests_block_http', 1, 3 );
+
+/**
+ * The factory creates posts with a few words of content ("Post content 1"), which the empty-editor rule of
+ * the content source would treat as an empty editor and fetch the rendered page for. The threshold is
+ * lifted globally so such posts keep the editor content; the tests of the rule remove this filter.
+ *
+ * @return int
+ */
+function wpasl_tests_editor_min_chars() {
+	return 0;
+}
+tests_add_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
+
 // Start up the WP testing environment.
 require "{$_tests_dir}/includes/bootstrap.php";

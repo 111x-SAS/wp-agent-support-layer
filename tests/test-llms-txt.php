@@ -392,6 +392,49 @@ class Test_Llms_Txt extends WP_UnitTestCase {
 		$this->assertStringContainsString( '[Sitemap](' . home_url( '/wp-sitemap.xml' ) . ')', $out );
 	}
 
+	public function test_optional_sitemap_from_seo_plugin_or_filter() {
+		self::factory()->post->create();
+		add_filter( 'wp_sitemaps_enabled', '__return_false' );
+
+		// An SEO plugin announcing its index in robots.txt (Rank Math, AIOSEO, SEOPress do).
+		$robots = static function ( $output ) {
+			return $output . "\nSitemap: https://elsewhere.example/sitemap.xml\nSitemap: " . home_url( '/sitemap_index.xml' ) . "\n";
+		};
+		add_filter( 'robots_txt', $robots, 20 );
+		$this->assertSame( home_url( '/sitemap_index.xml' ), \WPASL\Content\SitemapLocator::url(), 'First Sitemap: line of the same host.' );
+		$out = $this->builder->build();
+		$this->assertStringContainsString( '[Sitemap](' . home_url( '/sitemap_index.xml' ) . ')', $out );
+		$this->assertStringNotContainsString( 'elsewhere.example', $out );
+		$this->assertStringNotContainsString( 'wp-sitemap.xml', $out );
+		remove_filter( 'robots_txt', $robots, 20 );
+
+		// A developer fixing the URL by filter.
+		$filter = static function () {
+			return home_url( '/custom-sitemap.xml' );
+		};
+		add_filter( 'wpasl_sitemap_url', $filter );
+		$this->assertStringContainsString( '[Sitemap](' . home_url( '/custom-sitemap.xml' ) . ')', $this->builder->build() );
+		remove_filter( 'wpasl_sitemap_url', $filter );
+
+		// The filter can also remove a link the core would provide.
+		remove_filter( 'wp_sitemaps_enabled', '__return_false' );
+		add_filter( 'wpasl_sitemap_url', '__return_null' );
+		$this->assertStringNotContainsString( '[Sitemap]', $this->builder->build() );
+		remove_filter( 'wpasl_sitemap_url', '__return_null' );
+		$this->assertStringContainsString( '[Sitemap](' . home_url( '/wp-sitemap.xml' ) . ')', $this->builder->build(), 'Core sitemaps come first when enabled.' );
+	}
+
+	public function test_optional_omits_sitemap_when_unknown() {
+		self::factory()->post->create();
+		add_filter( 'wp_sitemaps_enabled', '__return_false' );
+		$this->assertNull( \WPASL\Content\SitemapLocator::url() );
+		$out = $this->builder->build();
+		remove_filter( 'wp_sitemaps_enabled', '__return_false' );
+		$this->assertStringNotContainsString( '[Sitemap]', $out );
+		$this->assertStringNotContainsString( 'sitemap', strtolower( $out ) );
+		$this->assertStringContainsString( "## Optional\n\n", $out, 'The other optional links remain.' );
+	}
+
 	public function test_settings_change_invalidates_stored_files() {
 		self::factory()->post->create();
 		$this->router->document( LlmsTxtBuilder::FILE );

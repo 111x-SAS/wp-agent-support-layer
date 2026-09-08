@@ -136,8 +136,8 @@ final class ContentSignals {
 	/**
 	 * Sends the headers on front-end responses. Never in the admin.
 	 *
-	 * @param mixed $context The WP object on send_headers; "markdown", "llms-txt", "manifest" or "auth-md"
-	 *                       when fired by wpasl_before_serve.
+	 * @param mixed $context The WP object on send_headers; "markdown", "markdown-404", "llms-txt", "manifest"
+	 *                       or "auth-md" when fired by wpasl_before_serve.
 	 * @return void
 	 */
 	public function send( $context = null ) {
@@ -153,8 +153,9 @@ final class ContentSignals {
 		foreach ( $this->headers( $html ) as $name => $value ) {
 			Http::send_header( $name, $value, self::ROBOTS_HEADER !== $name );
 		}
-		if ( ( $html || 'markdown' === $context ) && $this->settings->get( 'manifest_enabled' ) ) {
-			// RFC 9727 §4: discovery of the API catalog from any resource of the origin. Never replace other Link headers.
+		if ( ( $html || in_array( $context, array( 'markdown', 'markdown-404' ), true ) ) && $this->settings->get( 'manifest_enabled' ) ) {
+			// RFC 9727 §4: discovery of the API catalog from any resource of the origin, including the Markdown
+			// 404 sent to agents. Never replace other Link headers.
 			Http::send_header( 'Link', $this->api_catalog_link(), false );
 		}
 	}

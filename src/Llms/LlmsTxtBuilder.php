@@ -8,6 +8,7 @@
 namespace WPASL\Llms;
 
 use WPASL\Content\Eligibility;
+use WPASL\Content\SitemapLocator;
 use WPASL\Generation\ArtifactGeneratorInterface;
 use WPASL\Generation\Runner;
 use WPASL\Markdown\Delivery;
@@ -294,10 +295,10 @@ final class LlmsTxtBuilder implements ArtifactGeneratorInterface {
 	 * @return array<string, array{0:string,1:string}> Label => [url, description].
 	 */
 	private function optional_links() {
-		$links = array();
-		if ( function_exists( 'wp_sitemaps_get_server' ) && wp_sitemaps_get_server()->sitemaps_enabled() ) {
-			// The index URL depends on the permalink structure ("?sitemap=index" with plain permalinks).
-			$sitemap = function_exists( 'get_sitemap_url' ) ? (string) get_sitemap_url( 'index' ) : home_url( '/wp-sitemap.xml' );
+		$links   = array();
+		$sitemap = SitemapLocator::url();
+		if ( null !== $sitemap ) {
+			// Core index (following the permalink structure) or the one served by an SEO plugin.
 			$links[ __( 'Sitemap', 'wp-agent-support-layer' ) ] = array( $sitemap, __( 'XML sitemap of the whole site.', 'wp-agent-support-layer' ) );
 		}
 		if ( $this->settings->get( 'manifest_enabled' ) ) {

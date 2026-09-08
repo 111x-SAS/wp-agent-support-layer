@@ -123,7 +123,7 @@ final class Plugin {
 		$this->services['auth_md_router'] = new AuthMdRouter( $settings, $storage, $auth_md_builder, $this->services['delivery'] );
 		$runner->add_artifact_generator( $auth_md_builder );
 
-		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage );
+		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage, $llms_builder );
 		$page_cache                    = new PageCache( $settings, $this->services['signals'] );
 		$this->services['probe']       = $probe;
 		$this->services['page_cache']  = $page_cache;

@@ -32,7 +32,10 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( 'no', $settings->get( 'signal_ai_train' ) );
 		$this->assertTrue( $settings->get( 'content_usage_header' ) );
 		$this->assertFalse( $settings->get( 'llms_full_enabled' ) );
-		$this->assertSame( 100, $settings->get( 'llms_limit' ) );
+		$this->assertSame( 10, $settings->get( 'llms_preview_limit' ) );
+		$this->assertSame( 1000, $settings->get( 'llms_type_limit' ) );
+		$this->assertArrayNotHasKey( 'llms_limit', Settings::defaults() );
+		$this->assertNotContains( 'llms_limit', Settings::TAB_KEYS['llms'] );
 		$this->assertTrue( $settings->get( 'manifest_enabled' ) );
 		$this->assertTrue( $settings->get( 'auth_md_enabled' ) );
 		$this->assertSame( '', $settings->get( 'auth_md_notes' ) );
@@ -121,7 +124,8 @@ class Test_Settings extends WP_UnitTestCase {
 			'llms_description'       => 'Desc',
 			'llms_intro'             => "Intro\nline",
 			'llms_when_to_use'       => str_repeat( 'w', Settings::LLMS_WHEN_TO_USE_MAX + 100 ) . '<i>x</i>',
-			'llms_limit'             => '40',
+			'llms_preview_limit'     => '40',
+			'llms_type_limit'        => '2000',
 			'llms_full_enabled'      => '1',
 			'llms_full_max_bytes_mb' => '5',
 			'manifest_enabled'       => '1',
@@ -147,7 +151,8 @@ class Test_Settings extends WP_UnitTestCase {
 		update_option( Settings::OPTION, array_merge( $this->full_input(), array( '_tab' => 'llms' ) ) );
 		$stored = get_option( Settings::OPTION );
 		$this->assertSame( 5 * MB_IN_BYTES, $stored['llms_full_max_bytes'] );
-		$this->assertSame( 40, $stored['llms_limit'] );
+		$this->assertSame( 40, $stored['llms_preview_limit'] );
+		$this->assertSame( 2000, $stored['llms_type_limit'] );
 	}
 
 	public function test_auth_md_notes_are_truncated_to_4000_chars() {
@@ -246,7 +251,8 @@ class Test_Settings extends WP_UnitTestCase {
 			'llms_description'     => 'Desc',
 			'llms_intro'           => 'Intro',
 			'llms_when_to_use'     => 'Use this site for official course descriptions.',
-			'llms_limit'           => 40,
+			'llms_preview_limit'   => 40,
+			'llms_type_limit'      => 2000,
 			'llms_full_enabled'    => true,
 			'llms_full_max_bytes'  => 7 * MB_IN_BYTES,
 			'manifest_enabled'     => false,
@@ -281,9 +287,9 @@ class Test_Settings extends WP_UnitTestCase {
 
 		// The Settings API path: update_option() with a partial array goes through the registered sanitizer.
 		Plugin::instance()->get( 'page' )->register_setting();
-		update_option( Settings::OPTION, array( 'llms_limit' => 12 ) );
+		update_option( Settings::OPTION, array( 'llms_preview_limit' => 12 ) );
 		$after = get_option( Settings::OPTION );
-		$this->assertSame( 12, $after['llms_limit'] );
+		$this->assertSame( 12, $after['llms_preview_limit'] );
 		$this->assertSame( array( 'page' ), $after['post_types'] );
 		$this->assertSame( 'yes', $after['signal_ai_train'] );
 	}
@@ -324,6 +330,57 @@ class Test_Settings extends WP_UnitTestCase {
 		unset( $_GET['settings-updated'] );
 
 		$this->assertSame( 1, substr_count( $html, 'Settings saved.' ) );
+	}
+
+	public function test_llms_limits_ranges_and_defaults() {
+		$settings = new Settings();
+		$clean    = $settings->sanitize( array( '_tab' => 'llms', 'llms_preview_limit' => '5', 'llms_type_limit' => '2000' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( 5, $clean['llms_preview_limit'] );
+		$this->assertSame( 2000, $clean['llms_type_limit'] );
+
+		$clean = $settings->sanitize( array( '_tab' => 'llms', 'llms_preview_limit' => '500', 'llms_type_limit' => '50000' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( 100, $clean['llms_preview_limit'] );
+		$this->assertSame( 10000, $clean['llms_type_limit'] );
+
+		foreach ( array( '0', '', null ) as $empty ) {
+			$clean = $settings->sanitize( array( '_tab' => 'llms', 'llms_preview_limit' => $empty, 'llms_type_limit' => $empty ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			$this->assertSame( 10, $clean['llms_preview_limit'], wp_json_encode( $empty ) );
+			$this->assertSame( 1000, $clean['llms_type_limit'], wp_json_encode( $empty ) );
+		}
+
+		$once  = $settings->sanitize( array( '_tab' => 'llms', 'llms_preview_limit' => '7', 'llms_type_limit' => '70' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$twice = $settings->sanitize( array_merge( $once, array( '_tab' => 'llms' ) ) );
+		$this->assertSame( $once, $twice, 'Idempotent.' );
+
+		$stored = $this->store_non_defaults();
+		$clean  = $settings->sanitize( array( '_tab' => 'general', 'post_types' => array( 'post' ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( $stored['llms_preview_limit'], $clean['llms_preview_limit'], 'Saving another tab keeps the limits.' );
+		$this->assertSame( $stored['llms_type_limit'], $clean['llms_type_limit'] );
+	}
+
+	public function test_stored_llms_limit_from_previous_version_is_inert() {
+		$stored = Settings::defaults();
+		unset( $stored['llms_preview_limit'], $stored['llms_type_limit'] );
+		$stored['llms_limit'] = 100;
+		update_option( Settings::OPTION, $stored );
+		$settings = new Settings();
+		$this->assertSame( 10, $settings->get( 'llms_preview_limit' ), 'New limits take their defaults.' );
+		$this->assertSame( 1000, $settings->get( 'llms_type_limit' ) );
+
+		$clean = $settings->sanitize( array( '_tab' => 'llms', 'llms_preview_limit' => '3' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( 3, $clean['llms_preview_limit'] );
+		$this->assertSame( 1000, $clean['llms_type_limit'] );
+		$this->assertSame( 100, $clean['llms_limit'], 'Neither sanitized nor removed: the stored key is simply ignored.' );
+
+		$clean = $settings->sanitize( array( 'llms_limit' => 5 ) );
+		$this->assertSame( 10, $clean['llms_preview_limit'], 'A submitted llms_limit no longer feeds any setting.' );
+		$this->assertSame( 100, $clean['llms_limit'] );
+
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		self::factory()->post->create_many( 12 );
+		$txt = Plugin::instance()->get( 'llms' )->build();
+		$this->assertSame( 10, substr_count( $txt, "\n- [Post title" ), 'llms.txt uses the preview limit, not llms_limit.' );
+		$this->assertStringContainsString( '- [Full list of Posts (12 items)](' . home_url( '/llms-post.txt' ) . ')', $txt );
 	}
 
 	public function test_llms_full_max_out_of_range_clamps_to_100_mb() {

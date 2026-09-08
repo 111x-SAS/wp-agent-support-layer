@@ -8,11 +8,14 @@
 namespace WPASL\Admin\Tabs;
 
 use WPASL\Admin\Tab;
+use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Llms\LlmsTxtRouter;
 use WPASL\Settings;
+use WPASL\Storage;
 
 /**
- * Description, free intro, per-section limit and the optional llms-full.txt.
+ * Description, free intro, "when to use this site" guidance, preview and per-type limits, the optional
+ * llms-full.txt, and the size of the generated llms.txt.
  */
 final class LlmsTab implements Tab {
 
@@ -24,12 +27,21 @@ final class LlmsTab implements Tab {
 	private $settings;
 
 	/**
+	 * Storage (size of the generated llms.txt).
+	 *
+	 * @var Storage
+	 */
+	private $storage;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Settings $settings Settings.
+	 * @param Storage  $storage  Storage.
 	 */
-	public function __construct( Settings $settings ) {
+	public function __construct( Settings $settings, Storage $storage ) {
 		$this->settings = $settings;
+		$this->storage  = $storage;
 	}
 
 	/**
@@ -80,6 +92,8 @@ final class LlmsTab implements Tab {
 		<?php if ( LlmsTxtRouter::physical_file_exists() ) : ?>
 			<div class="notice notice-warning inline"><p><?php esc_html_e( 'A physical llms.txt file exists in the site root and takes precedence over the generated one.', 'wp-agent-support-layer' ); ?></p></div>
 		<?php endif; ?>
+		<?php $this->render_type_files(); ?>
+		<?php $this->render_size(); ?>
 		<table class="form-table" role="presentation">
 			<tr>
 				<th scope="row"><label for="wpasl-llms-description"><?php esc_html_e( 'Site description', 'wp-agent-support-layer' ); ?></label></th>
@@ -103,10 +117,17 @@ final class LlmsTab implements Tab {
 				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="wpasl-llms-limit"><?php esc_html_e( 'Items per section', 'wp-agent-support-layer' ); ?></label></th>
+				<th scope="row"><label for="wpasl-llms-preview-limit"><?php esc_html_e( 'Items per section in llms.txt', 'wp-agent-support-layer' ); ?></label></th>
 				<td>
-					<input type="number" id="wpasl-llms-limit" name="<?php echo esc_attr( $option ); ?>[llms_limit]" value="<?php echo esc_attr( (string) (int) $this->settings->get( 'llms_limit' ) ); ?>" min="1" max="1000" class="small-text" />
-					<p class="description"><?php esc_html_e( 'Pages are listed by menu order, other types by publication date, newest first.', 'wp-agent-support-layer' ); ?></p>
+					<input type="number" id="wpasl-llms-preview-limit" name="<?php echo esc_attr( $option ); ?>[llms_preview_limit]" value="<?php echo esc_attr( (string) (int) $this->settings->get( 'llms_preview_limit' ) ); ?>" min="1" max="<?php echo esc_attr( (string) Settings::LLMS_PREVIEW_LIMIT_MAX ); ?>" class="small-text" />
+					<p class="description"><?php esc_html_e( 'Preview shown in llms.txt for each content type; when a type has more items, the section ends with a link to its full list. Pages are listed by menu order, other types by publication date, newest first.', 'wp-agent-support-layer' ); ?></p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpasl-llms-type-limit"><?php esc_html_e( 'Items per content-type file', 'wp-agent-support-layer' ); ?></label></th>
+				<td>
+					<input type="number" id="wpasl-llms-type-limit" name="<?php echo esc_attr( $option ); ?>[llms_type_limit]" value="<?php echo esc_attr( (string) (int) $this->settings->get( 'llms_type_limit' ) ); ?>" min="1" max="<?php echo esc_attr( (string) Settings::LLMS_TYPE_LIMIT_MAX ); ?>" class="small-text" />
+					<p class="description"><?php esc_html_e( 'Maximum number of items listed in each /llms-<type>.txt file (and included in llms-full.txt). Above it the file ends with a note saying how many items were left out.', 'wp-agent-support-layer' ); ?></p>
 				</td>
 			</tr>
 			<tr>
@@ -128,5 +149,79 @@ final class LlmsTab implements Tab {
 			</tr>
 		</table>
 		<?php
+	}
+
+	/**
+	 * Prints the URLs of the per-type files of the enabled post types.
+	 *
+	 * @return void
+	 */
+	private function render_type_files() {
+		$files = array();
+		foreach ( $this->settings->enabled_post_types() as $type ) {
+			$file = LlmsTxtBuilder::type_file( $type );
+			if ( null !== $file ) {
+				$files[] = $file;
+			}
+		}
+		if ( empty( $files ) ) {
+			return;
+		}
+		?>
+		<p>
+			<?php esc_html_e( 'Full list of each content type, linked from llms.txt:', 'wp-agent-support-layer' ); ?>
+			<?php
+			$links = array();
+			foreach ( $files as $file ) {
+				$url     = home_url( '/' . $file );
+				$links[] = '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener noreferrer"><code>' . esc_html( $url ) . '</code></a>';
+			}
+			echo implode( ', ', $links ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
+			?>
+		</p>
+		<?php
+	}
+
+	/**
+	 * Prints the size of the generated llms.txt and a warning above the recommended maximum.
+	 *
+	 * @return void
+	 */
+	private function render_size() {
+		$stored = $this->storage->read( LlmsTxtBuilder::FILE );
+		if ( null === $stored ) {
+			?>
+			<p class="description"><?php esc_html_e( 'llms.txt has not been generated yet; it will be built on the next request or run.', 'wp-agent-support-layer' ); ?></p>
+			<?php
+			return;
+		}
+		$size = mb_strlen( $stored );
+		?>
+		<p class="description">
+			<?php
+			echo esc_html(
+				sprintf(
+					/* translators: %s: number of characters. */
+					__( 'Generated llms.txt size: %s characters.', 'wp-agent-support-layer' ),
+					number_format_i18n( $size )
+				)
+			);
+			?>
+		</p>
+		<?php if ( $size > LlmsTxtBuilder::RECOMMENDED_MAX_CHARS ) : ?>
+			<div class="notice notice-warning inline"><p>
+			<?php
+			echo esc_html(
+				sprintf(
+					/* translators: 1: size in characters, 2: recommended maximum in characters. */
+					__( 'llms.txt is %1$s characters; agents expect at most %2$s. Lower "Items per section in llms.txt" so the file stays a navigation index (the full lists live in the content-type files).', 'wp-agent-support-layer' ),
+					number_format_i18n( $size ),
+					number_format_i18n( LlmsTxtBuilder::RECOMMENDED_MAX_CHARS )
+				)
+			);
+			?>
+			</p></div>
+			<?php
+		endif;
 	}
 }

@@ -9,6 +9,7 @@ namespace WPASL\Diagnostics;
 
 use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
+use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Markdown\Delivery;
 use WPASL\Robots\Catalog;
 use WPASL\Storage;
@@ -70,16 +71,40 @@ final class CrawlerProbe {
 	private $storage;
 
 	/**
+	 * The llms.txt builder (per-type files).
+	 *
+	 * @var LlmsTxtBuilder|null
+	 */
+	private $llms;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Eligibility $eligibility Eligibility.
-	 * @param Delivery    $delivery    Delivery.
-	 * @param Storage     $storage     Storage.
+	 * @param Eligibility         $eligibility Eligibility.
+	 * @param Delivery            $delivery    Delivery.
+	 * @param Storage             $storage     Storage.
+	 * @param LlmsTxtBuilder|null $llms        llms.txt builder.
 	 */
-	public function __construct( Eligibility $eligibility, Delivery $delivery, Storage $storage ) {
+	public function __construct( Eligibility $eligibility, Delivery $delivery, Storage $storage, ?LlmsTxtBuilder $llms = null ) {
 		$this->eligibility = $eligibility;
 		$this->delivery    = $delivery;
 		$this->storage     = $storage;
+		$this->llms        = $llms;
+	}
+
+	/**
+	 * URLs of the per-type llms files of the enabled post types, keyed "llms-<post_type>".
+	 *
+	 * @return array<string, string> Key => URL.
+	 */
+	public function type_file_urls() {
+		$urls = array();
+		if ( $this->llms ) {
+			foreach ( $this->llms->type_files() as $type => $file ) {
+				$urls[ 'llms-' . $type ] = home_url( '/' . $file );
+			}
+		}
+		return $urls;
 	}
 
 	/**
@@ -106,13 +131,17 @@ final class CrawlerProbe {
 	 */
 	public function site_targets() {
 		$targets = array(
-			'robots'  => home_url( '/robots.txt' ),
-			'llms'    => home_url( '/llms.txt' ),
+			'robots' => home_url( '/robots.txt' ),
+			'llms'   => home_url( '/llms.txt' ),
+		);
+		// One per-type file per enabled post type, between llms.txt and auth.md.
+		$targets += $this->type_file_urls();
+		$targets += array(
 			'auth'    => home_url( '/auth.md' ),
 			'skills'  => home_url( '/agent-skills.json' ),
 			'catalog' => home_url( '/.well-known/api-catalog' ),
 		);
-		$post    = $this->sample_post();
+		$post     = $this->sample_post();
 		if ( $post ) {
 			$targets['markdown_url'] = $this->delivery->markdown_url( $post );
 		}
@@ -286,6 +315,8 @@ final class CrawlerProbe {
 		$body                  = (string) wp_remote_retrieve_body( $response );
 		$result['has_md_link'] = (bool) preg_match( '/<link[^>]+type=["\']text\/markdown["\']/i', $body );
 		$result['has_md_meta'] = (bool) preg_match( '/<meta[^>]+name=["\']robots["\'][^>]+noai/i', $body );
+		// Length in characters of the whole body received (up to MAX_RESPONSE_BYTES), measured before the cut.
+		$result['body_length'] = mb_strlen( $body );
 		if ( $keep_body ) {
 			$result['body'] = substr( $body, 0, self::MAX_BODY_KEPT );
 		}

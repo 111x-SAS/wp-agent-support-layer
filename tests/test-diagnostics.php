@@ -166,7 +166,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 			$headers['content-type'] = 'application/ld+json; charset=utf-8';
 		} elseif ( '/.well-known/api-catalog' === $path ) {
 			$headers['content-type'] = 'application/linkset+json; charset=utf-8';
-		} elseif ( '/llms.txt' === $path || '.md' === substr( $path, -3 ) || 0 === strpos( $accept, 'text/markdown' ) ) {
+		} elseif ( 0 === strpos( $path, '/llms' ) || '.md' === substr( $path, -3 ) || 0 === strpos( $accept, 'text/markdown' ) ) {
 			$headers['content-type'] = 'text/markdown; charset=utf-8';
 			$headers['link']         = '<' . home_url( '/' ) . '>; rel="canonical"';
 		} elseif ( false !== strpos( $path, '/wp-content/uploads/' ) ) {
@@ -199,7 +199,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'PerplexityBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'post_markdown', $raw['crawlers']['GPTBot'] );
 		$this->assertSame( array( 'home', 'post_html', 'post_markdown', 'post_md', 'robots' ), array_keys( $raw['crawlers']['GPTBot'] ), 'The .md URL and robots.txt are probed with each crawler user-agent.' );
-		$this->assertSame( array( 'robots', 'llms', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
+		$this->assertSame( array( 'robots', 'llms', 'llms-page', 'llms-post', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
 
 		$agents = array_unique( array_column( $this->requests, 'ua' ) );
 		$this->assertCount( 3, $agents, 'Two crawlers plus the diagnostics agent.' );
@@ -326,7 +326,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'robots', $run['site'] );
 		$this->assertNull( Report::load(), 'No report until the last batch.' );
 		$first_batch = count( $this->requests );
-		$this->assertSame( 7 + 5, $first_batch, 'Seven site targets and the five requests of one crawler.' );
+		$this->assertSame( 9 + 5, $first_batch, 'Nine site targets (two per-type files) and the five requests of one crawler.' );
 
 		// Second request: resumes with the first pending crawler only and publishes the report.
 		$this->requests = array();
@@ -941,7 +941,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$report = $this->controller->run();
 		$this->assertSame( Report::OK, $report['site']['auth']['status'] );
 		$this->assertStringContainsString( 'auth.md: HTTP 200, text/markdown', $report['site']['auth']['message'] );
-		$this->assertSame( array( 'robots', 'llms', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $report['site'] ) );
+		$this->assertSame( array( 'robots', 'llms', 'llms-page', 'llms-post', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $report['site'] ) );
 
 		$this->responses[ $url ] = array(
 			'code'    => 404,
@@ -997,6 +997,8 @@ class Test_Diagnostics extends WP_UnitTestCase {
 			Plugin::instance()->get( 'delivery' )->markdown_url( $post ),
 			home_url( '/robots.txt' ),
 			home_url( '/llms.txt' ),
+			home_url( '/llms-page.txt' ),
+			home_url( '/llms-post.txt' ),
 			home_url( '/auth.md' ),
 			home_url( '/agent-skills.json' ),
 			home_url( '/.well-known/api-catalog' ),
@@ -1036,7 +1038,71 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'rate limiting', $html );
 		$this->assertStringContainsString( "curl -sI -A 'Mozilla/5.0 (compatible; GPTBot/1.0)' -H 'Accept: text/markdown' '" . home_url( '/muestra/' ) . "'", $html );
 		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'", $html );
-		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'\ncurl -s '" . home_url( '/auth.md' ) . "'\ncurl -s '" . home_url( '/agent-skills.json' ) . "'", $html );
-		$this->assertStringContainsString( 'Do not cache or transform robots.txt, llms.txt, auth.md, agent-skills.json and /.well-known/api-catalog', $html );
+		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'\ncurl -s '" . home_url( '/llms-page.txt' ) . "'\ncurl -s '" . home_url( '/llms-post.txt' ) . "'\ncurl -s '" . home_url( '/auth.md' ) . "'\ncurl -s '" . home_url( '/agent-skills.json' ) . "'", $html );
+		$this->assertStringContainsString( 'Do not cache or transform robots.txt, llms.txt, the llms-<type>.txt files, auth.md, agent-skills.json and /.well-known/api-catalog', $html );
+
+		update_option( Settings::OPTION, array( 'post_types' => array( 'post' ) ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		ob_start();
+		$tabs['diagnostics']->render();
+		$html = html_entity_decode( ob_get_clean(), ENT_QUOTES, 'UTF-8' );
+		$this->assertStringContainsString( "curl -s '" . home_url( '/llms-post.txt' ) . "'", $html );
+		$this->assertStringNotContainsString( "curl -s '" . home_url( '/llms-page.txt' ) . "'", $html, 'Only the enabled post types.' );
+	}
+
+	public function test_report_checks_type_files() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$report = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['llms-page']['status'] );
+		$this->assertSame( Report::OK, $report['site']['llms-post']['status'] );
+		$this->assertStringContainsString( 'llms-page.txt: HTTP 200, text/markdown', $report['site']['llms-page']['message'] );
+		$keys = array_keys( $report['site'] );
+		$this->assertSame( array( 'llms', 'llms-page', 'llms-post', 'auth' ), array_slice( $keys, array_search( 'llms', $keys, true ), 4 ), 'Between llms.txt and auth.md.' );
+
+		$this->responses[ home_url( '/llms-post.txt' ) ] = array(
+			'code'    => 404,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+		);
+		$report = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['llms-page']['status'] );
+		$this->assertSame( Report::ERROR, $report['site']['llms-post']['status'] );
+		$this->assertStringContainsString( 'llms-post.txt: HTTP 404', $report['site']['llms-post']['message'] );
+
+		$this->responses[ home_url( '/llms-post.txt' ) ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+		);
+		$report = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['site']['llms-post']['status'] );
+
+		update_option( Settings::OPTION, array( 'post_types' => array( 'post' ) ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$report = $this->controller->run();
+		$this->assertArrayNotHasKey( 'llms-page', $report['site'], 'Only the enabled post types are probed.' );
+		$this->assertArrayHasKey( 'llms-post', $report['site'] );
+	}
+
+	public function test_report_warns_on_large_llms_txt() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$url = home_url( '/llms.txt' );
+
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/markdown; charset=utf-8' ),
+			'body'    => str_repeat( 'a', 82000 ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['site']['llms']['status'] );
+		$this->assertStringContainsString( 'llms.txt: HTTP 200, text/markdown; charset=utf-8, but 82,000 characters; agents expect at most 30,000.', $report['site']['llms']['message'] );
+		$this->assertStringContainsString( 'Lower "Items per section in llms.txt"', $report['site']['llms']['message'] );
+
+		$raw = $this->probe->run();
+		$this->assertSame( 82000, $raw['site']['llms']['body_length'], 'Measured before the cut.' );
+		$this->assertSame( CrawlerProbe::MAX_BODY_KEPT, strlen( $raw['site']['llms']['body'] ) );
+
+		$this->responses[ $url ]['body'] = str_repeat( 'a', 20000 );
+		$report                          = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['llms']['status'] );
+		$this->assertStringContainsString( 'llms.txt: HTTP 200, text/markdown', $report['site']['llms']['message'] );
 	}
 }

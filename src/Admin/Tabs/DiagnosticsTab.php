@@ -273,7 +273,7 @@ final class DiagnosticsTab implements Tab {
 			__( 'Crawlers that ignore robots.txt (Bytespider has been reported to) can only be stopped at the firewall or CDN; block them there if you do not want them.', 'wp-agent-support-layer' ),
 			__( 'Keep rate limiting enabled; raise thresholds for verified crawlers instead of disabling limits site-wide.', 'wp-agent-support-layer' ),
 			__( 'Ensure the CDN or page cache honours "Vary: Accept" for HTML URLs, or rely on the .md URLs which are cached independently.', 'wp-agent-support-layer' ),
-			__( 'Do not cache or transform robots.txt, llms.txt, auth.md, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime.', 'wp-agent-support-layer' ),
+			__( 'Do not cache or transform robots.txt, llms.txt, the llms-<type>.txt files, auth.md, agent-skills.json and /.well-known/api-catalog beyond their Cache-Control lifetime.', 'wp-agent-support-layer' ),
 			__( 'If Cloudflare "Markdown for Agents" is enabled, decide whether Cloudflare or this plugin converts pages, not both.', 'wp-agent-support-layer' ),
 			__( 'Confirm that the uploads/wp-agent-support-layer directory is not directly accessible (Apache .htaccess or an nginx deny rule).', 'wp-agent-support-layer' ),
 			__( 'After changing security rules, run this simulation again and compare the per-crawler results.', 'wp-agent-support-layer' ),
@@ -305,8 +305,11 @@ final class DiagnosticsTab implements Tab {
 			$text .= sprintf( "curl -sI -A %s -H 'Accept: text/markdown' %s\n\n", $ua, $target );
 		}
 		$text .= "# Discovery files\n";
-		foreach ( array( '/robots.txt', '/llms.txt', '/auth.md', '/agent-skills.json', '/.well-known/api-catalog' ) as $path ) {
-			$text .= 'curl -s ' . self::shell_quote( home_url( $path ) ) . "\n";
+		$urls  = array( home_url( '/robots.txt' ), home_url( '/llms.txt' ) );
+		$urls  = array_merge( $urls, array_values( $this->probe->type_file_urls() ) );
+		$urls  = array_merge( $urls, array( home_url( '/auth.md' ), home_url( '/agent-skills.json' ), home_url( '/.well-known/api-catalog' ) ) );
+		foreach ( $urls as $discovery ) {
+			$text .= 'curl -s ' . self::shell_quote( $discovery ) . "\n";
 		}
 		return $text;
 	}

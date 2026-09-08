@@ -1,7 +1,7 @@
 # Specification coverage
 
 Every scenario of the main specs (`openspec/specs`, including the deltas of the changes
-`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link` and `detect-cache-enabler-page-cache`) mapped to the automated test that
+`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache` and `auth-md-discovery`) mapped to the automated test that
 exercises it (PHPUnit against the official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
@@ -26,6 +26,9 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Portada estática (URL con `wpasl=md` y `/.md`) | `Test_Delivery::test_markdown_url_for_static_front_page_uses_query_arg`, `test_md_suffix_for_home_serves_static_front_page`, `test_md_suffix_for_home_is_404_when_front_page_is_excluded`, `test_static_front_page_alternate_links_are_servable` | A+M |
 | Página de entradas (`page_for_posts`) | `Test_Delivery::test_posts_page_is_served_by_md_suffix_accept_and_query_arg`, `Test_Llms_Txt::test_every_emitted_markdown_url_is_servable` | A |
 | Instalación en subdirectorio | `Test_Delivery::test_md_suffix_respects_base_path_segment_boundary` | A |
+| Ruta reservada para auth.md (con y sin publicación) | `Test_Auth_Md::test_page_with_slug_auth_loses_the_suffix_but_keeps_accept_and_query_arg`, `test_non_canonical_root_paths_are_not_served` | A |
+| URL alternativa de un contenido que colisiona con auth.md (HTML, `Link`, `llms.txt`, `/auth/.md`) | `Test_Auth_Md::test_page_with_slug_auth_loses_the_suffix_but_keeps_accept_and_query_arg`, `Test_Llms_Txt::test_every_emitted_markdown_url_is_servable` | A |
+| Ruta reservada en subdirectorio | `Test_Auth_Md::test_reserved_path_respects_base_path` | A |
 | Post type sin reglas de reescritura | `Test_Delivery::test_markdown_url_for_post_type_without_rewrite_uses_query_arg` | A |
 | Raíz sin portada estática | `Test_Delivery::test_md_suffix_for_home_is_404` | A |
 | Parámetro de consulta con enlaces simples | `Test_Delivery::test_markdown_url_with_plain_permalinks`, `test_query_var_serves_markdown_regardless_of_accept` | A |
@@ -119,6 +122,8 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Crawler bloqueado | `Test_Crawler_Robots::test_robots_txt_output_keeps_core_lines_and_adds_groups` | A+M |
 | Crawler permitido | `Test_Crawler_Robots::test_robots_txt_output_keeps_core_lines_and_adds_groups` | A+M |
 | Reglas del núcleo intactas | `Test_Crawler_Robots::test_robots_txt_output_keeps_core_lines_and_adds_groups`, `test_generated_output_equals_do_robots_when_public` | A |
+| Puntero a auth.md | `Test_Auth_Md::test_capability_catalog_and_robots_announce_auth_md`, `Test_Crawler_Robots::test_robots_txt_output_keeps_core_lines_and_adds_groups` | A+M |
+| Sin puntero con auth.md desactivado | `Test_Auth_Md::test_nothing_announces_auth_md_when_disabled` | A |
 | Archivo físico presente | `Test_Crawler_Robots::test_physical_file_detection` | A |
 | Bloque idéntico al robots.txt virtual | `Test_Crawler_Robots::test_generated_output_equals_do_robots_when_public` | A |
 | Sitio no visible para motores de búsqueda | `Test_Crawler_Robots::test_generated_output_equals_do_robots_when_not_public` | A |
@@ -160,6 +165,26 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Enlaces permanentes simples (`servers` sin query string) | `Test_Agent_Manifest::test_openapi_servers_url_has_no_query_string_with_plain_permalinks` | A |
 | Catálogo disponible (`application/linkset+json` exacto) | `Test_Agent_Manifest::test_api_catalog_route` | A+M |
 | Cambio de correo de contacto | `Test_Agent_Manifest::test_contact_email_change_is_reflected_on_next_request` | A |
+| auth.md declarado como capacidad | `Test_Auth_Md::test_capability_catalog_and_robots_announce_auth_md`, `Test_Agent_Manifest::test_default_capabilities_cover_rest_markdown_index_and_openapi` | A |
+| auth.md desactivado no se declara | `Test_Auth_Md::test_nothing_announces_auth_md_when_disabled` | A |
+| auth.md en el catálogo | `Test_Auth_Md::test_capability_catalog_and_robots_announce_auth_md`, `Test_Agent_Manifest::test_api_catalog_route` | A+M |
+| auth.md desactivado fuera del catálogo | `Test_Auth_Md::test_nothing_announces_auth_md_when_disabled` | A |
+| Petición a auth.md (cabeceras, `Content-Signal`, sin `X-Robots-Tag`) | `Test_Auth_Md::test_route_serves_auth_md_with_lazy_generation` | A+M |
+| auth.md: documento ausente (generación bajo demanda, sin regenerar después) | `Test_Auth_Md::test_route_serves_auth_md_with_lazy_generation` | A |
+| auth.md: publicación desactivada | `Test_Auth_Md::test_route_is_404_when_disabled` | A |
+| auth.md: manifiestos deshabilitados | `Test_Auth_Md::test_route_is_404_when_manifests_disabled` | A |
+| auth.md: archivo físico presente (y aviso en la pestaña) | `Test_Auth_Md::test_physical_file_takes_precedence` | A |
+| auth.md: ruta no canónica (`/auth.md/`, `//auth.md`) | `Test_Auth_Md::test_non_canonical_root_paths_are_not_served` | A |
+| Contenido con slug auth y archivo raíz | `Test_Auth_Md::test_page_with_slug_auth_loses_the_suffix_but_keeps_accept_and_query_arg` | A |
+| Contenido con slug auth con la publicación desactivada | `Test_Auth_Md::test_page_with_slug_auth_loses_the_suffix_but_keeps_accept_and_query_arg` | A |
+| auth.md: estructura por defecto | `Test_Auth_Md::test_document_structure` | A+M |
+| auth.md: correo de contacto | `Test_Auth_Md::test_contact_email_falls_back_to_admin_email` | A |
+| auth.md: notas del administrador | `Test_Auth_Md::test_admin_notes_section` | A |
+| auth.md: sin credenciales ni autorización de terceros | `Test_Auth_Md::test_document_never_mentions_oauth_or_application_passwords` | A+M |
+| auth.md: enlaces permanentes simples | `Test_Auth_Md::test_plain_permalinks_describe_query_arg_and_rest_route` | A |
+| auth.md: filtro sobre el documento | `Test_Auth_Md::test_filter_changes_the_document` | A |
+| Cambio de notas de auth.md (invalidación) | `Test_Auth_Md::test_settings_change_invalidates_stored_file` | A |
+| Regeneración de auth.md al final del ciclo (y borrado con la publicación desactivada) | `Test_Auth_Md::test_builder_is_registered_as_artifact_generator_and_respects_the_toggle` | A |
 
 ## agent-diagnostics
 
@@ -193,6 +218,11 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Almacenamiento sin documentos generados (archivo sonda) | `Test_Diagnostics::test_storage_probe_runs_without_generated_documents` | A |
 | Comandos disponibles | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands`, `test_tab_curl_textarea_has_no_leading_whitespace` | A |
 | Comando con comilla en el user-agent (citado para la shell) | `Test_Diagnostics::test_curl_commands_are_shell_safe` | A |
+| auth.md servido | `Test_Diagnostics::test_report_checks_auth_md`, `test_probe_uses_crawler_user_agents_and_accept_headers` | A+M |
+| auth.md ausente | `Test_Diagnostics::test_report_checks_auth_md` | A |
+| auth.md con tipo inesperado | `Test_Diagnostics::test_report_checks_auth_md` | A |
+| Sin peticiones de registro (solo `GET` a los objetivos conocidos) | `Test_Diagnostics::test_probe_only_sends_get_to_known_targets`, `test_probe_only_contacts_its_own_host` | A |
+| Comando para auth.md y lista de verificación con auth.md | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands` | A |
 
 ## admin-settings
 
@@ -211,6 +241,11 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Lectura REST con permiso de edición | `Test_Exclude_Meta_Box::test_rest_read_shows_exclude_meta_for_editor_with_context_edit` | A |
 | Post type no habilitado (casilla oculta) | `Test_Exclude_Meta_Box::test_meta_box_is_added_only_for_enabled_post_types`, `test_meta_is_registered_only_for_enabled_post_types` | A |
 | Doble sanitización | `Test_Settings::test_sanitize_is_idempotent_for_every_field` | A |
+| auth.md: valores por defecto | `Test_Settings::test_defaults` | A |
+| auth.md: guardar la pestaña Manifiestos (casilla, notas sin HTML, 404 en la siguiente petición) | `Test_Settings::test_auth_md_notes_are_truncated_to_4000_chars`, `Test_Auth_Md::test_route_is_404_when_disabled`, `test_settings_change_invalidates_stored_file` | A |
+| auth.md: guardar otra pestaña | `Test_Settings::test_saving_another_tab_keeps_auth_md_settings` | A |
+| auth.md: notas por encima del límite | `Test_Settings::test_auth_md_notes_are_truncated_to_4000_chars`, `test_sanitize_is_idempotent_for_every_field` | A |
+| auth.md: enlaces de la pestaña (URL, casilla, notas) | `Test_Auth_Md::test_manifests_tab_renders_auth_md_fields`, `Test_Agent_Manifest::test_manifests_tab_renders` | A |
 | Valor fuera de rango (límite de llms-full.txt) | `Test_Settings::test_llms_full_max_out_of_range_clamps_to_100_mb`, `Test_Llms_Txt::test_tab_renders_and_sanitizes_mb` | A |
 | Entrada parcial sin pestaña | `Test_Settings::test_sanitize_without_tab_updates_only_present_keys` | A |
 | Pestaña desconocida (tercero) | `Test_Settings::test_sanitize_with_unknown_tab_keeps_every_stored_value`, `test_third_party_tab_saves_without_wiping_settings` | A |

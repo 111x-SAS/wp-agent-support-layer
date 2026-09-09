@@ -52,7 +52,7 @@
 
 ## 11. Verificación final
 
-- [ ] 11.1 Ejecutar `vendor/bin/phpunit` y `vendor/bin/phpunit -c tests/multisite.xml.dist` y verificar que pasan en verde con los tests nuevos contados respecto a 1.1
-- [ ] 11.2 Ejecutar `vendor/bin/phpcs --no-cache` sobre todo el proyecto y verificar código de salida 0
-- [ ] 11.3 Ejecutar `openspec validate rendered-content-source --strict` sin errores y confirmar con `git diff --stat` que `readme.txt`, `README.md`, `languages/` y la versión del plugin no cambiaron
-- [ ] 11.4 Comprobar de extremo a extremo en un WordPress local con Elementor (o con un `single-<tipo>.php` de contenido fijo) que `wp wpasl source <id>` devuelve `rendered` con su razón, que `curl -s '<permalink>.md'` devuelve `source: "rendered"` y el texto de la página, que `curl -s -H 'X-WPASL-Render: 1' '<permalink>?wpasl_render=1' -H 'Accept: text/markdown'` devuelve HTML, que con el loopback bloqueado (por ejemplo `pre_http_request` en un mu-plugin) el `.md` sale con `source: "editor"` y la pestaña General y Diagnóstico muestran el aviso, y que la comprobación "Rendered page" del diagnóstico indica el selector; anotar la evidencia para la release
+- [x] 11.1 Ejecutar `vendor/bin/phpunit` y `vendor/bin/phpunit -c tests/multisite.xml.dist` y verificar que pasan en verde con los tests nuevos contados respecto a 1.1
+- [x] 11.2 Ejecutar `vendor/bin/phpcs --no-cache` sobre todo el proyecto y verificar código de salida 0
+- [x] 11.3 Ejecutar `openspec validate rendered-content-source --strict` sin errores y confirmar con `git diff --stat` que `readme.txt`, `README.md`, `languages/` y la versión del plugin no cambiaron
+- [x] 11.4 Comprobar de extremo a extremo en un WordPress local con Elementor (o con un `single-<tipo>.php` de contenido fijo) que `wp wpasl source <id>` devuelve `rendered` con su razón, que `curl -s '<permalink>.md'` devuelve `source: "rendered"` y el texto de la página, que `curl -s -H 'X-WPASL-Render: 1' '<permalink>?wpasl_render=1' -H 'Accept: text/markdown'` devuelve HTML, que con el loopback bloqueado (por ejemplo `pre_http_request` en un mu-plugin) el `.md` sale con `source: "editor"` y la pestaña General y Diagnóstico muestran el aviso, y que la comprobación "Rendered page" del diagnóstico indica el selector; anotar la evidencia para la release

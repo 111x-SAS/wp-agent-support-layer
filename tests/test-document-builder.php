@@ -283,7 +283,12 @@ class Test_Document_Builder extends WP_UnitTestCase {
 
 	public function test_empty_editor_is_rendered_and_its_body_is_reused_on_fallback() {
 		// The rule is off by default; a filter enables it with a threshold.
-		add_filter( 'wpasl_editor_min_chars', static function () { return 100; } );
+		add_filter(
+			'wpasl_editor_min_chars',
+			static function () {
+				return 100;
+			}
+		);
 		$post = self::factory()->post->create_and_get( array( 'post_title' => 'Blackboard', 'post_content' => '<p>Short.</p>' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 		$this->use_loopback();
 		$doc = $this->builder->generate( $post );

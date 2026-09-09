@@ -376,12 +376,22 @@ class Test_Content_Source extends WP_UnitTestCase {
 		$this->assertSame( array( array( 0, $empty->ID ), array( 0, $short->ID ) ), $received, 'The filter receives the default (0).' );
 
 		remove_all_filters( 'wpasl_editor_min_chars' );
-		add_filter( 'wpasl_editor_min_chars', static function () { return 2; } );
+		add_filter(
+			'wpasl_editor_min_chars',
+			static function () {
+				return 2;
+			}
+		);
 		$this->assertSame( array( 'source' => 'editor', 'reason' => 'default' ), $this->source->resolve( $short ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 
 		// Without an injected conversion the plain post content is measured.
 		remove_all_filters( 'wpasl_editor_min_chars' );
-		add_filter( 'wpasl_editor_min_chars', static function () { return 100; } );
+		add_filter(
+			'wpasl_editor_min_chars',
+			static function () {
+				return 100;
+			}
+		);
 		$plain = new ContentSource( Plugin::instance()->get( 'settings' ) );
 		$this->assertSame( 'empty_editor', $plain->resolve( $short )['reason'] );
 		$this->assertSame( 'default', $plain->resolve( $this->normal_post() )['reason'] );

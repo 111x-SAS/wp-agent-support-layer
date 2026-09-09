@@ -25,7 +25,7 @@ class Test_CLI extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 		WP_CLI::$log    = array();
-		$this->commands = new Commands( Plugin::instance()->get( 'runner' ), Plugin::instance()->get( 'scheduler' ) );
+		$this->commands = new Commands( Plugin::instance()->get( 'runner' ), Plugin::instance()->get( 'scheduler' ), Plugin::instance()->get( 'settings' ), Plugin::instance()->get( 'content_source' ) );
 		Plugin::instance()->get( 'runner' )->clear();
 	}
 
@@ -139,6 +139,61 @@ class Test_CLI extends WP_UnitTestCase {
 
 		$this->commands->status( array(), array() );
 		$this->assertContains( 'failed=2', WP_CLI::$log );
+	}
+
+	public function test_status_shows_render_failures() {
+		$state                     = new WPASL\Generation\State();
+		$data                      = $state->load();
+		$data['render_failed']     = array( 11 => 1 );
+		$data['last_render_error'] = array(
+			'post_id' => 11,
+			'reason'  => 'timeout',
+			'time'    => 1700000000,
+		);
+		$state->save( $data, false );
+
+		$this->commands->status( array(), array() );
+		$this->assertContains( 'render_failed=1', WP_CLI::$log );
+		$this->assertContains( 'last_render_error=timeout (#11, 2023-11-14T22:13:20+00:00)', WP_CLI::$log );
+
+		$state->reset();
+		WP_CLI::$log = array();
+		$this->commands->status( array(), array() );
+		$this->assertContains( 'render_failed=0', WP_CLI::$log );
+		$this->assertContains( 'last_render_error=none', WP_CLI::$log );
+	}
+
+	public function test_source_command_reports_resolution_and_errors() {
+		$post = self::factory()->post->create( array( 'post_content' => '<p>Editor placeholder.</p>' ) );
+		update_post_meta( $post, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $post, '_elementor_data', '[{"id":"abc"}]' );
+
+		$this->commands->source( array( (string) $post ), array() );
+		$this->assertSame( array( 'source=rendered', 'reason=builder:elementor', 'selector=auto' ), WP_CLI::$log );
+		$this->assertSame( 0, Plugin::instance()->get( 'runner' )->status()['generated'], 'Nothing is generated.' );
+
+		update_option( WPASL\Settings::OPTION, array( 'content_selector' => 'main article' ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		WP_CLI::$log = array();
+		$this->commands->source( array( (string) $post ), array( 'format' => 'json' ) );
+		$this->assertContains( 'selector=main article', WP_CLI::$log );
+
+		WP_CLI::$log = array();
+		try {
+			$this->commands->source( array( '999999' ), array() );
+			$this->fail( 'Expected WP_CLI::error().' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( 'Post #999999 does not exist.', $e->getMessage() );
+		}
+
+		$draft = self::factory()->post->create( array( 'post_status' => 'draft' ) );
+		try {
+			$this->commands->source( array( (string) $draft ), array() );
+			$this->fail( 'Expected WP_CLI::error().' );
+		} catch ( RuntimeException $e ) {
+			$this->assertStringContainsString( "Post #{$draft} is not eligible for the agent layer (status).", $e->getMessage() );
+		}
+		$this->assertStringNotContainsString( 'source=', implode( ' ', WP_CLI::$log ) );
 	}
 
 	public function test_status_and_clear() {

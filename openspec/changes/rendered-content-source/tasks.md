@@ -38,7 +38,7 @@
 
 ## 8. D — WP-CLI (D1)
 
-- [ ] 8.1 En `src/CLI/Commands.php` añadir a `status` las filas `render_failed` y `last_render_error`, y el subcomando `source <id>` (error con la razón de no elegibilidad o id inexistente; salida `source`, `reason`, `selector` con `--format`); inyectar `ContentSource` y `Settings` en el constructor y cablear en `src/Plugin.php`; verificar con `Test_CLI::test_status_shows_render_failures` (fallo `timeout` registrado → filas presentes) y `test_source_command_reports_resolution_and_errors` (entrada con meta de Elementor → `rendered`/`builder:elementor`; id inexistente → error; entrada en borrador → error con `status`)
+- [x] 8.1 En `src/CLI/Commands.php` añadir a `status` las filas `render_failed` y `last_render_error`, y el subcomando `source <id>` (error con la razón de no elegibilidad o id inexistente; salida `source`, `reason`, `selector` con `--format`); inyectar `ContentSource` y `Settings` en el constructor y cablear en `src/Plugin.php`; verificar con `Test_CLI::test_status_shows_render_failures` (fallo `timeout` registrado → filas presentes) y `test_source_command_reports_resolution_and_errors` (entrada con meta de Elementor → `rendered`/`builder:elementor`; id inexistente → error; entrada en borrador → error con `status`)
 
 ## 9. D — Diagnóstico (D2)
 

@@ -69,11 +69,26 @@ final class Runner {
 	private $cycle_post_types = null;
 
 	/**
-	 * Reason of the last write_document() failure: no_generator, empty_document or storage_write.
+	 * Reason of the last write_document() failure: no_generator, empty_document, storage_write or deferred.
 	 *
 	 * @var string
 	 */
 	private $last_error = '';
+
+	/**
+	 * Whether the document builder deferred the current item (rendered page not fetched for lack of time).
+	 *
+	 * @var bool
+	 */
+	private $deferred = false;
+
+	/**
+	 * Rendered-page failures tracked while run() is active, or null outside a run: "counts" by post id,
+	 * "last" error and "cleared" ids (successful loopbacks). Folded into the run's state on save.
+	 *
+	 * @var array{counts:array<int,int>, last:array|null, cleared:array<int,bool>}|null
+	 */
+	private $run_render = null;
 
 	/**
 	 * Generation marks recorded by generate_item() while run() is active, or null outside a run. They are
@@ -128,6 +143,7 @@ final class Runner {
 		// Event args (e.g. "manual") are not run() arguments.
 		add_action( 'transition_post_status', array( $this, 'on_transition_post_status' ), 10, 3 );
 		add_action( 'deleted_post', array( $this, 'on_deleted_post' ), 10, 2 );
+		add_action( 'wpasl_content_source_resolved', array( $this, 'on_content_source_resolved' ), 10, 2 );
 	}
 
 	/**
@@ -164,8 +180,13 @@ final class Runner {
 		}
 
 		$this->storage->ensure();
-		$state           = $this->state->load();
-		$this->run_marks = array();
+		$state            = $this->state->load();
+		$this->run_marks  = array();
+		$this->run_render = array(
+			'counts'  => array_map( 'intval', (array) $state['render_failed'] ),
+			'last'    => null,
+			'cleared' => array(),
+		);
 
 		if ( empty( $state['queue'] ) ) {
 			$state['queue']         = $this->build_queue( $state['generated'], $this->cycle_post_types, $state['failed'] );
@@ -178,9 +199,19 @@ final class Runner {
 			$fresh          = array_values( array_diff( $fresh, $retry ) );
 			$state['queue'] = array_merge( $fresh, $state['queue'], $retry );
 		}
+		// Items whose rendered page could not be fetched last time are retried right after the fresh ones.
+		$state['queue'] = $this->prioritize_render_failed( $state['queue'], $state['render_failed'], $state['generated'] );
 
 		$started   = microtime( true );
+		$deadline  = $started + $budget;
 		$processed = 0;
+
+		/**
+		 * Fires when a generation run starts. The rendered page loopback caps its timeout by the deadline.
+		 *
+		 * @param float $deadline Microtime after which the run stops processing items.
+		 */
+		do_action( 'wpasl_run_started', $deadline );
 
 		while ( ! empty( $state['queue'] ) && $processed < $limit ) {
 			$post_id = (int) array_shift( $state['queue'] );
@@ -189,6 +220,10 @@ final class Runner {
 				if ( $this->write_document( $post ) ) {
 					$state['generated'][ $post_id ] = time();
 					unset( $state['failed'][ $post_id ] );
+				} elseif ( 'deferred' === $this->last_error ) {
+					// Not enough time left for its rendered page: back to the front, neither processed nor failed.
+					array_unshift( $state['queue'], $post_id );
+					break;
 				} else {
 					$state['failed'][ $post_id ] = ( isset( $state['failed'][ $post_id ] ) ? (int) $state['failed'][ $post_id ] : 0 ) + 1;
 					$this->report_failure( $post, $this->last_error, $state['failed'][ $post_id ] );
@@ -199,16 +234,25 @@ final class Runner {
 			if ( microtime( true ) - $started >= $budget ) {
 				break;
 			}
-		}
+		}//end while
 
 		$cycle_completed = empty( $state['queue'] );
+		$render_pruned   = array();
 		if ( $cycle_completed ) {
 			$before                        = $state['generated'];
 			$state['generated']            = $this->prune( $before );
 			$state['_removed']             = array_keys( array_diff_key( $before, $state['generated'] ) );
 			$state['last_cycle_completed'] = time();
+			$eligible                      = null;
 			if ( ! empty( $state['failed'] ) ) {
-				$state['failed'] = array_intersect_key( $state['failed'], array_fill_keys( $this->eligibility->eligible_ids(), true ) );
+				$eligible        = array_fill_keys( $this->eligibility->eligible_ids(), true );
+				$state['failed'] = array_intersect_key( $state['failed'], $eligible );
+			}
+			if ( ! empty( $this->run_render['counts'] ) ) {
+				$eligible                   = null === $eligible ? array_fill_keys( $this->eligibility->eligible_ids(), true ) : $eligible;
+				$kept                       = array_intersect_key( $this->run_render['counts'], $eligible );
+				$render_pruned              = array_keys( array_diff_key( $this->run_render['counts'], $kept ) );
+				$this->run_render['counts'] = $kept;
 			}
 		}
 		if ( $cycle_completed || $this->artifacts_are_stale( $state ) ) {
@@ -222,9 +266,22 @@ final class Runner {
 		$state['queue']     = array_values( array_diff( array_map( 'intval', $state['queue'] ), array_keys( $this->run_marks ) ) );
 		$this->run_marks    = null;
 
+		// Rendered-page failures seen during this run (scheduled items and lazy fills alike).
+		$state['render_failed']   = $this->run_render['counts'];
+		$state['_render_cleared'] = array_merge( array_keys( $this->run_render['cleared'] ), $render_pruned );
+		if ( null !== $this->run_render['last'] ) {
+			$state['last_render_error'] = $this->run_render['last'];
+		}
+		$this->run_render = null;
+
 		$state['last_run']       = time();
 		$state['last_run_count'] = $processed;
 		$this->state->save( $state );
+
+		/**
+		 * Fires when a generation run finished, after its state was saved.
+		 */
+		do_action( 'wpasl_run_finished' );
 
 		if ( null !== $post_types ) {
 			$this->cycle_post_types = null;
@@ -401,6 +458,8 @@ final class Runner {
 			'generated'            => $stored,
 			'pending'              => max( 0, $eligible - $stored ),
 			'failed'               => count( (array) $state['failed'] ),
+			'render_failed'        => count( (array) $state['render_failed'] ),
+			'last_render_error'    => is_array( $state['last_render_error'] ) ? $state['last_render_error'] : null,
 			'queued'               => count( $state['queue'] ),
 			'last_run'             => (int) $state['last_run'],
 			'last_run_count'       => (int) $state['last_run_count'],
@@ -408,6 +467,49 @@ final class Runner {
 			'artifacts'            => array_keys( $this->artifact_generators ),
 			'has_item_generator'   => null !== $this->item_generator,
 		);
+	}
+
+	/**
+	 * Tracks the outcome of the content source resolution of a document: a rendered page that could not be
+	 * fetched is counted as a rendered-page failure (never as a conversion failure: the document built from
+	 * the editor content is stored anyway), a fetched one clears the item's counter, and a deferred fetch is
+	 * reported to run().
+	 *
+	 * @param \WP_Post             $post Post.
+	 * @param array<string, mixed> $info Resolution (see wpasl_content_source_resolved).
+	 * @return void
+	 */
+	public function on_content_source_resolved( $post, $info ) {
+		if ( ! $post instanceof \WP_Post || ! is_array( $info ) ) {
+			return;
+		}
+		if ( ! empty( $info['deferred'] ) ) {
+			$this->deferred = true;
+			return;
+		}
+		if ( ! empty( $info['fallback'] ) ) {
+			$reason = isset( $info['error'] ) ? (string) $info['error'] : '';
+			if ( null !== $this->run_render ) {
+				$count                                   = ( isset( $this->run_render['counts'][ $post->ID ] ) ? (int) $this->run_render['counts'][ $post->ID ] : 0 ) + 1;
+				$this->run_render['counts'][ $post->ID ] = $count;
+				$this->run_render['last']                = State::render_error( $post->ID, $reason );
+				unset( $this->run_render['cleared'][ $post->ID ] );
+			} else {
+				$count = $this->state->record_render_failure( $post->ID, $reason );
+			}
+			$this->report_render_failure( $post, $reason, $count );
+			return;
+		}
+		if ( isset( $info['source'] ) && 'rendered' === $info['source'] ) {
+			if ( null !== $this->run_render ) {
+				if ( isset( $this->run_render['counts'][ $post->ID ] ) ) {
+					unset( $this->run_render['counts'][ $post->ID ] );
+					$this->run_render['cleared'][ $post->ID ] = true;
+				}
+			} else {
+				$this->state->clear_render_failure( $post->ID );
+			}
+		}
 	}
 
 	/**
@@ -475,6 +577,49 @@ final class Runner {
 	}
 
 	/**
+	 * Moves the queued items with a rendered-page failure below the threshold right after the leading
+	 * never-generated items; items at the threshold keep their normal place.
+	 *
+	 * @param int[]          $queue         Queue.
+	 * @param array<int,int> $render_failed Rendered-page failure counts by post id.
+	 * @param array<int,int> $generated     Generation times by post id.
+	 * @return int[]
+	 */
+	private function prioritize_render_failed( array $queue, array $render_failed, array $generated ) {
+		$max   = $this->max_failures();
+		$retry = array();
+		foreach ( $render_failed as $post_id => $count ) {
+			if ( (int) $count > 0 && (int) $count < $max ) {
+				$retry[ (int) $post_id ] = true;
+			}
+		}
+		if ( empty( $retry ) ) {
+			return $queue;
+		}
+		$queue = array_map( 'intval', $queue );
+		$head  = array();
+		foreach ( $queue as $post_id ) {
+			if ( isset( $generated[ $post_id ] ) || isset( $retry[ $post_id ] ) ) {
+				break;
+			}
+			$head[] = $post_id;
+		}
+		$rest  = array_slice( $queue, count( $head ) );
+		$moved = array_values(
+			array_filter(
+				$rest,
+				static function ( $post_id ) use ( $retry ) {
+					return isset( $retry[ $post_id ] );
+				}
+			)
+		);
+		if ( empty( $moved ) ) {
+			return $queue;
+		}
+		return array_merge( $head, $moved, array_values( array_diff( $rest, $moved ) ) );
+	}
+
+	/**
 	 * Ids whose failure count reached the threshold.
 	 *
 	 * @param array<string, mixed> $state State.
@@ -524,6 +669,30 @@ final class Runner {
 		do_action( 'wpasl_generation_failed', $post, $reason, $attempts );
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational failure that must reach the server log.
 		error_log( sprintf( '[wp-agent-support-layer] Could not generate the Markdown document of %s #%d (%s), attempt %d.', $post->post_type, $post->ID, $reason, $attempts ) );
+	}
+
+	/**
+	 * Surfaces a rendered-page failure: action for integrators and a line in the PHP error log.
+	 *
+	 * @param \WP_Post $post     Post.
+	 * @param string   $reason   Reason (external_host, request_error:<code>, http_<status>, redirect_external_host,
+	 *                           redirect_loop, not_html, empty_body, no_content).
+	 * @param int      $attempts Consecutive rendered-page failures so far.
+	 * @return void
+	 */
+	private function report_render_failure( \WP_Post $post, $reason, $attempts ) {
+		/**
+		 * Fires when the rendered page of an item could not be fetched or had no content region, and its
+		 * document was built from the editor content instead.
+		 *
+		 * @param \WP_Post $post     Post.
+		 * @param string   $reason   Reason: external_host, request_error:<code>, http_<status>, redirect_external_host,
+		 *                           redirect_loop, not_html, empty_body or no_content.
+		 * @param int      $attempts Consecutive rendered-page failures so far.
+		 */
+		do_action( 'wpasl_render_failed', $post, $reason, $attempts );
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Operational failure that must reach the server log.
+		error_log( sprintf( '[wp-agent-support-layer] Could not fetch the rendered page of %s #%d (%s), attempt %d; the editor content was used.', $post->post_type, $post->ID, $reason, $attempts ) );
 	}
 
 	/**
@@ -577,13 +746,14 @@ final class Runner {
 	 */
 	private function write_document( \WP_Post $post ) {
 		$this->last_error = '';
+		$this->deferred   = false;
 		if ( null === $this->item_generator ) {
 			$this->last_error = 'no_generator';
 			return false;
 		}
 		$document = $this->item_generator->generate( $post );
 		if ( ! is_string( $document ) ) {
-			$this->last_error = 'empty_document';
+			$this->last_error = $this->deferred ? 'deferred' : 'empty_document';
 			return false;
 		}
 		if ( ! $this->storage->write( self::document_path( $post->post_type, $post->ID ), $document ) ) {

@@ -41,18 +41,27 @@ class Test_Document_Builder extends WP_UnitTestCase {
 	 */
 	private $resolutions = array();
 
+	/**
+	 * Previous error_log setting (the runner logs every rendered-page failure).
+	 *
+	 * @var string|false
+	 */
+	private $error_log_ini;
+
 	public function set_up() {
 		parent::set_up();
 		$this->builder = Plugin::instance()->get( 'builder' );
 		$this->assertInstanceOf( DocumentBuilder::class, $this->builder );
-		$this->requests    = array();
-		$this->response    = null;
-		$this->resolutions = array();
+		$this->requests      = array();
+		$this->response      = null;
+		$this->resolutions   = array();
+		$this->error_log_ini = ini_set( 'error_log', '/dev/null' ); // phpcs:ignore WordPress.PHP.IniSet.Risky
 		$this->set_permalink_structure( '/%postname%/' );
 		add_action( 'wpasl_content_source_resolved', array( $this, 'record_resolution' ), 10, 2 );
 	}
 
 	public function tear_down() {
+		ini_set( 'error_log', (string) $this->error_log_ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
 		remove_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20 );
 		remove_action( 'wpasl_content_source_resolved', array( $this, 'record_resolution' ), 10 );
 		remove_all_filters( 'wpasl_markdown_html' );

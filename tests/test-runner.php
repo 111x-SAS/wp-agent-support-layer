@@ -51,12 +51,340 @@ class Test_Runner extends WP_UnitTestCase {
 	}
 
 	public function tear_down() {
+		remove_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20 );
+		remove_all_actions( 'wpasl_render_failed' );
+		remove_all_actions( 'wpasl_run_started' );
+		remove_all_actions( 'wpasl_run_finished' );
 		$this->runner->set_item_generator( null );
 		$this->runner->clear();
 		Storage::delete_all();
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		parent::tear_down();
+	}
+
+	/**
+	 * Requests seen by the fake loopback.
+	 *
+	 * @var string[]
+	 */
+	private $loopback_requests = array();
+
+	/**
+	 * Fake loopback response: array( code, headers, body ) or a WP_Error; null answers with the Elementor fixture.
+	 *
+	 * @var mixed
+	 */
+	private $loopback_response = null;
+
+	/**
+	 * Fake loopback for the rendered page of a post.
+	 */
+	public function fake_loopback( $pre, $args, $url ) {
+		$this->loopback_requests[] = $url;
+		$spec                      = $this->loopback_response;
+		if ( null === $spec ) {
+			$spec = array( 200, array( 'content-type' => 'text/html; charset=utf-8' ), file_get_contents( __DIR__ . '/fixtures/rendered-elementor.html' ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		}
+		if ( is_wp_error( $spec ) ) {
+			return $spec;
+		}
+		return array(
+			'response' => array( 'code' => $spec[0], 'message' => 'x' ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			'headers'  => new WpOrg\Requests\Utility\CaseInsensitiveDictionary( $spec[1] ),
+			'body'     => $spec[2],
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	}
+
+	/**
+	 * Uses the real document builder with a fake loopback and returns a post built with Elementor.
+	 *
+	 * @param mixed $response Loopback response spec.
+	 * @return WP_Post
+	 */
+	private function elementor_post_with_builder( $response = null ) {
+		$this->runner->set_item_generator( Plugin::instance()->get( 'builder' ) );
+		$post = self::factory()->post->create_and_get(
+			array(
+				'post_title'   => 'Blackboard',
+				'post_content' => '<p>Editor placeholder text.</p>',
+			)
+		);
+		update_post_meta( $post->ID, '_elementor_edit_mode', 'builder' );
+		update_post_meta( $post->ID, '_elementor_data', '[{"id":"abc"}]' );
+		$this->loopback_requests = array();
+		$this->loopback_response = $response;
+		add_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20, 3 );
+		return $post;
+	}
+
+	/**
+	 * Runs a callback with the PHP error log sent to a temporary file and returns what was logged.
+	 *
+	 * @param callable $callback Callback.
+	 * @return string
+	 */
+	private function capture_error_log( callable $callback ) {
+		$log = tempnam( get_temp_dir(), 'wpasl-log' );
+		$ini = ini_set( 'error_log', $log ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		try {
+			$callback();
+		} finally {
+			ini_set( 'error_log', (string) $ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
+		}
+		$logged = (string) file_get_contents( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		unlink( $log ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink
+		return $logged;
+	}
+
+	public function test_render_failure_is_recorded_without_counting_as_conversion_failure() {
+		$post   = $this->elementor_post_with_builder( array( 503, array( 'content-type' => 'text/html' ), 'down' ) );
+		$other  = self::factory()->post->create( array( 'post_title' => 'Normal' ) );
+		$events = array();
+		add_action(
+			'wpasl_render_failed',
+			static function ( $failed, $reason, $attempts ) use ( &$events ) {
+				$events[] = array( $failed->ID, $reason, $attempts );
+			},
+			10,
+			3
+		);
+
+		$runner = $this->runner;
+		$logged = $this->capture_error_log(
+			static function () use ( $runner ) {
+				$runner->run( 10 );
+			}
+		);
+
+		$path = Runner::document_path( 'post', $post->ID );
+		$this->assertTrue( $this->storage->exists( $path ), 'The fallback document is stored.' );
+		$this->assertStringContainsString( "\nsource: \"editor\"\n", $this->storage->read( $path ) );
+		$this->assertStringContainsString( 'Editor placeholder text.', $this->storage->read( $path ) );
+		$state = ( new State() )->load();
+		$this->assertArrayHasKey( $post->ID, $state['generated'], 'Marked as generated.' );
+		$this->assertArrayHasKey( $other, $state['generated'] );
+		$this->assertSame( array(), $state['failed'], 'Not a conversion failure.' );
+		$this->assertSame( array( $post->ID => 1 ), $state['render_failed'] );
+		$this->assertSame( $post->ID, $state['last_render_error']['post_id'] );
+		$this->assertSame( 'http_503', $state['last_render_error']['reason'] );
+		$this->assertSame( array( array( $post->ID, 'http_503', 1 ) ), $events );
+		$this->assertStringContainsString( "Could not fetch the rendered page of post #{$post->ID} (http_503), attempt 1; the editor content was used.", $logged );
+		$this->assertStringNotContainsString( 'Could not generate', $logged );
+		$this->assertCount( 1, $this->loopback_requests );
+
+		$status = $this->runner->status();
+		$this->assertSame( 0, $status['failed'] );
+		$this->assertSame( 0, $status['pending'] );
+		$this->assertSame( 1, $status['render_failed'] );
+		$this->assertSame( 'http_503', $status['last_render_error']['reason'] );
+
+		// The second run increments the counter.
+		$this->capture_error_log(
+			static function () use ( $runner ) {
+				$runner->run( 10 );
+			}
+		);
+		$this->assertSame( array( $post->ID => 2 ), ( new State() )->load()['render_failed'] );
+		$this->assertSame( array( $post->ID, 'http_503', 2 ), end( $events ) );
+	}
+
+	public function test_render_success_clears_counter() {
+		$post                      = $this->elementor_post_with_builder();
+		$state                     = new State();
+		$data                      = $state->load();
+		$data['render_failed']     = array( $post->ID => 2 );
+		$data['last_render_error'] = State::render_error( $post->ID, 'http_503' );
+		$state->save( $data, false );
+
+		$this->runner->run( 10 );
+
+		$saved = $state->load();
+		$this->assertSame( array(), $saved['render_failed'] );
+		$this->assertSame( 'http_503', $saved['last_render_error']['reason'], 'The last error is informational.' );
+		$document = $this->storage->read( Runner::document_path( 'post', $post->ID ) );
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $document );
+		$this->assertStringContainsString( 'Blackboard Learn es la plataforma LMS', $document );
+		$this->assertSame( 0, $this->runner->status()['render_failed'] );
+
+		// A lazy fill outside a run clears the counter too, and writes nothing when there is none.
+		$state->save( array_merge( $state->load(), array( 'render_failed' => array( $post->ID => 1 ) ) ), false );
+		$this->runner->generate_item( $post );
+		$this->assertSame( array(), $state->load()['render_failed'] );
+		$writes = $this->count_state_writes(
+			function () use ( $post ) {
+				$this->runner->generate_item( $post );
+			}
+		);
+		$this->assertSame( 1, $writes, 'Only the generation mark is written.' );
+	}
+
+	public function test_render_failed_items_go_first_after_fresh_ones() {
+		$ids = self::factory()->post->create_many( 5 );
+		$this->runner->run_cycle();
+		$state                 = new State();
+		$data                  = $state->load();
+		$data['render_failed'] = array(
+			$ids[3] => 1,
+			$ids[4] => 2,
+		);
+		$state->save( $data, false );
+
+		// A fresh queue: the never-generated item first, then the items to retry, then the rest.
+		$fresh = self::factory()->post->create( array( 'post_title' => 'Fresh' ) );
+		$this->runner->run( 1 );
+		$data = $state->load();
+		$this->assertArrayHasKey( $fresh, $data['generated'], 'The fresh item was processed first.' );
+		$this->assertSame( array( $ids[3], $ids[4], $ids[0], $ids[1], $ids[2] ), $data['queue'] );
+
+		// A queue in progress: the fresh item goes first, the failed one right after it.
+		$data['queue'] = array( $ids[0], $ids[1], $ids[2], $ids[3], $ids[4] );
+		$state->save( $data, false );
+		$later = self::factory()->post->create( array( 'post_title' => 'Later' ) );
+		$this->runner->run( 1 );
+		$data = $state->load();
+		$this->assertArrayHasKey( $later, $data['generated'] );
+		$this->assertSame( array( $ids[3], $ids[4], $ids[0], $ids[1], $ids[2] ), $data['queue'] );
+	}
+
+	public function test_render_failed_items_at_threshold_keep_normal_order() {
+		$ids = self::factory()->post->create_many( 4 );
+		$this->runner->run_cycle();
+		$state                 = new State();
+		$data                  = $state->load();
+		$data['render_failed'] = array(
+			$ids[2] => 3,
+			$ids[3] => 1,
+		);
+		$data['queue']         = array( $ids[0], $ids[1], $ids[2], $ids[3] );
+		$state->save( $data, false );
+
+		$this->runner->run( 1 );
+		$this->assertSame( array( $ids[0], $ids[1], $ids[2] ), $state->load()['queue'], 'Below the threshold goes first; at the threshold keeps its place.' );
+		$this->assertSame( 3, $state->load()['render_failed'][ $ids[2] ], 'Retried in its normal order, never dropped.' );
+	}
+
+	public function test_deferred_item_returns_to_front_and_run_ends() {
+		$post   = $this->elementor_post_with_builder();
+		$others = self::factory()->post->create_many( 2 );
+		$this->assertLessThan( $others[0], $post->ID, 'The rendered item is queued first.' );
+		$finished = 0;
+		add_action(
+			'wpasl_run_finished',
+			static function () use ( &$finished ) {
+				++$finished;
+			}
+		);
+
+		// One second of budget: the loopback (minimum 2 s) is deferred before any request.
+		$result = $this->runner->run( 10, 1.0 );
+
+		$this->assertSame( 0, $result['processed'] );
+		$this->assertSame( 3, $result['remaining'] );
+		$this->assertFalse( $result['cycle_completed'] );
+		$this->assertSame( array(), $this->loopback_requests, 'No request was attempted.' );
+		$state = ( new State() )->load();
+		$this->assertSame( array( $post->ID, $others[0], $others[1] ), $state['queue'], 'Back to the front.' );
+		$this->assertSame( array(), $state['failed'] );
+		$this->assertSame( array(), $state['render_failed'] );
+		$this->assertArrayNotHasKey( $post->ID, $state['generated'] );
+		$this->assertSame( 1, $finished, 'The run ended normally.' );
+
+		// With time to spare the same item is generated from its rendered page.
+		$result = $this->runner->run( 10, 20.0 );
+		$this->assertSame( 3, $result['processed'] );
+		$this->assertTrue( $result['cycle_completed'] );
+		$this->assertCount( 1, $this->loopback_requests );
+		$this->assertStringContainsString( "\nsource: \"rendered\"\n", $this->storage->read( Runner::document_path( 'post', $post->ID ) ) );
+		$this->assertSame( 2, $finished );
+	}
+
+	public function test_run_started_and_finished_actions_carry_deadline() {
+		self::factory()->post->create();
+		$events = array();
+		add_action(
+			'wpasl_run_started',
+			static function ( $deadline ) use ( &$events ) {
+				$events[] = array( 'started', $deadline );
+			}
+		);
+		add_action(
+			'wpasl_run_finished',
+			static function () use ( &$events ) {
+				$events[] = array( 'finished', null );
+			}
+		);
+
+		$before = microtime( true );
+		$this->runner->run( null, 20.0 );
+		$after = microtime( true );
+
+		$this->assertSame( array( 'started', 'finished' ), array_column( $events, 0 ) );
+		$this->assertGreaterThanOrEqual( $before + 20.0, $events[0][1] );
+		$this->assertLessThanOrEqual( $after + 20.0, $events[0][1] );
+		$this->assertSame( 10, has_action( 'wpasl_run_started', array( Plugin::instance()->get( 'rendered_page' ), 'on_run_started' ) ), 'The loopback listens.' );
+	}
+
+	public function test_on_demand_render_failure_during_run_is_kept_in_saved_state() {
+		$ids   = self::factory()->post->create_many( 3 );
+		$state = new State();
+		$other = $ids[2];
+
+		// Another request generates an item on demand and records its failure while the run holds the
+		// state in memory (simulated from inside the run through the item generator).
+		$generator = $this->items;
+		$hook      = static function ( $post ) use ( $state, $other, $generator ) {
+			static $done = false;
+			if ( $done || $post->ID === $other ) {
+				return;
+			}
+			$done = true;
+			$state->mark_generated( $other );
+			$state->record_render_failure( $other, 'request_error:http_request_failed' );
+		};
+		$this->runner->set_item_generator(
+			new class( $generator, $hook ) implements \WPASL\Generation\ItemGeneratorInterface {
+				private $inner;
+				private $hook;
+				public function __construct( $inner, $hook ) {
+					$this->inner = $inner;
+					$this->hook  = $hook;
+				}
+				public function generate( WP_Post $post ) {
+					call_user_func( $this->hook, $post );
+					return $this->inner->generate( $post );
+				}
+			}
+		);
+
+		$this->runner->run( 2 );
+
+		$saved = $state->load();
+		$this->assertArrayHasKey( $other, $saved['generated'], 'The on-demand generation mark survives the run.' );
+		$this->assertSame( array( $other => 1 ), $saved['render_failed'], 'And so does its rendered-page failure.' );
+		$this->assertSame( 'request_error:http_request_failed', $saved['last_render_error']['reason'] );
+		$this->assertSame( 1, $this->runner->status()['render_failed'] );
+	}
+
+	public function test_completed_cycle_prunes_render_failed_of_ineligible_items() {
+		$post                  = self::factory()->post->create();
+		$draft                 = self::factory()->post->create( array( 'post_status' => 'draft' ) );
+		$state                 = new State();
+		$data                  = $state->load();
+		$data['render_failed'] = array(
+			$post  => 2,
+			$draft => 1,
+			999999 => 1,
+		);
+		$state->save( $data, false );
+
+		$this->runner->run_cycle();
+
+		$saved = $state->load();
+		$this->assertSame( array( $post => 2 ), $saved['render_failed'], 'Counters of ineligible items are dropped and not resurrected by the merge.' );
+		$this->assertSame( 1, $this->runner->status()['render_failed'] );
 	}
 
 	private function set_batch_size( $size ) {

@@ -363,9 +363,11 @@ class Test_Delivery extends WP_UnitTestCase {
 
 		$_SERVER['HTTP_ACCEPT'] = 'text/markdown';
 		$this->go_to( get_permalink( $post ) );
+		$ini = ini_set( 'error_log', '/dev/null' ); // phpcs:ignore WordPress.PHP.IniSet.Risky
 		ob_start();
 		$served = $this->delivery->maybe_serve();
 		$out    = ob_get_clean();
+		ini_set( 'error_log', (string) $ini ); // phpcs:ignore WordPress.PHP.IniSet.Risky
 
 		$this->assertTrue( $served );
 		$this->assertStringContainsString( "\nsource: \"editor\"\n", $out );
@@ -379,6 +381,11 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertSame( 'builder:elementor', $resolutions[0][1]['reason'] );
 		$this->assertSame( 1, Plugin::instance()->get( 'runner' )->status()['generated'], 'Marked as generated; not a conversion failure.' );
 		$this->assertSame( 0, Plugin::instance()->get( 'runner' )->status()['failed'] );
+		$state = ( new \WPASL\Generation\State() )->load();
+		$this->assertSame( array( $post->ID => 1 ), $state['render_failed'], 'The rendered-page failure is recorded in the state.' );
+		$this->assertSame( 'request_error:http_request_failed', $state['last_render_error']['reason'] );
+		$this->assertSame( $post->ID, $state['last_render_error']['post_id'] );
+		$this->assertSame( 1, Plugin::instance()->get( 'runner' )->status()['render_failed'] );
 	}
 
 	public function test_negotiated_markdown_has_no_x_robots_tag() {

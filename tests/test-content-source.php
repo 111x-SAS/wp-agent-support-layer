@@ -38,8 +38,6 @@ class Test_Content_Source extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 		$this->source = new ContentSource( Plugin::instance()->get( 'settings' ), array( $this, 'convert_editor' ) );
-		// These tests exercise the real threshold (the bootstrap lifts it for the factory posts).
-		remove_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
 		ContentSource::flush_template_cache();
 		$this->tmp = trailingslashit( get_temp_dir() ) . 'wpasl-templates-' . wp_generate_password( 8, false );
 		wp_mkdir_p( $this->tmp );
@@ -350,44 +348,51 @@ class Test_Content_Source extends WP_UnitTestCase {
 		$this->assertSame( 'default', $this->source->resolve( $post )['reason'] );
 	}
 
-	public function test_empty_editor_triggers_rendered() {
-		$this->assertSame( 100, ContentSource::DEFAULT_MIN_CHARS );
+	public function test_empty_editor_rule_is_off_by_default_and_enabled_by_filter() {
+		$this->assertSame( 0, ContentSource::DEFAULT_MIN_CHARS );
 		$empty = self::factory()->post->create_and_get( array( 'post_content' => '' ) );
-		$this->assertSame( array( 'source' => 'rendered', 'reason' => 'empty_editor' ), $this->source->resolve( $empty ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-		$this->assertSame( '', $this->source->take_editor_body( $empty->ID ), 'The converted (empty) body is kept for reuse.' );
-		$this->assertNull( $this->source->take_editor_body( $empty->ID ), 'Consumed once.' );
-
 		$short = self::factory()->post->create_and_get( array( 'post_content' => '<p>Hola</p>' ) );
-		$this->assertSame( array( 'source' => 'rendered', 'reason' => 'empty_editor' ), $this->source->resolve( $short ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-		$this->assertSame( "Hola\n", $this->source->take_editor_body( $short->ID ) );
+
+		// Off by default: an empty editor stays on the editor and nothing is converted.
+		$this->assertSame( array( 'source' => 'editor', 'reason' => 'default' ), $this->source->resolve( $empty ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertNull( $this->source->take_editor_body( $empty->ID ), 'Nothing converted while the rule is off.' );
+		$this->assertSame( 'default', $this->source->resolve( $short )['reason'] );
 
 		$received = array();
 		add_filter(
 			'wpasl_editor_min_chars',
 			static function ( $min, $post ) use ( &$received ) {
 				$received[] = array( $min, $post->ID );
-				return 2;
+				return 100;
 			},
 			10,
 			2
 		);
+		$this->assertSame( array( 'source' => 'rendered', 'reason' => 'empty_editor' ), $this->source->resolve( $empty ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( '', $this->source->take_editor_body( $empty->ID ), 'The converted (empty) body is kept for reuse.' );
+		$this->assertNull( $this->source->take_editor_body( $empty->ID ), 'Consumed once.' );
+		$this->assertSame( array( 'source' => 'rendered', 'reason' => 'empty_editor' ), $this->source->resolve( $short ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$this->assertSame( "Hola\n", $this->source->take_editor_body( $short->ID ) );
+		$this->assertSame( array( array( 0, $empty->ID ), array( 0, $short->ID ) ), $received, 'The filter receives the default (0).' );
+
+		remove_all_filters( 'wpasl_editor_min_chars' );
+		add_filter( 'wpasl_editor_min_chars', static function () { return 2; } );
 		$this->assertSame( array( 'source' => 'editor', 'reason' => 'default' ), $this->source->resolve( $short ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-		$this->assertSame( array( array( 100, $short->ID ) ), $received );
 
 		// Without an injected conversion the plain post content is measured.
 		remove_all_filters( 'wpasl_editor_min_chars' );
+		add_filter( 'wpasl_editor_min_chars', static function () { return 100; } );
 		$plain = new ContentSource( Plugin::instance()->get( 'settings' ) );
 		$this->assertSame( 'empty_editor', $plain->resolve( $short )['reason'] );
 		$this->assertSame( 'default', $plain->resolve( $this->normal_post() )['reason'] );
 		$this->assertNull( $plain->take_editor_body( $short->ID ) );
+		remove_all_filters( 'wpasl_editor_min_chars' );
 	}
 
 	public function test_normal_content_defaults_to_editor() {
 		$post = $this->normal_post();
 		$this->assertSame( array( 'source' => 'editor', 'reason' => 'default' ), $this->source->resolve( $post ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
-		$body = $this->source->take_editor_body( $post->ID );
-		$this->assertStringContainsString( 'Contenido normal del editor', $body, 'The body converted by the last check is reusable.' );
-		$this->assertNull( $this->source->take_editor_body( $post->ID ) );
+		$this->assertNull( $this->source->take_editor_body( $post->ID ), 'Nothing is converted while the empty-editor rule is off.' );
 	}
 
 	public function test_resolution_filter() {

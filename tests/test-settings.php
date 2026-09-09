@@ -329,7 +329,7 @@ class Test_Settings extends WP_UnitTestCase {
 		}
 		$this->assertSame( 2, substr_count( $settings_form, 'wpasl_settings[content_source][' ), 'One select per enabled post type.' );
 		$this->assertStringContainsString( 'Content source', $settings_form );
-		$this->assertStringContainsString( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder, uses a fixed theme template or has an empty editor; otherwise the editor content.', $settings_form );
+		$this->assertStringContainsString( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder or uses a fixed theme template; otherwise the editor content.', $settings_form );
 		$this->assertStringContainsString( 'Content selector (CSS)', $settings_form );
 		$this->assertMatchesRegularExpression( '/<input type="text" id="wpasl-content-selector" name="wpasl_settings\[content_selector\]" value=""/', $settings_form );
 		$this->assertStringContainsString( 'Leave empty for automatic detection', $settings_form );

@@ -14,7 +14,7 @@ use WPASL\Settings;
  * Decides whether the Markdown body of a post comes from the editor content or from the rendered page,
  * evaluating in order: the per-post override, the per-type setting and, in "auto", the WordPress
  * conditionals (assigned template, page builder meta, theme template file that does not print the editor
- * content, and an editor content that converts to (almost) nothing).
+ * content, and, only when a filter enables the rule, an editor content that converts to (almost) nothing).
  */
 final class ContentSource {
 
@@ -68,9 +68,11 @@ final class ContentSource {
 	const MAX_TEMPLATE_PARTS = 10;
 
 	/**
-	 * Default minimum length (characters) of the converted editor body below which the page is rendered.
+	 * Default minimum length (characters) of the converted editor body below which the page is rendered. 0
+	 * disables the rule: a post without an assigned template, a builder or a fixed theme template keeps the
+	 * editor content whatever its length. Raise it with the wpasl_editor_min_chars filter.
 	 */
-	const DEFAULT_MIN_CHARS = 100;
+	const DEFAULT_MIN_CHARS = 0;
 
 	/**
 	 * Verdicts of template_file_verdict(): the template prints the editor content, does not, or cannot be told.
@@ -559,10 +561,13 @@ final class ContentSource {
 		 * Filters the minimum length, in characters, of the converted editor body; below it the post is
 		 * rendered from its page when no other conditional applied.
 		 *
-		 * @param int      $min_chars Characters. Default 100.
+		 * @param int      $min_chars Characters. Default 0: the rule is off.
 		 * @param \WP_Post $post      Post.
 		 */
 		$min = max( 0, (int) apply_filters( 'wpasl_editor_min_chars', self::DEFAULT_MIN_CHARS, $post ) );
+		if ( 0 === $min ) {
+			return false;
+		}
 
 		if ( null === $this->editor_body ) {
 			$text = DocumentBuilder::plain_text( $post->post_content );

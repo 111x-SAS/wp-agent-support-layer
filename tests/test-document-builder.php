@@ -65,8 +65,7 @@ class Test_Document_Builder extends WP_UnitTestCase {
 		remove_filter( 'pre_http_request', array( $this, 'fake_loopback' ), 20 );
 		remove_action( 'wpasl_content_source_resolved', array( $this, 'record_resolution' ), 10 );
 		remove_all_filters( 'wpasl_markdown_html' );
-		remove_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
-		add_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
+		remove_all_filters( 'wpasl_editor_min_chars' );
 		delete_option( Settings::OPTION );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		parent::tear_down();
@@ -283,7 +282,8 @@ class Test_Document_Builder extends WP_UnitTestCase {
 	}
 
 	public function test_empty_editor_is_rendered_and_its_body_is_reused_on_fallback() {
-		remove_filter( 'wpasl_editor_min_chars', 'wpasl_tests_editor_min_chars' );
+		// The rule is off by default; a filter enables it with a threshold.
+		add_filter( 'wpasl_editor_min_chars', static function () { return 100; } );
 		$post = self::factory()->post->create_and_get( array( 'post_title' => 'Blackboard', 'post_content' => '<p>Short.</p>' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 		$this->use_loopback();
 		$doc = $this->builder->generate( $post );

@@ -105,7 +105,7 @@ final class GeneralTab implements Tab {
 									</select>
 								</label>
 							<?php endforeach; ?>
-							<p class="description"><?php esc_html_e( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder, uses a fixed theme template or has an empty editor; otherwise the editor content. Editor: always the editor content. Rendered: always the rendered page (fetched from this server; the editor content is used when it cannot be fetched).', 'wp-agent-support-layer' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder or uses a fixed theme template; otherwise the editor content. Editor: always the editor content. Rendered: always the rendered page (fetched from this server; the editor content is used when it cannot be fetched).', 'wp-agent-support-layer' ); ?></p>
 						</fieldset>
 					<?php endif; ?>
 				</td>

@@ -131,7 +131,7 @@ final class Plugin {
 		$runner->add_artifact_generator( $auth_md_builder );
 		$this->services['discovery_links'] = new DiscoveryLinks( $settings );
 
-		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage, $llms_builder );
+		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage, $llms_builder, $this->services['content_extractor'] );
 		$page_cache                    = new PageCache( $settings, $this->services['signals'] );
 		$this->services['probe']       = $probe;
 		$this->services['page_cache']  = $page_cache;
@@ -139,7 +139,8 @@ final class Plugin {
 			$probe,
 			new Report( $this->services['robots']->policy(), $this->services['signals'] ),
 			$page,
-			$page_cache
+			$page_cache,
+			$runner
 		);
 
 		if ( LeagueConverter::is_available() ) {

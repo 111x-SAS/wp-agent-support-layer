@@ -140,6 +140,9 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$accept = $args['headers']['Accept'];
 		$key    = $url . '|' . ( 0 === strpos( $accept, 'text/markdown' ) ? 'md' : 'html' );
 		$spec   = isset( $this->responses[ $key ] ) ? $this->responses[ $key ] : ( isset( $this->responses[ $url ] ) ? $this->responses[ $url ] : $this->default_response( $url, $accept ) );
+		if ( is_wp_error( $spec ) ) {
+			return $spec;
+		}
 		return array(
 			'response' => array(
 				'code'    => $spec['code'],
@@ -181,7 +184,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		return array(
 			'code'    => 200,
 			'headers' => $headers,
-			'body'    => '<html><head><link rel="alternate" type="text/markdown" href="x.md"></head></html>',
+			'body'    => '<html><head><link rel="alternate" type="text/markdown" href="x.md"></head><body><main><p>Sample content text.</p></main></body></html>',
 		);
 	}
 
@@ -199,7 +202,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'PerplexityBot', $raw['crawlers'] );
 		$this->assertArrayHasKey( 'post_markdown', $raw['crawlers']['GPTBot'] );
 		$this->assertSame( array( 'home', 'post_html', 'post_markdown', 'post_md', 'robots' ), array_keys( $raw['crawlers']['GPTBot'] ), 'The .md URL and robots.txt are probed with each crawler user-agent.' );
-		$this->assertSame( array( 'robots', 'llms', 'llms-page', 'llms-post', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $raw['site'] ) );
+		$this->assertSame( array( 'robots', 'llms', 'llms-page', 'llms-post', 'auth', 'skills', 'catalog', 'markdown_url', 'render', 'storage' ), array_keys( $raw['site'] ) );
 
 		$agents = array_unique( array_column( $this->requests, 'ua' ) );
 		$this->assertCount( 3, $agents, 'Two crawlers plus the diagnostics agent.' );
@@ -326,7 +329,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertArrayHasKey( 'robots', $run['site'] );
 		$this->assertNull( Report::load(), 'No report until the last batch.' );
 		$first_batch = count( $this->requests );
-		$this->assertSame( 9 + 5, $first_batch, 'Nine site targets (two per-type files) and the five requests of one crawler.' );
+		$this->assertSame( 10 + 5, $first_batch, 'Ten site targets (two per-type files, the render request) and the five requests of one crawler.' );
 
 		// Second request: resumes with the first pending crawler only and publishes the report.
 		$this->requests = array();
@@ -653,10 +656,12 @@ class Test_Diagnostics extends WP_UnitTestCase {
 			return $crawlers;
 		};
 		add_filter( 'wpasl_crawler_catalog', $add_bot );
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
 		$text = Plugin::instance()->get( 'page' )->tabs()['diagnostics']->curl_commands( "https://example.org/it's here/" );
 		remove_filter( 'wpasl_crawler_catalog', $add_bot );
 
 		$this->assertStringContainsString( "curl -sI -A 'Mozilla/5.0 (compatible; O'\\''Bot/1.0)' -H 'Accept: text/html' 'https://example.org/it'\\''s here/'", $text );
+		$this->assertStringContainsString( "curl -s -H 'X-WPASL-Render: 1' 'https://example.org/it'\\''s here/?wpasl_render=1'", $text );
 		$this->assertStringContainsString( "curl -sI -A 'Mozilla/5.0 (compatible; GPTBot/1.0)' -H 'Accept: text/markdown' 'https://example.org/it'\\''s here/'", $text );
 		foreach ( explode( "\n", $text ) as $line ) {
 			if ( 0 === strpos( $line, 'curl ' ) ) {
@@ -941,7 +946,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$report = $this->controller->run();
 		$this->assertSame( Report::OK, $report['site']['auth']['status'] );
 		$this->assertStringContainsString( 'auth.md: HTTP 200, text/markdown', $report['site']['auth']['message'] );
-		$this->assertSame( array( 'robots', 'llms', 'llms-page', 'llms-post', 'auth', 'skills', 'catalog', 'markdown_url', 'storage' ), array_keys( $report['site'] ) );
+		$this->assertSame( array( 'robots', 'llms', 'llms-page', 'llms-post', 'auth', 'skills', 'catalog', 'markdown_url', 'render', 'storage' ), array_keys( $report['site'] ) );
 
 		$this->responses[ $url ] = array(
 			'code'    => 404,
@@ -995,6 +1000,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 			home_url( '/' ),
 			get_permalink( $post ),
 			Plugin::instance()->get( 'delivery' )->markdown_url( $post ),
+			\WPASL\Markdown\RenderedPage::url( $post ),
 			home_url( '/robots.txt' ),
 			home_url( '/llms.txt' ),
 			home_url( '/llms-page.txt' ),
@@ -1024,6 +1030,133 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringStartsWith( 'text/markdown', reset( $auth )['accept'] );
 	}
 
+	public function test_render_target_is_probed_with_marker_and_html_accept() {
+		$post = self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$url  = home_url( '/muestra/?wpasl_render=1' );
+		$this->assertSame( $url, $this->probe->site_targets()['render'] );
+		$this->assertSame( array( 'markdown_url', 'render', 'storage' ), array_slice( array_keys( $this->probe->site_targets() ), -3 ) );
+
+		$raw = $this->probe->run();
+
+		$render = array_values( array_filter( $this->requests, static function ( $r ) use ( $url ) { return $url === $r['url']; } ) ); // phpcs:ignore
+		$this->assertCount( 1, $render, 'Probed once, as a site check.' );
+		$this->assertSame( 'WP-Agent-Support-Layer-Diagnostics/' . WPASL_VERSION, $render[0]['ua'] );
+		$this->assertSame( 'text/html', $render[0]['accept'] );
+		$this->assertSame( '1', $render[0]['args']['headers']['X-WPASL-Render'] );
+		$this->assertSame( 'GET', $render[0]['args']['method'] );
+		$this->assertSame( 0, $render[0]['args']['redirection'] );
+		$this->assertSame( 200, $raw['site']['render']['status'] );
+		$this->assertSame( 'main', $raw['site']['render']['content_region'] );
+		$this->assertArrayNotHasKey( 'body', $raw['site']['render'], 'The body is analysed, not kept.' );
+
+		// The configured selector is used by the analysis.
+		update_option( Settings::OPTION, array( 'content_selector' => 'div.custom' ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/html' ),
+			'body'    => '<html><body><main><p>Main</p></main><div class="custom"><p>Custom</p></div></body></html>',
+		);
+		$this->assertSame( 'div.custom', $this->probe->probe_site()['render']['content_region'] );
+		$this->assertGreaterThan( 0, $post );
+	}
+
+	public function test_report_render_check_ok_with_region() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$report = $this->controller->run();
+		$this->assertSame( Report::OK, $report['site']['render']['status'] );
+		$this->assertSame( 'Rendered page (loopback): HTTP 200, text/html; charset=utf-8, content region main.', $report['site']['render']['message'] );
+		$this->assertSame( array( 'markdown_url', 'render', 'storage' ), array_slice( array_keys( $report['site'] ), -3 ) );
+	}
+
+	public function test_report_render_check_warns_without_region() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$url                     = home_url( '/muestra/?wpasl_render=1' );
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+			'body'    => '<html><body><div class="wrap"><p>No region here.</p></div></body></html>',
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['site']['render']['status'] );
+		$this->assertStringContainsString( 'no content region found', $report['site']['render']['message'] );
+		$this->assertStringContainsString( 'the whole body would be used', $report['site']['render']['message'] );
+		$this->assertStringContainsString( 'Set the content selector', $report['site']['render']['message'] );
+
+		$this->responses[ $url ] = array(
+			'code'    => 301,
+			'headers' => array( 'location' => 'https://www.example.org/muestra/' ),
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::WARNING, $report['site']['render']['status'] );
+		$this->assertStringContainsString( 'HTTP 301 redirect to https://www.example.org/muestra/', $report['site']['render']['message'] );
+	}
+
+	public function test_report_render_check_errors_on_block_markdown_or_connection_error() {
+		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
+		$url = home_url( '/muestra/?wpasl_render=1' );
+
+		$this->responses[ $url ] = array(
+			'code'    => 403,
+			'headers' => array( 'content-type' => 'text/html' ),
+			'body'    => 'blocked',
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::ERROR, $report['site']['render']['status'] );
+		$this->assertStringContainsString( 'Rendered page (loopback): HTTP 403', $report['site']['render']['message'] );
+		$this->assertStringContainsString( 'items whose content source is the rendered page are served with the editor content', $report['site']['render']['message'] );
+
+		$this->responses[ $url ] = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/markdown; charset=utf-8' ),
+			'body'    => "---\ntitle: x\n---\n",
+		);
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::ERROR, $report['site']['render']['status'] );
+		$this->assertStringContainsString( 'the render marker was ignored', $report['site']['render']['message'] );
+		$this->assertStringContainsString( 'served with the editor content', $report['site']['render']['message'] );
+
+		$this->responses[ $url ] = new WP_Error( 'http_request_failed', 'cURL error 7: Failed to connect' );
+		$report                  = $this->controller->run();
+		$this->assertSame( Report::ERROR, $report['site']['render']['status'] );
+		$this->assertStringContainsString( 'HTTP 0 cURL error 7: Failed to connect; the site cannot fetch its own pages', $report['site']['render']['message'] );
+		foreach ( array( 'markdown_url', 'storage' ) as $key ) {
+			$this->assertSame( Report::OK, $report['site'][ $key ]['status'], 'The other site checks are unaffected.' );
+		}
+	}
+
+	public function test_tab_shows_render_failures_notice_and_hides_it_without_failures() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$state                     = new WPASL\Generation\State();
+		$data                      = $state->load();
+		$data['render_failed']     = array(
+			21 => 1,
+			22 => 3,
+		);
+		$data['last_render_error'] = array(
+			'post_id' => 22,
+			'reason'  => 'redirect_external_host',
+			'time'    => 1700000000,
+		);
+		$state->save( $data, false );
+
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'wpasl-render-failures', $html );
+		$this->assertStringContainsString( 'The rendered page of 2 items could not be fetched from this server.', $html );
+		$this->assertStringContainsString( 'Last failure: redirect_external_host (#22, ' . wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), 1700000000 ) . ').', $html );
+		$this->assertStringContainsString( 'does not accept HTTP requests to itself (loopback)', $html );
+		$this->assertStringContainsString( 'blocks the plugin user-agent', $html );
+		$this->assertStringContainsString( 'redirects to another host or scheme', $html );
+		$this->assertStringContainsString( 'longer than the request timeout', $html );
+		$this->assertStringContainsString( 'served with their editor content until the loopback works', $html );
+		$this->assertNull( Report::load(), 'No simulation needed.' );
+
+		$state->reset();
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringNotContainsString( 'wpasl-render-failures', $html );
+		$this->assertStringNotContainsString( 'could not be fetched from this server', $html );
+	}
+
 	public function test_tab_renders_checklist_and_curl_commands() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		self::factory()->post->create( array( 'post_name' => 'muestra' ) );
@@ -1040,6 +1173,8 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'", $html );
 		$this->assertStringContainsString( "curl -s '" . home_url( '/llms.txt' ) . "'\ncurl -s '" . home_url( '/llms-page.txt' ) . "'\ncurl -s '" . home_url( '/llms-post.txt' ) . "'\ncurl -s '" . home_url( '/auth.md' ) . "'\ncurl -s '" . home_url( '/agent-skills.json' ) . "'", $html );
 		$this->assertStringContainsString( 'Do not cache or transform robots.txt, llms.txt, the llms-<type>.txt files, auth.md, agent-skills.json and /.well-known/api-catalog', $html );
+		$this->assertStringContainsString( 'accepts HTTP requests from the site to itself (loopback)', $html );
+		$this->assertStringContainsString( "curl -s -H 'X-WPASL-Render: 1' '" . home_url( '/muestra/?wpasl_render=1' ) . "'", $html );
 
 		update_option( Settings::OPTION, array( 'post_types' => array( 'post' ) ) );
 		Plugin::instance()->get( 'settings' )->flush_cache();

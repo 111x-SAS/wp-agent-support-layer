@@ -9,6 +9,7 @@ namespace WPASL\Diagnostics;
 
 use WPASL\Admin\Page;
 use WPASL\Admin\Tabs\DiagnosticsTab;
+use WPASL\Generation\Runner;
 
 /**
  * Runs the probe on request (capability + nonce) in batches chained by redirects, stores the report and registers the tab.
@@ -63,18 +64,27 @@ final class DiagnosticsController {
 	private $page_cache;
 
 	/**
+	 * Runner (for the rendered-page failures notice of the tab).
+	 *
+	 * @var Runner|null
+	 */
+	private $runner;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param CrawlerProbe $probe      Probe.
 	 * @param Report       $report     Report builder.
 	 * @param Page         $page       Page.
 	 * @param PageCache    $page_cache Page cache detection and snippets.
+	 * @param Runner|null  $runner     Runner.
 	 */
-	public function __construct( CrawlerProbe $probe, Report $report, Page $page, PageCache $page_cache ) {
+	public function __construct( CrawlerProbe $probe, Report $report, Page $page, PageCache $page_cache, ?Runner $runner = null ) {
 		$this->probe      = $probe;
 		$this->report     = $report;
 		$this->page       = $page;
 		$this->page_cache = $page_cache;
+		$this->runner     = $runner;
 	}
 
 	/**
@@ -94,7 +104,7 @@ final class DiagnosticsController {
 	 * @return void
 	 */
 	public function register_tab( Page $page ) {
-		$page->add_tab( new DiagnosticsTab( $this->probe, $this->page, $this->page_cache ) );
+		$page->add_tab( new DiagnosticsTab( $this->probe, $this->page, $this->page_cache, $this->runner ) );
 	}
 
 	/**

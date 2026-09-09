@@ -11,7 +11,7 @@ use WPASL\Admin\Tab;
 use WPASL\Settings;
 
 /**
- * Post types, schedule and batch size.
+ * Post types, content source per type, content selector, schedule and batch size.
  */
 final class GeneralTab implements Tab {
 
@@ -60,6 +60,12 @@ final class GeneralTab implements Tab {
 		$enabled   = $this->settings->enabled_post_types();
 		$schedule  = (string) $this->settings->get( 'schedule' );
 		$batch     = (int) $this->settings->get( 'batch_size' );
+		$selector  = (string) $this->settings->get( 'content_selector' );
+		$sources   = array(
+			'auto'     => __( 'Auto', 'wp-agent-support-layer' ),
+			'editor'   => __( 'Editor content', 'wp-agent-support-layer' ),
+			'rendered' => __( 'Rendered page', 'wp-agent-support-layer' ),
+		);
 		$intervals = array(
 			'hourly'     => __( 'Hourly', 'wp-agent-support-layer' ),
 			'twicedaily' => __( 'Twice daily', 'wp-agent-support-layer' ),
@@ -82,6 +88,33 @@ final class GeneralTab implements Tab {
 						<?php endforeach; ?>
 						<p class="description"><?php esc_html_e( 'Published items of these types get a Markdown version, appear in llms.txt and are declared in the agent manifest.', 'wp-agent-support-layer' ); ?></p>
 					</fieldset>
+					<?php if ( ! empty( $enabled ) ) : ?>
+						<fieldset style="margin-top:12px;">
+							<legend><strong><?php esc_html_e( 'Content source', 'wp-agent-support-layer' ); ?></strong></legend>
+							<?php foreach ( $enabled as $type ) : ?>
+								<?php
+								$object = get_post_type_object( $type );
+								$source = $this->settings->content_source( $type );
+								?>
+								<label style="display:block;margin:4px 0;">
+									<span style="display:inline-block;min-width:160px;"><?php echo esc_html( $object ? $object->labels->name : $type ); ?> <code><?php echo esc_html( $type ); ?></code></span>
+									<select name="<?php echo esc_attr( $option ); ?>[content_source][<?php echo esc_attr( $type ); ?>]">
+										<?php foreach ( $sources as $value => $label ) : ?>
+											<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $source, $value ); ?>><?php echo esc_html( $label ); ?></option>
+										<?php endforeach; ?>
+									</select>
+								</label>
+							<?php endforeach; ?>
+							<p class="description"><?php esc_html_e( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder or uses a fixed theme template; otherwise the editor content. Editor: always the editor content. Rendered: always the rendered page (fetched from this server; the editor content is used when it cannot be fetched).', 'wp-agent-support-layer' ); ?></p>
+						</fieldset>
+					<?php endif; ?>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="wpasl-content-selector"><?php esc_html_e( 'Content selector (CSS)', 'wp-agent-support-layer' ); ?></label></th>
+				<td>
+					<input type="text" id="wpasl-content-selector" name="<?php echo esc_attr( $option ); ?>[content_selector]" value="<?php echo esc_attr( $selector ); ?>" class="regular-text code" placeholder="main article" />
+					<p class="description"><?php esc_html_e( 'Element that holds the content on the rendered page. Leave empty for automatic detection (main, [role="main"], article, #content, #primary, .site-content, the Elementor document). Supported: tags, #id, .class, [attr], [attr="value"], their combinations on one element, the descendant and child combinators and comma-separated lists.', 'wp-agent-support-layer' ); ?></p>
 				</td>
 			</tr>
 			<tr>

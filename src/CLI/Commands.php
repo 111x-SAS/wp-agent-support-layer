@@ -7,12 +7,14 @@
 
 namespace WPASL\CLI;
 
+use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
 use WPASL\Generation\Scheduler;
+use WPASL\Markdown\ContentSource;
 use WPASL\Settings;
 
 /**
- * Operates the agent layer: wp wpasl generate|status|clear.
+ * Operates the agent layer: wp wpasl generate|status|clear|source.
  */
 final class Commands {
 
@@ -38,16 +40,25 @@ final class Commands {
 	private $settings;
 
 	/**
+	 * Content source resolver.
+	 *
+	 * @var ContentSource
+	 */
+	private $source;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Runner        $runner    Runner.
-	 * @param Scheduler     $scheduler Scheduler.
-	 * @param Settings|null $settings  Settings; a fresh instance when omitted.
+	 * @param Runner             $runner    Runner.
+	 * @param Scheduler          $scheduler Scheduler.
+	 * @param Settings|null      $settings  Settings; a fresh instance when omitted.
+	 * @param ContentSource|null $source    Content source resolver; a fresh instance when omitted.
 	 */
-	public function __construct( Runner $runner, Scheduler $scheduler, ?Settings $settings = null ) {
+	public function __construct( Runner $runner, Scheduler $scheduler, ?Settings $settings = null, ?ContentSource $source = null ) {
 		$this->runner    = $runner;
 		$this->scheduler = $scheduler;
 		$this->settings  = null === $settings ? new Settings() : $settings;
+		$this->source    = null === $source ? new ContentSource( $this->settings ) : $source;
 	}
 
 	/**
@@ -128,6 +139,8 @@ final class Commands {
 			array( 'key' => 'generated', 'value' => $status['generated'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 			array( 'key' => 'pending', 'value' => $status['pending'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 			array( 'key' => 'failed', 'value' => $status['failed'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array( 'key' => 'render_failed', 'value' => $status['render_failed'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array( 'key' => 'last_render_error', 'value' => self::format_render_error( $status['last_render_error'] ) ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 			array( 'key' => 'queued', 'value' => $status['queued'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 			array( 'key' => 'last_run', 'value' => $status['last_run'] ? gmdate( 'c', $status['last_run'] ) : __( 'never', 'wp-agent-support-layer' ) ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 			array( 'key' => 'last_cycle_completed', 'value' => $status['last_cycle_completed'] ? gmdate( 'c', $status['last_cycle_completed'] ) : __( 'never', 'wp-agent-support-layer' ) ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
@@ -147,5 +160,65 @@ final class Commands {
 	public function clear() {
 		$this->runner->clear();
 		\WP_CLI::success( __( 'Storage cleared. All items are pending again.', 'wp-agent-support-layer' ) );
+	}
+
+	/**
+	 * Shows the content source resolved for an item (editor content or rendered page) and why, without
+	 * generating anything.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <id>
+	 * : Post id.
+	 *
+	 * [--format=<format>]
+	 * : table, json, csv or yaml.
+	 * ---
+	 * default: table
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp wpasl source 123
+	 *
+	 * @param string[]             $args       Positional arguments.
+	 * @param array<string, mixed> $assoc_args Named arguments.
+	 * @return void
+	 */
+	public function source( $args, $assoc_args ) {
+		$post_id = isset( $args[0] ) ? absint( $args[0] ) : 0;
+		$post    = $post_id > 0 ? get_post( $post_id ) : null;
+		if ( ! $post instanceof \WP_Post ) {
+			/* translators: %d: post id. */
+			\WP_CLI::error( sprintf( __( 'Post #%d does not exist.', 'wp-agent-support-layer' ), $post_id ) );
+		}
+		$reason = ( new Eligibility( $this->settings ) )->reason( $post );
+		if ( '' !== $reason ) {
+			/* translators: 1: post id, 2: reason (post_type, not_public, status, password, excluded, filtered). */
+			\WP_CLI::error( sprintf( __( 'Post #%1$d is not eligible for the agent layer (%2$s).', 'wp-agent-support-layer' ), $post_id, $reason ) );
+		}
+
+		$resolution = $this->source->resolve( $post );
+		$selector   = trim( (string) $this->settings->get( 'content_selector' ) );
+		$rows       = array(
+			array( 'key' => 'source', 'value' => $resolution['source'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array( 'key' => 'reason', 'value' => $resolution['reason'] ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			array( 'key' => 'selector', 'value' => '' === $selector ? 'auto' : $selector ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		);
+		$format     = isset( $assoc_args['format'] ) ? (string) $assoc_args['format'] : 'table';
+		\WP_CLI\Utils\format_items( $format, $rows, array( 'key', 'value' ) );
+	}
+
+	/**
+	 * Text of the last rendered-page failure: "<reason> (#id, <ISO date>)" or "none".
+	 *
+	 * @param array|null $error Last error (post_id, reason, time), or null.
+	 * @return string
+	 */
+	private static function format_render_error( $error ) {
+		if ( ! is_array( $error ) || empty( $error['reason'] ) ) {
+			return __( 'none', 'wp-agent-support-layer' );
+		}
+		return sprintf( '%1$s (#%2$d, %3$s)', (string) $error['reason'], (int) $error['post_id'], gmdate( 'c', (int) $error['time'] ) );
 	}
 }

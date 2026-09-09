@@ -297,6 +297,10 @@ final class Report {
 			}
 		}//end foreach
 
+		if ( isset( $site['render'] ) ) {
+			$checks['render'] = self::render_check( (array) $site['render'] );
+		}
+
 		if ( isset( $site['storage'] ) ) {
 			$exposed           = 200 === (int) $site['storage']['status'];
 			$checks['storage'] = $exposed
@@ -305,6 +309,39 @@ final class Report {
 		}
 
 		return $checks;
+	}
+
+	/**
+	 * Check of the render request of the sample item (the loopback that fetches rendered pages): HTTP 200,
+	 * text/html and a content region found with the extraction the generation uses.
+	 *
+	 * @param array<string, mixed> $result Raw result.
+	 * @return array{status:string, message:string}
+	 */
+	private static function render_check( array $result ) {
+		$label    = __( 'Rendered page (loopback)', 'wp-agent-support-layer' );
+		$type     = isset( $result['headers']['content-type'] ) ? (string) $result['headers']['content-type'] : '';
+		$status   = (int) ( isset( $result['status'] ) ? $result['status'] : 0 );
+		$error    = isset( $result['error'] ) ? (string) $result['error'] : '';
+		$fallback = __( 'the site cannot fetch its own pages, items whose content source is the rendered page are served with the editor content', 'wp-agent-support-layer' );
+
+		if ( self::is_redirect( $result ) ) {
+			return self::check( self::WARNING, self::redirect_message( $label, $result ) );
+		}
+		if ( 200 !== $status || '' !== $error ) {
+			return self::check( self::ERROR, sprintf( /* translators: 1: target, 2: HTTP status, 3: error message, 4: consequence. */ __( '%1$s: HTTP %2$s %3$s; %4$s.', 'wp-agent-support-layer' ), $label, $status, $error, $fallback ) );
+		}
+		if ( false !== stripos( $type, 'text/markdown' ) ) {
+			return self::check( self::ERROR, sprintf( /* translators: 1: target, 2: consequence. */ __( '%1$s: the response was text/markdown, the render marker was ignored; %2$s.', 'wp-agent-support-layer' ), $label, $fallback ) );
+		}
+		if ( false === stripos( $type, 'text/html' ) ) {
+			return self::check( self::WARNING, sprintf( /* translators: 1: target, 2: Content-Type received, 3: Content-Type expected. */ __( '%1$s: unexpected Content-Type "%2$s" (expected %3$s).', 'wp-agent-support-layer' ), $label, $type, 'text/html' ) );
+		}
+		$region = isset( $result['content_region'] ) ? (string) $result['content_region'] : '';
+		if ( '' === $region ) {
+			return self::check( self::WARNING, sprintf( /* translators: 1: target, 2: Content-Type. */ __( '%1$s: HTTP 200, %2$s, but no content region found (main, [role="main"], article, #content, #primary, .site-content); the whole body would be used. Set the content selector in the General tab.', 'wp-agent-support-layer' ), $label, $type ) );
+		}
+		return self::check( self::OK, sprintf( /* translators: 1: target, 2: Content-Type, 3: CSS selector. */ __( '%1$s: HTTP 200, %2$s, content region %3$s.', 'wp-agent-support-layer' ), $label, $type, $region ) );
 	}
 
 	/**

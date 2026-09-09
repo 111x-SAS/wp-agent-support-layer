@@ -123,6 +123,42 @@ class Test_Generation_Status extends WP_UnitTestCase {
 		$this->assertSame( 2, Plugin::instance()->get( 'runner' )->status()['failed'] );
 	}
 
+	public function test_render_failures_row_and_notice() {
+		$state                     = new WPASL\Generation\State();
+		$data                      = $state->load();
+		$data['render_failed']     = array(
+			11 => 1,
+			12 => 2,
+			13 => 1,
+		);
+		$data['last_render_error'] = array(
+			'post_id' => 13,
+			'reason'  => 'http_403',
+			'time'    => 1700000000,
+		);
+		$state->save( $data, false );
+
+		ob_start();
+		$this->status->render();
+		$html = ob_get_clean();
+		$this->assertMatchesRegularExpression( '/Items with a rendered-page failure<\/th><td>3 <span/', $html );
+		$date = wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), 1700000000 );
+		$this->assertStringContainsString( 'Last rendered-page failure</th><td>http_403 (#13, ' . $date . ')</td>', $html );
+		$this->assertStringContainsString( 'notice notice-warning inline', $html );
+		$this->assertStringContainsString( 'The rendered page of 3 items could not be fetched from this server; they are served with the editor content until the loopback works.', $html );
+		$this->assertStringContainsString( 'tab=diagnostics', $html );
+		$this->assertStringContainsString( 'See the Diagnostics tab.', $html );
+
+		$state->reset();
+		ob_start();
+		$this->status->render();
+		$html = ob_get_clean();
+		$this->assertMatchesRegularExpression( '/Items with a rendered-page failure<\/th><td>0<\/td>/', $html );
+		$this->assertStringContainsString( 'Last rendered-page failure</th><td>None</td>', $html );
+		$this->assertStringNotContainsString( 'could not be fetched from this server', $html );
+		$this->assertStringNotContainsString( 'See the Diagnostics tab.', $html );
+	}
+
 	public function test_render_without_warning_when_cron_enabled() {
 		add_filter( 'wpasl_cron_disabled', '__return_false' );
 		ob_start();

@@ -10,7 +10,9 @@ namespace WPASL\Diagnostics;
 use WPASL\Content\Eligibility;
 use WPASL\Generation\Runner;
 use WPASL\Llms\LlmsTxtBuilder;
+use WPASL\Markdown\ContentExtractor;
 use WPASL\Markdown\Delivery;
+use WPASL\Markdown\RenderedPage;
 use WPASL\Robots\Catalog;
 use WPASL\Storage;
 
@@ -78,18 +80,27 @@ final class CrawlerProbe {
 	private $llms;
 
 	/**
+	 * Content region extractor (configured selector for the render check).
+	 *
+	 * @var ContentExtractor|null
+	 */
+	private $extractor;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Eligibility         $eligibility Eligibility.
-	 * @param Delivery            $delivery    Delivery.
-	 * @param Storage             $storage     Storage.
-	 * @param LlmsTxtBuilder|null $llms        llms.txt builder.
+	 * @param Eligibility           $eligibility Eligibility.
+	 * @param Delivery              $delivery    Delivery.
+	 * @param Storage               $storage     Storage.
+	 * @param LlmsTxtBuilder|null   $llms        llms.txt builder.
+	 * @param ContentExtractor|null $extractor   Content region extractor.
 	 */
-	public function __construct( Eligibility $eligibility, Delivery $delivery, Storage $storage, ?LlmsTxtBuilder $llms = null ) {
+	public function __construct( Eligibility $eligibility, Delivery $delivery, Storage $storage, ?LlmsTxtBuilder $llms = null, ?ContentExtractor $extractor = null ) {
 		$this->eligibility = $eligibility;
 		$this->delivery    = $delivery;
 		$this->storage     = $storage;
 		$this->llms        = $llms;
+		$this->extractor   = $extractor;
 	}
 
 	/**
@@ -144,6 +155,7 @@ final class CrawlerProbe {
 		$post     = $this->sample_post();
 		if ( $post ) {
 			$targets['markdown_url'] = $this->delivery->markdown_url( $post );
+			$targets['render']       = RenderedPage::url( $post );
 		}
 		$direct = $this->storage_direct_url();
 		if ( null !== $direct ) {
@@ -206,14 +218,33 @@ final class CrawlerProbe {
 	 */
 	public function probe_site() {
 		$results = array();
+		$post    = null;
 		foreach ( $this->site_targets() as $key => $url ) {
+			$user_agent = 'WP-Agent-Support-Layer-Diagnostics/' . WPASL_VERSION;
+			if ( 'render' === $key ) {
+				// The render request of the sample item: HTML with the render marker, analysed for a content
+				// region with the same extraction the generation uses.
+				$post            = $this->sample_post();
+				$selector        = $post && $this->extractor ? $this->extractor->selector_for( $post ) : '';
+				$results[ $key ] = $this->fetch(
+					$url,
+					$user_agent,
+					'text/html',
+					false,
+					array( RenderedPage::HEADER => '1' ),
+					static function ( $body ) use ( $selector ) {
+						return array( 'content_region' => ContentExtractor::find_region( $body, $selector ) );
+					}
+				);
+				continue;
+			}
 			$results[ $key ] = $this->fetch(
 				$url,
-				'WP-Agent-Support-Layer-Diagnostics/' . WPASL_VERSION,
+				$user_agent,
 				'storage' === $key ? '*/*' : 'text/markdown, application/json;q=0.9, text/html;q=0.8, */*;q=0.5',
 				in_array( $key, self::KEEP_BODY, true )
 			);
-		}
+		}//end foreach
 		return $results;
 	}
 
@@ -257,13 +288,16 @@ final class CrawlerProbe {
 	/**
 	 * Fetches one URL of this site.
 	 *
-	 * @param string $url        URL (must be on this site's host).
-	 * @param string $user_agent User-Agent header.
-	 * @param string $accept     Accept header.
-	 * @param bool   $keep_body  Whether to keep (a prefix of) the body in the result.
+	 * @param string        $url        URL (must be on this site's host).
+	 * @param string        $user_agent User-Agent header.
+	 * @param string        $accept     Accept header.
+	 * @param bool          $keep_body  Whether to keep (a prefix of) the body in the result.
+	 * @param array         $headers    Extra request headers.
+	 * @param callable|null $analyze    Callable( string $body ): array whose result is merged into the result
+	 *                                  (the body itself is not kept).
 	 * @return array<string, mixed>
 	 */
-	public function fetch( $url, $user_agent, $accept, $keep_body = false ) {
+	public function fetch( $url, $user_agent, $accept, $keep_body = false, array $headers = array(), $analyze = null ) {
 		$result = array(
 			'url'         => $url,
 			'user_agent'  => $user_agent,
@@ -290,7 +324,7 @@ final class CrawlerProbe {
 				'redirection'         => 0,
 				'limit_response_size' => self::MAX_RESPONSE_BYTES,
 				'user-agent'          => $user_agent,
-				'headers'             => array( 'Accept' => $accept ),
+				'headers'             => array_merge( array( 'Accept' => $accept ), $headers ),
 				/** This filter is documented in wp-includes/class-wp-http-streams.php */
 				'sslverify'           => apply_filters( 'https_local_ssl_verify', false, $url ), // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core filter.
 			)
@@ -319,6 +353,9 @@ final class CrawlerProbe {
 		$result['body_length'] = mb_strlen( $body );
 		if ( $keep_body ) {
 			$result['body'] = substr( $body, 0, self::MAX_BODY_KEPT );
+		}
+		if ( is_callable( $analyze ) ) {
+			$result = array_merge( $result, (array) call_user_func( $analyze, $body ) );
 		}
 
 		return $result;

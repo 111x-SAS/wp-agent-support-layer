@@ -1,11 +1,11 @@
 # Specification coverage
 
 Every scenario of the main specs (`openspec/specs`, including the deltas of the changes
-`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache`, `auth-md-discovery` and `agentic-readiness-round-1`) mapped to the automated test that
+`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache`, `auth-md-discovery`, `agentic-readiness-round-1` and `rendered-content-source`) mapped to the automated test that
 exercises it (PHPUnit against the official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
-Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 1.0.3 smoke is `2026-09-02-smoke-1.0.3.md`), **A+M** both.
+Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 1.0.3 smoke is `2026-09-02-smoke-1.0.3.md`, the rendered content source smoke is `2026-09-08-smoke-rendered-content-source.md`), **A+M** both.
 
 ## markdown-delivery
 
@@ -49,7 +49,9 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Enlace alternativo en una entrada elegible | `Test_Delivery::test_html_headers_and_alternate_link_for_eligible_post` | A+M |
 | Sin enlace en contenido no elegible | `Test_Delivery::test_no_alternate_link_for_disabled_post_type` | A |
 | Enlace alternativo en la página de entradas | `Test_Delivery::test_posts_page_html_announces_alternate_link` | A |
-| Front matter completo | `Test_Document_Builder::test_front_matter_contains_required_keys_and_taxonomies`, `test_description_falls_back_to_content_and_taxonomies_are_omitted_when_empty` | A |
+| Front matter completo (incluida la clave `source`) | `Test_Document_Builder::test_front_matter_contains_required_keys_and_taxonomies`, `test_description_falls_back_to_content_and_taxonomies_are_omitted_when_empty`, `test_front_matter_has_source_editor_by_default` | A |
+| Clave source según el origen (`editor` / `rendered`, resto del documento sin cambios) | `Test_Document_Builder::test_front_matter_has_source_editor_by_default`, `test_rendered_source_uses_loopback_body`, `test_loopback_failure_falls_back_to_editor_and_reports` (fallback keeps `source: "editor"`) | A+M |
+| Filtros compartidos por ambos orígenes (`wpasl_markdown_html` sobre el editor y el fragmento renderizado) | `Test_Document_Builder::test_html_filter_applies_to_rendered_fragment` | A |
 | Limpieza de elementos no textuales | `Test_Converter::test_non_content_elements_are_removed`, `Test_Document_Builder::test_scripts_forms_iframes_are_stripped_and_links_absolutized` | A |
 | Enlaces relativos (todo conversor recibe la URL base) | `Test_Converter::test_relative_links_and_images_become_absolute`, `test_absolute_and_special_links_are_untouched`, `Test_Document_Builder::test_converter_interface_requires_base_url` | A |
 | Contenido con more y nextpage | `Test_Document_Builder::test_document_contains_both_halves_of_more_and_every_nextpage`, `test_block_more_and_nextpage_wrappers_are_removed`, `test_render_restores_more_and_page_globals`, `Test_Delivery::test_document_is_identical_from_cron_and_from_singular_request` | A |
@@ -59,6 +61,30 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Documento ausente | `Test_Delivery::test_accept_header_serves_markdown_on_canonical_url` (lazy fill), `Test_Runner::test_generate_item_lazily_fills_and_records` | A |
 | Edición de una entrada | `Test_Delivery::test_editing_does_not_change_the_served_document`, `Test_Runner::test_updating_a_post_keeps_the_stored_document_until_the_next_cycle` | A |
 | Generación sin efectos sobre la petición | `Test_Document_Builder::test_building_documents_restores_all_post_globals`, `test_render_restores_more_and_page_globals` | A |
+| Origen: anulación por entrada (`post_override`, gana sobre Elementor) | `Test_Content_Source::test_post_override_wins`, `Test_Exclude_Meta_Box::test_save_stores_source_override_and_clears_default` | A+M |
+| Origen: ajuste por tipo de contenido (`post_type_setting`) | `Test_Content_Source::test_post_type_setting_wins_over_auto_conditions` | A |
+| Origen: plantilla asignada (`page_template`; `default` no aplica) | `Test_Content_Source::test_assigned_page_template_triggers_rendered` | A+M |
+| Origen: meta de constructor (Elementor completo, sin `_elementor_data`, Divi, Beaver Builder, Bricks, Oxygen, Breakdance, clave por filtro) | `Test_Content_Source::test_builder_meta_triggers_rendered` | A+M |
+| Origen: archivo de plantilla con contenido fijo (`template_file:single-solucion.php`, lectura acotada, parte literal seguida un nivel, caché por mtime) | `Test_Content_Source::test_template_file_without_the_content_triggers_rendered`, `test_template_part_literal_is_followed_one_level`, `test_template_cache_keyed_by_mtime`, `test_block_theme_template_without_post_content_triggers_rendered` | A |
+| Origen: archivo de plantilla que imprime el editor o incluye partes dinámicas (inconcluyente) | `Test_Content_Source::test_template_file_with_the_content_or_dynamic_part_is_inconclusive`, `test_template_part_literal_is_followed_one_level`, `test_block_theme_template_without_post_content_triggers_rendered` | A |
+| Origen: contenido del editor vacío sin umbral (`editor`) y umbral activado por filtro (`empty_editor`) | `Test_Content_Source::test_empty_editor_rule_is_off_by_default_and_enabled_by_filter`, `Test_Document_Builder::test_empty_editor_is_rendered_and_its_body_is_reused_on_fallback` | A |
+| Origen: contenido normal (`editor` / `default`) | `Test_Content_Source::test_normal_content_defaults_to_editor`, `Test_Document_Builder::test_front_matter_has_source_editor_by_default` | A+M |
+| Origen: resolución sustituida por filtro (`wpasl_content_source`) | `Test_Content_Source::test_resolution_filter` | A |
+| Loopback: petición de renderizado (una petición `GET` al propio host con `Accept: text/html`, cabecera y parámetro, 10 s, 2 MB, sin redirecciones automáticas) | `Test_Rendered_Page::test_request_carries_marker_accept_timeout_and_size`, `test_external_host_is_never_requested`, `Test_Document_Builder::test_rendered_source_uses_loopback_body` | A+M |
+| Loopback: la petición de renderizado nunca recibe Markdown ni genera (cabecera, parámetro, portada estática) | `Test_Delivery::test_render_request_never_gets_markdown_nor_generates`, `test_render_request_on_static_front_page_resolves_front_page` | A+M |
+| Loopback: argumentos filtrables (`wpasl_render_request_args`) | `Test_Rendered_Page::test_args_filter_changes_timeout` | A |
+| Loopback: redirección al mismo host (seguida como máximo dos veces; tres encadenadas fallan) | `Test_Rendered_Page::test_same_host_redirect_is_followed_at_most_twice` | A |
+| Loopback: redirección a otro host (no se contacta, `redirect_external_host`, documento con el editor) | `Test_Rendered_Page::test_external_redirect_fails_without_contacting_host`, `Test_Document_Builder::test_loopback_failure_falls_back_to_editor_and_reports` | A |
+| Loopback: bloqueado o fuera de tiempo (error de conexión, timeout, 403/500/503 → editor, motivo registrado, sin fallo de conversión) | `Test_Rendered_Page::test_http_errors_and_wp_error_fail_with_reason`, `test_non_html_content_type_fails`, `Test_Document_Builder::test_loopback_failure_falls_back_to_editor_and_reports`, `Test_Runner::test_render_failure_is_recorded_without_counting_as_conversion_failure` | A+M |
+| Loopback: HTML sin región de contenido (`no_content`) | `Test_Document_Builder::test_no_content_region_falls_back`, `Test_Content_Extractor::test_no_content_is_reported` | A |
+| Loopback: generación bajo demanda con loopback (en la petición; documento con el editor si falla) | `Test_Delivery::test_lazy_fill_of_rendered_item_does_loopback_in_request`, `test_lazy_fill_serves_editor_when_loopback_fails`, `test_document_is_identical_from_cron_and_from_singular_request` | A+M |
+| Extracción: página de Elementor (widgets, sin cabecera, pie ni menú, H1 una sola vez) | `Test_Content_Extractor::test_elementor_page_keeps_widgets_and_drops_chrome`, `test_duplicate_h1_is_removed_once`, `Test_Document_Builder::test_rendered_source_uses_loopback_body` | A+M |
+| Extracción: tema clásico (`article`, no `aside`) | `Test_Content_Extractor::test_classic_theme_uses_article_not_aside` | A |
+| Extracción: sin región reconocible (`body` sin `nav`) | `Test_Content_Extractor::test_without_region_falls_back_to_body_without_nav` | A |
+| Extracción: elementos eliminados (script, style, form, button, hidden, aria-hidden, screen-reader-text) | `Test_Content_Extractor::test_removed_elements_do_not_leak` | A |
+| Extracción: selector configurado (gana; sin coincidencias sigue la detección automática; filtro `wpasl_content_selector`) | `Test_Content_Extractor::test_configured_selector_wins_and_falls_back_when_missing` | A |
+| Extracción: selector inválido (`div:has(p)`, `a::before` rechazados; `div.entry-content, main article` aceptado) | `Test_Content_Extractor::test_invalid_selectors_are_rejected`, `test_selector_to_xpath`, `Test_Settings::test_content_source_and_selector_defaults_and_sanitization` | A |
+| Extracción: lista de selectores filtrable (`wpasl_rendered_content_selectors`, `wpasl_rendered_remove_selectors`) | `Test_Content_Extractor::test_selector_list_filter` | A |
 
 ## scheduled-generation
 
@@ -69,6 +95,9 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Desactivación | `Test_Lifecycle::test_deactivation_removes_cron` | A |
 | Sitio con más ítems que el tamaño del lote | `Test_Runner::test_120_items_with_batch_50_take_three_runs` | A |
 | Presupuesto de tiempo agotado | `Test_Runner::test_time_budget_stops_the_run_and_the_next_run_continues` | A |
+| Loopback acotado por el presupuesto (deadline por acción, timeout = tiempo restante) | `Test_Rendered_Page::test_deadline_caps_timeout_and_defers_below_minimum`, `Test_Runner::test_run_started_and_finished_actions_carry_deadline` | A |
+| Ítem diferido al final del presupuesto (vuelve al frente, sin fallos, la ejecución termina) | `Test_Runner::test_deferred_item_returns_to_front_and_run_ends`, `Test_Rendered_Page::test_deadline_caps_timeout_and_defers_below_minimum` | A |
+| Reintento de loopbacks fallidos (tras los nunca generados) | `Test_Runner::test_render_failed_items_go_first_after_fresh_ones` | A |
 | Alta a mitad de ciclo | `Test_Runner::test_post_published_mid_cycle_is_processed_in_next_run` | A |
 | Ciclo completo | `Test_Runner::test_120_items_with_batch_50_take_three_runs` (artifacts on the first run and after the last batch), `Test_Llms_Txt::test_builder_is_registered_as_artifact_generator`, `Test_Agent_Manifest::test_builder_is_an_artifact_generator_and_respects_the_toggle` | A |
 | Ciclo largo en un sitio grande | `Test_Runner::test_artifacts_regenerate_when_cycle_is_older_than_interval` | A |
@@ -82,6 +111,14 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Petición sin nonce válido | `Test_Generation_Status::test_handler_requires_nonce`, `test_handler_requires_capability` | A |
 | WP-Cron desactivado | `Test_Generation_Status::test_render_shows_status_and_cron_warning`, `test_render_without_warning_when_cron_enabled` | A |
 | Ítems con fallos (estado visible) | `Test_Generation_Status::test_status_shows_failed_items`, `Test_CLI::test_status_command_lists_failed_items` | A |
+| Ítems con fallo de renderizado (panel: recuento, motivo y fecha, aviso hacia Diagnóstico; "0" y sin aviso) | `Test_Generation_Status::test_render_failures_row_and_notice` | A+M |
+| Estado con fallos de renderizado (WP-CLI: `render_failed`, `last_render_error`) | `Test_CLI::test_status_shows_render_failures` | A+M |
+| Origen de un ítem (WP-CLI `source <id>`: `rendered` / `builder:elementor`; error con id inexistente o no elegible) | `Test_CLI::test_source_command_reports_resolution_and_errors` | A+M |
+| Origen o selector cambiados (la cola se descarta, las marcas se conservan; guardar sin cambios no descarta) | `Test_Scheduler::test_changing_content_source_or_selector_clears_queue_and_keeps_generated`, `test_saving_general_without_changes_keeps_queue` | A |
+| Fallo de loopback registrado (503: documento con el editor, generado, sin fallo de conversión, contador, acción y error log) | `Test_Runner::test_render_failure_is_recorded_without_counting_as_conversion_failure`, `Test_State::test_render_failures_are_recorded_cleared_and_merged` | A+M |
+| Fallo de loopback resuelto (el contador desaparece, `source: rendered`) | `Test_Runner::test_render_success_clears_counter` | A+M |
+| Fallo de loopback bajo demanda durante una ejecución (marca y fallo conservados al guardar) | `Test_Runner::test_on_demand_render_failure_during_run_is_kept_in_saved_state`, `Test_State::test_render_failures_are_recorded_cleared_and_merged`, `Test_Delivery::test_lazy_fill_serves_editor_when_loopback_fails` | A |
+| Fallos persistentes (en el umbral no se antepone; contadores de ítems no elegibles eliminados al completar el ciclo) | `Test_Runner::test_render_failed_items_at_threshold_keep_normal_order`, `test_completed_cycle_prunes_render_failed_of_ineligible_items` | A |
 | Fallo persistente de escritura | `Test_Runner::test_failed_items_are_counted_and_deprioritized`, `Test_Storage::test_storage_write_failure_is_logged` | A |
 | Fallo resuelto | `Test_Runner::test_successful_generation_clears_failure_counter` | A |
 | Acción y registro del fallo | `Test_Runner::test_failed_items_are_counted_and_deprioritized` (`wpasl_generation_failed` and the PHP error log) | A |
@@ -227,7 +264,7 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 
 | Requirement / scenario | Test | |
 | --- | --- | --- |
-| Ejecución completa (resultado por crawler para `.md` y robots.txt) | `Test_Diagnostics::test_probe_uses_crawler_user_agents_and_accept_headers`, `test_report_contains_markdown_url_check_per_crawler`, `test_probe_only_contacts_its_own_host`, `test_probe_does_not_follow_redirects` | A+M |
+| Ejecución completa (resultado por crawler para `.md` y robots.txt, y la URL de renderizado como comprobación de sitio) | `Test_Diagnostics::test_probe_uses_crawler_user_agents_and_accept_headers`, `test_report_contains_markdown_url_check_per_crawler`, `test_probe_only_contacts_its_own_host`, `test_probe_does_not_follow_redirects`, `test_render_target_is_probed_with_marker_and_html_accept` | A+M |
 | Sin permisos | `Test_Diagnostics::test_handler_requires_capability_and_nonce`, `test_handler_runs_and_redirects` | A |
 | Prueba dividida en lotes | `Test_Diagnostics::test_diagnostics_splits_into_batches_and_resumes`, `test_diagnostics_step_requires_capability_and_nonce`, `test_tab_shows_in_progress_notice` | A+M |
 | Peticiones lentas (cota por petición del administrador) | `Test_Diagnostics::test_diagnostics_request_duration_is_bounded` + Docker smoke test (`docs/evidence/2026-09-02-smoke-1.0.2.md`, `docs/evidence/2026-09-02-smoke-1.0.3.md`) | A+M |
@@ -261,7 +298,13 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Archivos por tipo comprobados (`llms-page.txt` correcto, `llms-post.txt` con 404 en error, entre `llms.txt` y `auth.md`) | `Test_Diagnostics::test_report_checks_type_files`, `test_probe_uses_crawler_user_agents_and_accept_headers`, `test_report_checks_auth_md` | A |
 | llms.txt demasiado grande (82.000 caracteres → advertencia; 20.000 → correcto) | `Test_Diagnostics::test_report_warns_on_large_llms_txt` | A |
 | Catálogo con profile (`application/linkset+json; profile="…rfc9727"`) | `Test_Diagnostics::test_report_accepts_catalog_with_profile` | A |
-| Sin peticiones de registro (solo `GET` a los objetivos conocidos, incluidos los archivos por tipo) | `Test_Diagnostics::test_probe_only_sends_get_to_known_targets`, `test_probe_only_contacts_its_own_host` | A |
+| Sin peticiones de registro (solo `GET` a los objetivos conocidos, incluidos los archivos por tipo y la URL de renderizado) | `Test_Diagnostics::test_probe_only_sends_get_to_known_targets`, `test_probe_only_contacts_its_own_host` | A |
+| URL de renderizado correcta (cabecera y parámetro, `Accept: text/html`, selector `main` en el informe) | `Test_Diagnostics::test_render_target_is_probed_with_marker_and_html_accept`, `test_report_render_check_ok_with_region` | A+M |
+| URL de renderizado sin región (advertencia: cuerpo entero, configurar el selector) | `Test_Diagnostics::test_report_render_check_warns_without_region` | A |
+| URL de renderizado bloqueada (error de conexión, 403, `text/markdown` → error con la consecuencia) | `Test_Diagnostics::test_report_render_check_errors_on_block_markdown_or_connection_error` | A+M |
+| Comando para la URL de renderizado (`curl -s -H 'X-WPASL-Render: 1' '<URL>'`) y lista de verificación sobre el loopback | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands`, `test_curl_commands_are_shell_safe` | A+M |
+| Aviso con fallos de renderizado registrados (recuento, motivo, fecha, causas habituales) | `Test_Diagnostics::test_tab_shows_render_failures_notice_and_hides_it_without_failures` | A+M |
+| Sin fallos de renderizado registrados (sin aviso) | `Test_Diagnostics::test_tab_shows_render_failures_notice_and_hides_it_without_failures` | A |
 | Comando para auth.md y lista de verificación con auth.md y los archivos por tipo | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands` | A |
 | Comandos para los archivos por tipo (`curl -s '<home_url>/llms-page.txt'`, `/llms-post.txt`; solo tipos habilitados) | `Test_Diagnostics::test_tab_renders_checklist_and_curl_commands` | A |
 
@@ -281,6 +324,14 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Lectura REST anónima | `Test_Exclude_Meta_Box::test_rest_read_hides_exclude_meta_for_anonymous` | A |
 | Lectura REST con permiso de edición | `Test_Exclude_Meta_Box::test_rest_read_shows_exclude_meta_for_editor_with_context_edit` | A |
 | Post type no habilitado (casilla oculta) | `Test_Exclude_Meta_Box::test_meta_box_is_added_only_for_enabled_post_types`, `test_meta_is_registered_only_for_enabled_post_types` | A |
+| Origen por tipo por defecto (`auto` seleccionado, selector vacío) | `Test_Settings::test_defaults`, `test_content_source_and_selector_defaults_and_sanitization`, `test_general_tab_renders_content_source_and_selector` | A+M |
+| Guardar origen y selector (`page` → `rendered`, `main article`, idempotente, `foo` → `auto`) | `Test_Settings::test_content_source_and_selector_defaults_and_sanitization`, `test_sanitize_is_idempotent_for_every_field`, `test_general_tab_renders_content_source_and_selector` | A |
+| Selector rechazado (`div:has(p)` conserva `main` y registra el aviso) | `Test_Settings::test_content_source_and_selector_defaults_and_sanitization` | A |
+| Guardar otra pestaña (Señales conserva origen y selector) | `Test_Settings::test_saving_another_tab_keeps_auth_md_settings` | A |
+| Origen por entrada: anular el origen de una entrada (`rendered` almacenado; "Follow the settings" elimina la meta; sin generación) | `Test_Exclude_Meta_Box::test_save_stores_source_override_and_clears_default`, `test_render_shows_select_only_for_enabled_types`, `Test_Content_Source::test_post_override_wins` | A+M |
+| Origen por entrada: post type no habilitado (selector no mostrado) | `Test_Exclude_Meta_Box::test_render_shows_select_only_for_enabled_types`, `test_source_meta_is_registered_only_for_enabled_post_types` | A |
+| Origen por entrada: lectura REST anónima (sin la clave en `meta`) | `Test_Exclude_Meta_Box::test_source_meta_hidden_for_anonymous_and_writable_by_editor` | A |
+| Origen por entrada: escritura REST con permiso de edición (`rendered` almacenado, `foo` saneado a vacío) | `Test_Exclude_Meta_Box::test_source_meta_hidden_for_anonymous_and_writable_by_editor` | A |
 | Doble sanitización | `Test_Settings::test_sanitize_is_idempotent_for_every_field` | A |
 | auth.md: valores por defecto | `Test_Settings::test_defaults` | A |
 | auth.md: guardar la pestaña Manifiestos (casilla, notas sin HTML, 404 en la siguiente petición) | `Test_Settings::test_auth_md_notes_are_truncated_to_4000_chars`, `Test_Auth_Md::test_route_is_404_when_disabled`, `test_settings_change_invalidates_stored_file` | A |

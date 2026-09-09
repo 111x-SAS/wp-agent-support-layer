@@ -135,12 +135,28 @@ final class GenerationStatus {
 		<?php if ( self::cron_disabled() ) : ?>
 			<div class="notice notice-warning inline"><p><?php esc_html_e( 'WP-Cron is disabled on this site (DISABLE_WP_CRON). Generation depends on a system cron calling wp-cron.php or on the "wp wpasl generate" WP-CLI command.', 'wp-agent-support-layer' ); ?></p></div>
 		<?php endif; ?>
+		<?php if ( $status['render_failed'] > 0 ) : ?>
+			<div class="notice notice-warning inline"><p>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: %d: number of items. */
+						_n( 'The rendered page of %d item could not be fetched from this server; it is served with the editor content until the loopback works.', 'The rendered page of %d items could not be fetched from this server; they are served with the editor content until the loopback works.', (int) $status['render_failed'], 'wp-agent-support-layer' ),
+						(int) $status['render_failed']
+					)
+				);
+				?>
+				<a href="<?php echo esc_url( $this->page->url( 'diagnostics' ) ); ?>"><?php esc_html_e( 'See the Diagnostics tab.', 'wp-agent-support-layer' ); ?></a>
+			</p></div>
+		<?php endif; ?>
 		<table class="widefat striped" style="max-width:640px">
 			<tbody>
 				<tr><th scope="row"><?php esc_html_e( 'Eligible items', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['eligible'] ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'With a generated document', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['generated'] ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Pending', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['pending'] ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Failed items', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['failed'] ); ?><?php echo $status['failed'] > 0 ? ' <span class="description">' . esc_html__( '(see the PHP error log; they are retried after the rest of the queue)', 'wp-agent-support-layer' ) . '</span>' : ''; ?></td></tr>
+				<tr><th scope="row"><?php esc_html_e( 'Items with a rendered-page failure', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( (string) $status['render_failed'] ); ?><?php echo $status['render_failed'] > 0 ? ' <span class="description">' . esc_html__( '(served with the editor content; retried first on the next run)', 'wp-agent-support-layer' ) . '</span>' : ''; ?></td></tr>
+				<tr><th scope="row"><?php esc_html_e( 'Last rendered-page failure', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( self::format_render_error( $status['last_render_error'] ) ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Last run', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( $this->format_time( $status['last_run'] ) ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Last completed cycle', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( $this->format_time( $status['last_cycle_completed'] ) ); ?></td></tr>
 				<tr><th scope="row"><?php esc_html_e( 'Next scheduled run', 'wp-agent-support-layer' ); ?></th><td><?php echo esc_html( null === $next ? __( 'Not scheduled', 'wp-agent-support-layer' ) : $this->format_time( $next ) ); ?></td></tr>
@@ -154,6 +170,25 @@ final class GenerationStatus {
 			<p class="description"><?php esc_html_e( 'Both actions run in the background. "Regenerate now" processes the next batch; "Regenerate everything" starts a new cycle over all eligible items.', 'wp-agent-support-layer' ); ?></p>
 		</form>
 		<?php
+	}
+
+	/**
+	 * Text of the last rendered-page failure: reason, item id and date, or "None".
+	 *
+	 * @param array|null $error Last error (post_id, reason, time), or null.
+	 * @return string
+	 */
+	public static function format_render_error( $error ) {
+		if ( ! is_array( $error ) || empty( $error['reason'] ) ) {
+			return __( 'None', 'wp-agent-support-layer' );
+		}
+		return sprintf(
+			/* translators: 1: failure reason, 2: item id, 3: date. */
+			__( '%1$s (#%2$d, %3$s)', 'wp-agent-support-layer' ),
+			(string) $error['reason'],
+			(int) $error['post_id'],
+			wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), (int) $error['time'] )
+		);
 	}
 
 	/**

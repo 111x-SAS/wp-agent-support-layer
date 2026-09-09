@@ -27,6 +27,11 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( array( 'post', 'page' ), $settings->enabled_post_types() );
 		$this->assertSame( 'daily', $settings->get( 'schedule' ) );
 		$this->assertSame( 50, $settings->get( 'batch_size' ) );
+		$this->assertSame( array(), $settings->get( 'content_source' ) );
+		$this->assertSame( '', $settings->get( 'content_selector' ) );
+		$this->assertSame( 'auto', $settings->content_source( 'page' ) );
+		$this->assertContains( 'content_source', Settings::TAB_KEYS['general'] );
+		$this->assertContains( 'content_selector', Settings::TAB_KEYS['general'] );
 		$this->assertSame( 'yes', $settings->get( 'signal_search' ) );
 		$this->assertSame( 'yes', $settings->get( 'signal_ai_input' ) );
 		$this->assertSame( 'no', $settings->get( 'signal_ai_train' ) );
@@ -116,6 +121,11 @@ class Test_Settings extends WP_UnitTestCase {
 			'post_types'             => array( 'page' ),
 			'schedule'               => 'weekly',
 			'batch_size'             => '25',
+			'content_source'         => array(
+				'page' => 'rendered',
+				'post' => 'foo',
+			),
+			'content_selector'       => ' div.entry-content>.inner ,  main   article ',
 			'signal_search'          => 'yes',
 			'signal_ai_input'        => 'no',
 			'signal_ai_train'        => 'yes',
@@ -140,6 +150,8 @@ class Test_Settings extends WP_UnitTestCase {
 		$once     = $settings->sanitize( $this->full_input() );
 		$twice    = $settings->sanitize( $once );
 		$this->assertSame( $once, $twice );
+		$this->assertSame( array( 'page' => 'rendered' ), $once['content_source'], 'Only forced values are stored; "foo" is auto.' );
+		$this->assertSame( 'div.entry-content > .inner, main article', $once['content_selector'] );
 		$this->assertSame( 5 * MB_IN_BYTES, $once['llms_full_max_bytes'] );
 		$this->assertArrayNotHasKey( 'llms_full_max_bytes_mb', $once );
 		$this->assertSame( Settings::AUTH_MD_NOTES_MAX, mb_strlen( $once['auth_md_notes'] ), 'Notes above the limit are truncated once.' );
@@ -231,6 +243,111 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertFalse( $clean['auth_md_enabled'] );
 		$this->assertSame( $stored['auth_md_notes'], $clean['auth_md_notes'] );
 		$this->assertSame( array( 'post' ), $clean['post_types'] );
+
+		// Saving the Signals tab keeps the content source and the selector of the General tab.
+		$clean = $settings->sanitize(
+			array(
+				'_tab'          => 'signals',
+				'signal_search' => 'yes',
+			)
+		);
+		$this->assertSame( array( 'page' => 'rendered' ), $clean['content_source'] );
+		$this->assertSame( 'main article', $clean['content_selector'] );
+		$this->assertSame( 'yes', $clean['signal_search'] );
+	}
+
+	public function test_content_source_and_selector_defaults_and_sanitization() {
+		$settings = new Settings();
+		$this->assertSame( array(), $settings->get( 'content_source' ) );
+		$this->assertSame( '', $settings->get( 'content_selector' ) );
+		$this->assertSame( 'auto', $settings->content_source( 'post' ) );
+
+		$clean = $settings->sanitize(
+			array(
+				'_tab'             => 'general',
+				'post_types'       => array( 'post', 'page' ),
+				'content_source'   => array(
+					'page' => 'rendered',
+					'post' => 'foo',
+					'nope' => 'editor',
+				),
+				'content_selector' => ' main   article ',
+			)
+		);
+		$this->assertSame( array( 'page' => 'rendered' ), $clean['content_source'], '"foo" is stored as auto (absent); unknown types are dropped.' );
+		$this->assertSame( 'main article', $clean['content_selector'] );
+		$twice = $settings->sanitize( array_merge( $clean, array( '_tab' => 'general' ) ) );
+		$this->assertSame( $clean['content_source'], $twice['content_source'], 'Idempotent.' );
+		$this->assertSame( $clean['content_selector'], $twice['content_selector'], 'Idempotent.' );
+		$this->assertSame( array(), get_settings_errors( Settings::OPTION ) );
+
+		update_option( Settings::OPTION, $clean );
+		$settings->flush_cache();
+		$this->assertSame( 'rendered', $settings->content_source( 'page' ) );
+		$this->assertSame( 'auto', $settings->content_source( 'post' ) );
+
+		// An invalid selector keeps the stored value and registers a Settings API error.
+		update_option( Settings::OPTION, array( 'content_selector' => 'main' ) );
+		$settings->flush_cache();
+		foreach ( array( 'div:has(p)', 'a::before' ) as $invalid ) {
+			$GLOBALS['wp_settings_errors'] = array();
+			$clean                         = $settings->sanitize(
+				array(
+					'_tab'             => 'general',
+					'post_types'       => array( 'post', 'page' ),
+					'content_selector' => $invalid,
+				)
+			);
+			$this->assertSame( 'main', $clean['content_selector'], $invalid );
+			$errors = get_settings_errors( Settings::OPTION );
+			$this->assertCount( 1, $errors, $invalid );
+			$this->assertSame( 'content_selector', $errors[0]['code'] );
+			$this->assertSame( 'error', $errors[0]['type'] );
+			$this->assertStringContainsString( 'descendant and child combinators', $errors[0]['message'] );
+		}
+
+		$GLOBALS['wp_settings_errors'] = array();
+		$clean                         = $settings->sanitize(
+			array(
+				'_tab'             => 'general',
+				'content_selector' => 'div.entry-content, main article',
+			)
+		);
+		$this->assertSame( 'div.entry-content, main article', $clean['content_selector'] );
+		$this->assertSame( array(), get_settings_errors( Settings::OPTION ) );
+
+		$clean = $settings->sanitize( array( '_tab' => 'general' ) );
+		$this->assertSame( '', $clean['content_selector'], 'An empty field means automatic detection.' );
+		$this->assertSame( array(), $clean['content_source'] );
+	}
+
+	public function test_general_tab_renders_content_source_and_selector() {
+		$html          = $this->render_page( 'general' );
+		$settings_form = $this->form_html( $html, 'options.php' );
+		foreach ( array( 'post', 'page' ) as $type ) {
+			$this->assertMatchesRegularExpression( '/<select name="wpasl_settings\[content_source\]\[' . $type . '\]">\s*<option value="auto"\s+selected=\'selected\'>Auto</', $settings_form, $type );
+		}
+		$this->assertSame( 2, substr_count( $settings_form, 'wpasl_settings[content_source][' ), 'One select per enabled post type.' );
+		$this->assertStringContainsString( 'Content source', $settings_form );
+		$this->assertStringContainsString( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder or uses a fixed theme template; otherwise the editor content.', $settings_form );
+		$this->assertStringContainsString( 'Content selector (CSS)', $settings_form );
+		$this->assertMatchesRegularExpression( '/<input type="text" id="wpasl-content-selector" name="wpasl_settings\[content_selector\]" value=""/', $settings_form );
+		$this->assertStringContainsString( 'Leave empty for automatic detection', $settings_form );
+
+		update_option(
+			Settings::OPTION,
+			array(
+				'post_types'       => array( 'page' ),
+				'content_source'   => array( 'page' => 'rendered' ),
+				'content_selector' => 'div.entry-content > .inner',
+			)
+		);
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$html          = $this->render_page( 'general' );
+		$settings_form = $this->form_html( $html, 'options.php' );
+		$this->assertMatchesRegularExpression( '/name="wpasl_settings\[content_source\]\[page\]">\s*<option value="auto"\s*>Auto<\/option>\s*<option value="editor"\s*>Editor content<\/option>\s*<option value="rendered"\s+selected=\'selected\'>Rendered page</', $settings_form );
+		$this->assertSame( 1, substr_count( $settings_form, 'wpasl_settings[content_source][' ), 'Disabled post types have no select.' );
+		$this->assertStringContainsString( 'value="div.entry-content &gt; .inner"', $settings_form );
 	}
 
 	/**
@@ -243,6 +360,8 @@ class Test_Settings extends WP_UnitTestCase {
 			'post_types'           => array( 'page' ),
 			'schedule'             => 'weekly',
 			'batch_size'           => 25,
+			'content_source'       => array( 'page' => 'rendered' ),
+			'content_selector'     => 'main article',
 			'signal_search'        => 'no',
 			'signal_ai_input'      => 'no',
 			'signal_ai_train'      => 'yes',

@@ -19,8 +19,11 @@ use WPASL\Diagnostics\DiagnosticsController;
 use WPASL\Diagnostics\PageCache;
 use WPASL\Diagnostics\Report;
 use WPASL\Generation\State;
+use WPASL\Markdown\ContentExtractor;
+use WPASL\Markdown\ContentSource;
 use WPASL\Markdown\Delivery;
 use WPASL\Markdown\DocumentBuilder;
+use WPASL\Markdown\RenderedPage;
 use WPASL\Llms\LlmsTxtBuilder;
 use WPASL\Llms\LlmsTxtRouter;
 use WPASL\Manifest\AuthMdBuilder;
@@ -95,16 +98,19 @@ final class Plugin {
 		$page        = new Page( $settings );
 
 		$this->services           = array(
-			'settings'         => $settings,
-			'storage'          => $storage,
-			'scheduler'        => $scheduler,
-			'eligibility'      => $eligibility,
-			'runner'           => $runner,
-			'page'             => $page,
-			'exclude_meta_box' => new ExcludeMetaBox( $settings ),
-			'status'           => new GenerationStatus( $runner, $scheduler, $page ),
-			'delivery'         => new Delivery( $settings, $storage, $eligibility, $runner ),
-			'signals'          => new ContentSignals( $settings ),
+			'settings'          => $settings,
+			'storage'           => $storage,
+			'scheduler'         => $scheduler,
+			'eligibility'       => $eligibility,
+			'runner'            => $runner,
+			'page'              => $page,
+			'exclude_meta_box'  => new ExcludeMetaBox( $settings ),
+			'status'            => new GenerationStatus( $runner, $scheduler, $page ),
+			'delivery'          => new Delivery( $settings, $storage, $eligibility, $runner ),
+			'signals'           => new ContentSignals( $settings ),
+			'content_source'    => new ContentSource( $settings ),
+			'rendered_page'     => new RenderedPage(),
+			'content_extractor' => new ContentExtractor( $settings ),
 		);
 		$this->services['robots'] = new RobotsTxt( $settings, $this->services['signals'] );
 
@@ -125,7 +131,7 @@ final class Plugin {
 		$runner->add_artifact_generator( $auth_md_builder );
 		$this->services['discovery_links'] = new DiscoveryLinks( $settings );
 
-		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage, $llms_builder );
+		$probe                         = new CrawlerProbe( $eligibility, $this->services['delivery'], $storage, $llms_builder, $this->services['content_extractor'] );
 		$page_cache                    = new PageCache( $settings, $this->services['signals'] );
 		$this->services['probe']       = $probe;
 		$this->services['page_cache']  = $page_cache;
@@ -133,12 +139,18 @@ final class Plugin {
 			$probe,
 			new Report( $this->services['robots']->policy(), $this->services['signals'] ),
 			$page,
-			$page_cache
+			$page_cache,
+			$runner
 		);
 
 		if ( LeagueConverter::is_available() ) {
 			$this->services['converter'] = new LeagueConverter();
-			$this->services['builder']   = new DocumentBuilder( $this->services['converter'] );
+			$this->services['builder']   = new DocumentBuilder(
+				$this->services['converter'],
+				$this->services['content_source'],
+				$this->services['rendered_page'],
+				$this->services['content_extractor']
+			);
 			$runner->set_item_generator( $this->services['builder'] );
 		} else {
 			add_action( 'admin_notices', array( $this, 'missing_build_notice' ) );
@@ -164,7 +176,7 @@ final class Plugin {
 		}
 
 		if ( defined( 'WP_CLI' ) && WP_CLI && class_exists( '\\WP_CLI' ) ) {
-			\WP_CLI::add_command( 'wpasl', new Commands( $runner, $scheduler, $settings ) );
+			\WP_CLI::add_command( 'wpasl', new Commands( $runner, $scheduler, $settings, $this->services['content_source'] ) );
 		}
 	}
 

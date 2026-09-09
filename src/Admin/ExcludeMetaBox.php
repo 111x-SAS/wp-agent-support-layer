@@ -10,12 +10,18 @@ namespace WPASL\Admin;
 use WPASL\Settings;
 
 /**
- * "Exclude from agent layer" checkbox, stored as protected post meta and exposed to the REST API for editors.
+ * "Exclude from agent layer" checkbox and "Markdown content source" override, stored as protected post meta
+ * and exposed to the REST API for editors.
  */
 final class ExcludeMetaBox {
 
 	const META  = '_wpasl_exclude';
 	const NONCE = 'wpasl_exclude_nonce';
+
+	/**
+	 * Per-post content source override: "editor", "rendered" or '' (follow the settings).
+	 */
+	const SOURCE_META = '_wpasl_content_source';
 
 	/**
 	 * Settings.
@@ -75,7 +81,28 @@ final class ExcludeMetaBox {
 	}
 
 	/**
-	 * Registers the meta for each enabled post type.
+	 * Content source override of a post: "editor", "rendered" or '' when the post follows the settings.
+	 *
+	 * @param int $post_id Post id.
+	 * @return string
+	 */
+	public static function source_override( $post_id ) {
+		return self::sanitize_source( get_post_meta( (int) $post_id, self::SOURCE_META, true ) );
+	}
+
+	/**
+	 * Sanitizes a content source override: "editor", "rendered" or '' for anything else.
+	 *
+	 * @param mixed $value Raw value.
+	 * @return string
+	 */
+	public static function sanitize_source( $value ) {
+		$value = is_scalar( $value ) ? sanitize_key( (string) $value ) : '';
+		return in_array( $value, Settings::CONTENT_SOURCES, true ) ? $value : '';
+	}
+
+	/**
+	 * Registers the meta keys for each enabled post type.
 	 *
 	 * @return void
 	 */
@@ -94,13 +121,27 @@ final class ExcludeMetaBox {
 					'auth_callback'     => array( $this, 'can_edit' ),
 				)
 			);
-			// auth_callback only guards writes: hide the value from readers without edit permission.
+			register_post_meta(
+				$type,
+				self::SOURCE_META,
+				array(
+					'type'              => 'string',
+					'description'       => __( 'Content source of the Markdown version: "editor", "rendered" or empty to follow the settings.', 'wp-agent-support-layer' ),
+					'single'            => true,
+					'default'           => '',
+					'show_in_rest'      => true,
+					'sanitize_callback' => array( __CLASS__, 'sanitize_source' ),
+					'auth_callback'     => array( $this, 'can_edit' ),
+				)
+			);
+			// auth_callback only guards writes: hide the values from readers without edit permission.
 			add_filter( 'rest_prepare_' . $type, array( $this, 'hide_meta_from_readers' ), 10, 2 );
-		}
+		}//end foreach
 	}
 
 	/**
-	 * Removes the exclusion flag from REST responses for users who cannot edit the post.
+	 * Removes the exclusion flag and the content source override from REST responses for users who cannot
+	 * edit the post.
 	 *
 	 * @param \WP_REST_Response $response Response.
 	 * @param \WP_Post          $post     Post.
@@ -111,8 +152,17 @@ final class ExcludeMetaBox {
 			return $response;
 		}
 		$data = $response->get_data();
-		if ( is_array( $data ) && isset( $data['meta'] ) && is_array( $data['meta'] ) && array_key_exists( self::META, $data['meta'] ) ) {
-			unset( $data['meta'][ self::META ] );
+		if ( ! is_array( $data ) || ! isset( $data['meta'] ) || ! is_array( $data['meta'] ) ) {
+			return $response;
+		}
+		$changed = false;
+		foreach ( array( self::META, self::SOURCE_META ) as $key ) {
+			if ( array_key_exists( $key, $data['meta'] ) ) {
+				unset( $data['meta'][ $key ] );
+				$changed = true;
+			}
+		}
+		if ( $changed ) {
 			$response->set_data( $data );
 		}
 		return $response;
@@ -151,24 +201,39 @@ final class ExcludeMetaBox {
 	}
 
 	/**
-	 * Renders the checkbox.
+	 * Renders the checkbox and the content source select.
 	 *
 	 * @param \WP_Post $post Post.
 	 * @return void
 	 */
 	public function render( $post ) {
 		wp_nonce_field( self::NONCE, self::NONCE );
+		$source  = self::source_override( $post->ID );
+		$options = array(
+			''         => __( 'Follow the settings', 'wp-agent-support-layer' ),
+			'editor'   => __( 'Editor content', 'wp-agent-support-layer' ),
+			'rendered' => __( 'Rendered page', 'wp-agent-support-layer' ),
+		);
 		?>
 		<label>
 			<input type="checkbox" name="<?php echo esc_attr( self::META ); ?>" value="1" <?php checked( self::is_excluded( $post->ID ) ); ?> />
 			<?php esc_html_e( 'Exclude from the agent layer', 'wp-agent-support-layer' ); ?>
 		</label>
 		<p class="description"><?php esc_html_e( 'Hides this item from the Markdown version, llms.txt and the agent manifest.', 'wp-agent-support-layer' ); ?></p>
+		<p style="margin-top:12px;">
+			<label for="wpasl-content-source"><strong><?php esc_html_e( 'Markdown content source', 'wp-agent-support-layer' ); ?></strong></label><br />
+			<select id="wpasl-content-source" name="<?php echo esc_attr( self::SOURCE_META ); ?>" style="max-width:100%;">
+				<?php foreach ( $options as $value => $label ) : ?>
+					<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $source, $value ); ?>><?php echo esc_html( $label ); ?></option>
+				<?php endforeach; ?>
+			</select>
+		</p>
+		<p class="description"><?php esc_html_e( 'Where the Markdown body comes from: the editor content, or the page as rendered by the theme and page builders. "Follow the settings" applies the content source configured for this content type.', 'wp-agent-support-layer' ); ?></p>
 		<?php
 	}
 
 	/**
-	 * Saves the checkbox. Never generates any document.
+	 * Saves the checkbox and the content source select. Never generates any document.
 	 *
 	 * @param int      $post_id Post id.
 	 * @param \WP_Post $post    Post.
@@ -192,6 +257,15 @@ final class ExcludeMetaBox {
 			update_post_meta( $post_id, self::META, true );
 		} else {
 			delete_post_meta( $post_id, self::META );
+		}
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitize_source() reduces the value to editor, rendered or ''.
+		$source = isset( $_POST[ self::SOURCE_META ] ) ? self::sanitize_source( wp_unslash( $_POST[ self::SOURCE_META ] ) ) : '';
+		if ( '' !== $source ) {
+			update_post_meta( $post_id, self::SOURCE_META, $source );
+		} else {
+			// The default ("follow the settings") is never stored.
+			delete_post_meta( $post_id, self::SOURCE_META );
 		}
 	}
 }

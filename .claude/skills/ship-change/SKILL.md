@@ -1,6 +1,6 @@
 ---
 name: ship-change
-description: Run this repo's full plan-to-merge pipeline for a change - openspec proposal (written by a fable-model agent), a review gate, an independent Orca worktree running Claude opusplan to implement and open a PR, a second review gate, then squash-merge, openspec spec sync + archive, and worktree cleanup. Use when the user wants to ship a change "the way we did it before" / "con el mismo proceso" / "/ship-change <description>" - not for a quick one-off edit that doesn't need a formal plan or PR.
+description: Run this repo's full plan-to-merge pipeline for a change - openspec proposal (written by a fable-model agent), a review gate, an independent Orca worktree running Claude opusplan to implement and open a PR, an automated code-review pass on the PR, a second review gate, then squash-merge, openspec spec sync + archive, and worktree cleanup. Use when the user wants to ship a change "the way we did it before" / "con el mismo proceso" / "/ship-change <description>" - not for a quick one-off edit that doesn't need a formal plan or PR.
 argument-hint: <description of the problem or change to plan and ship>
 ---
 
@@ -51,7 +51,8 @@ Only after Gate 1 approval.
    - Verify commit authorship: `git log --format='%an <%ae>'` on the branch - must be the repo user only.
    - Verify the PR body has no AI-attribution footer/session link (`gh pr view <n> --json body`).
    - If either slipped in (agents sometimes add it by default), fix it: reword commits by checking out a temp branch, `git commit --amend`, `git cherry-pick` the rest, `--force-with-lease` push; `gh pr edit --body-file` for the PR body. Never use `git rebase -i`.
-6. **Gate 2**: report the PR URL and ask the user to review it. Stop - do not merge, sync, or archive until they say so.
+6. **Automated code review, before asking for human review** (review early, catch what tests/phpcs don't - logic bugs, reuse/simplification, efficiency): invoke the `code-review` skill against the PR number, e.g. `/code-review <n> high --comment`. No new worktree for this - targeting a PR number works over the remote diff via `gh`, so run it yourself (the orchestrator) from wherever you already are; only Phase 2's implementation gets its own worktree. Default to `high` effort for anything touching security-sensitive surfaces (writing files, auth, external requests) or `medium` for routine changes; never invoke the billed `ultra` tier without the user asking for it by name. Let it post findings as inline PR comments (`--comment`) so they're visible in the human review below - do not pass `--fix` here, fixes stay opt-in for the user to request after seeing findings. Fold a one-line summary of what it found (counts by severity, or "no findings") into the Gate 2 report.
+7. **Gate 2**: report the PR URL plus the automated-review summary, and ask the user to review it. Stop - do not merge, sync, or archive until they say so.
 
 ## Phase 3 — Merge, sync, archive (only on explicit approval)
 

@@ -70,7 +70,7 @@ Cada ciclo SHALL eliminar del almacenamiento los documentos cuyo contenido ya no
 - **THEN** los documentos de páginas se eliminan del almacenamiento
 
 ### Requirement: Invalidación al guardar una entrada publicada
-Cuando una entrada permanezca o pase a estado `publish` al guardarse (creación, edición o republicación, con o sin cambios aparentes en el contenido), el sistema SHALL eliminar de inmediato su documento almacenado, sin generar ningún documento nuevo en esa misma petición, y SHALL marcarla como no generada para que quede al frente de la siguiente ejecución programada. Esto cubre los casos en que el origen resuelto del contenido pudo cambiar sin que el editor tocara el cuerpo del editor (una plantilla de tema añadida o modificada, un constructor de páginas reconfigurado), ya que solo una nueva resolución puede detectarlo.
+Cuando una entrada que ya estaba en estado `publish` se guarde de nuevo (permaneciendo publicada o dejando de estarlo; con o sin cambios aparentes en el contenido), el sistema SHALL eliminar de inmediato su documento almacenado, sin generar ningún documento nuevo en esa misma petición, y SHALL marcarla como no generada para que quede al frente de la siguiente ejecución programada. Esto cubre los casos en que el origen resuelto del contenido pudo cambiar sin que el editor tocara el cuerpo del editor (una plantilla de tema añadida o modificada, un constructor de páginas reconfigurado), ya que solo una nueva resolución puede detectarlo. Una entrada que nunca estuvo publicada (primera publicación) MUST NOT disparar esta invalidación: no puede tener un documento o marca de estado previos, porque la elegibilidad exige `publish`.
 
 #### Scenario: Edición de una entrada publicada
 - **WHEN** un editor guarda cambios en una entrada publicada que ya tiene un documento almacenado
@@ -79,6 +79,34 @@ Cuando una entrada permanezca o pase a estado `publish` al guardarse (creación,
 #### Scenario: Guardado sin cambios de contenido
 - **WHEN** un editor pulsa "Actualizar" en una entrada publicada sin modificar el contenido
 - **THEN** el documento almacenado también se invalida, porque el sistema no puede saber si el origen resuelto (plantilla, constructor) cambió fuera del editor
+
+#### Scenario: Primera publicación no invalida nada
+- **WHEN** una entrada se publica por primera vez (no estaba previamente en `publish`)
+- **THEN** el sistema no realiza ninguna lectura ni escritura del estado de generación para esa entrada, porque no puede existir nada que invalidar
+
+#### Scenario: Edición concurrente de una entrada ya generada en un ciclo anterior
+- **WHEN** una ejecución programada está procesando otras entradas y, mientras tanto, una entrada distinta (generada en un ciclo anterior, sin tocar por esta ejecución) se guarda y se invalida
+- **THEN** al terminar la ejecución, su marca de "generada" no se restaura: el guardado final de la ejecución respeta la invalidación concurrente en vez de sobrescribirla con su copia en memoria, que ya estaba desactualizada; esta verificación relee el estado saltándose la caché local de opciones, para no confundir una copia obsoleta de este mismo proceso con el estado real
+
+#### Scenario: Edición concurrente de otra entrada durante un relleno diferido (fuera de una ejecución programada)
+- **WHEN** una petición de Markdown genera bajo demanda el documento de una entrada (fuera de un ciclo) y, entre su lectura y su escritura del estado, una entrada distinta se invalida por un guardado concurrente
+- **THEN** esa invalidación tampoco se pierde: la marca de la entrada distinta no se restaura
+
+#### Scenario: Edición concurrente al iniciar un ciclo por WP-CLI restringido a un tipo
+- **WHEN** `wp wpasl generate --post-type=<tipo>` reconstruye la cola y, justo antes de guardar, una entrada de otro tipo se invalida por un guardado concurrente
+- **THEN** esa invalidación tampoco se pierde
+
+#### Scenario: Edición concurrente durante una poda manual
+- **WHEN** se ejecuta una poda de documentos no elegibles y, mientras tanto, una entrada que sigue siendo elegible (y por tanto no se poda) se invalida por un guardado concurrente
+- **THEN** esa invalidación tampoco se pierde
+
+#### Scenario: Cambios concurrentes a otras entradas durante `forget()`, un fallo de renderizado registrado o uno resuelto
+- **WHEN** se olvida una entrada, se registra el fallo de renderizado de una entrada, o se limpia el fallo de una entrada, y mientras tanto una entrada distinta se invalida (olvidada) o su fallo de renderizado se registra o se limpia por un guardado concurrente
+- **THEN** ese cambio concurrente a la entrada distinta tampoco se pierde
+
+#### Scenario: Fallo de renderizado resuelto concurrentemente para una entrada que la ejecución en curso no toca
+- **WHEN** una ejecución programada está procesando otras entradas y, mientras tanto, el renderizado de una entrada distinta (con un fallo de renderizado ya registrado, sin tocar por esta ejecución) se resuelve por un guardado concurrente
+- **THEN** al terminar la ejecución, su contador de fallos no se restaura
 
 ### Requirement: Sin generación en el flujo de edición
 El sistema MUST NOT convertir ni generar documentos como reacción a la creación, actualización o publicación de una entrada. La entrada publicada SHALL quedar pendiente y procesarse en la siguiente ejecución programada aunque haya un ciclo en curso.

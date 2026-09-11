@@ -554,7 +554,7 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertFalse( $this->storage->exists( Runner::document_path( 'post', $id ) ) );
 	}
 
-	public function test_publishing_or_updating_never_generates() {
+	public function test_publishing_or_updating_never_generates_synchronously() {
 		$id = self::factory()->post->create( array( 'post_status' => 'draft' ) );
 		wp_publish_post( $id );
 		wp_update_post(
@@ -568,10 +568,11 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertSame( 1, $this->runner->status()['pending'] );
 	}
 
-	public function test_updating_a_post_keeps_the_stored_document_until_the_next_cycle() {
+	public function test_updating_a_published_post_invalidates_the_stored_document_immediately() {
 		$id = self::factory()->post->create( array( 'post_title' => 'Before' ) );
 		$this->runner->run_cycle();
-		$path = Runner::document_path( 'post', $id );
+		$path         = Runner::document_path( 'post', $id );
+		$calls_before = $this->items->calls;
 		$this->assertSame( "# Before\n", $this->storage->read( $path ) );
 
 		wp_update_post(
@@ -580,10 +581,25 @@ class Test_Runner extends WP_UnitTestCase {
 				'post_title' => 'After',
 			)
 		);
-		$this->assertSame( "# Before\n", $this->storage->read( $path ) );
+		// The stale document is removed at once (no synchronous regeneration); a lazy fill or the
+		// next cycle produces the fresh one.
+		$this->assertNull( $this->storage->read( $path ) );
+		$this->assertSame( $calls_before, $this->items->calls );
+		$this->assertSame( 1, $this->runner->status()['pending'] );
 
 		$this->runner->run_cycle();
 		$this->assertSame( "# After\n", $this->storage->read( $path ) );
+	}
+
+	public function test_resaving_a_published_post_without_changes_still_invalidates() {
+		$id   = self::factory()->post->create( array( 'post_title' => 'Same' ) );
+		$path = Runner::document_path( 'post', $id );
+		$this->runner->run_cycle();
+		$this->assertTrue( $this->storage->exists( $path ) );
+
+		wp_update_post( array( 'ID' => $id ) );
+
+		$this->assertFalse( $this->storage->exists( $path ) );
 	}
 
 	public function test_generate_item_lazily_fills_and_records() {

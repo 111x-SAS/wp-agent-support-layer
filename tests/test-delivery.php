@@ -825,7 +825,7 @@ class Test_Delivery extends WP_UnitTestCase {
 		$this->assertTrue( is_404() );
 	}
 
-	public function test_editing_does_not_change_the_served_document() {
+	public function test_editing_refreshes_the_served_document() {
 		$post = self::factory()->post->create_and_get(
 			array(
 				'post_name'  => 'editada',
@@ -846,6 +846,7 @@ class Test_Delivery extends WP_UnitTestCase {
 		ob_start();
 		$this->go_to( home_url( '/editada.md' ) );
 		$second = ob_get_clean();
-		$this->assertStringContainsString( '# Original', $second, 'Stored document is unchanged until the next scheduled run.' );
+		$this->assertStringContainsString( '# Cambiada', $second, 'The stale document is invalidated on save; the next request regenerates it.' );
+		$this->assertStringNotContainsString( '# Original', $second );
 	}
 }

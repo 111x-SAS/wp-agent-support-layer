@@ -1,7 +1,7 @@
 # Specification coverage
 
 Every scenario of the main specs (`openspec/specs`, including the deltas of the changes
-`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache`, `auth-md-discovery`, `agentic-readiness-round-1` and `rendered-content-source`) mapped to the automated test that
+`fix-review-findings`, 1.0.2, `fix-review-1-0-2`, 1.0.3, `fix-markdown-api-catalog-link`, `detect-cache-enabler-page-cache`, `auth-md-discovery`, `agentic-readiness-round-1`, `rendered-content-source` and `cache-enabler-auto-headers`) mapped to the automated test that
 exercises it (PHPUnit against the official WordPress test suite), or to the manual evidence when the behaviour depends on a web server.
 Test classes live in `tests/`.
 
@@ -280,10 +280,33 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Otra caché de página (valor tal cual, textos genéricos) | `Test_Diagnostics::test_report_shows_other_page_cache_handler_verbatim` | A |
 | Sin caché de página (textos genéricos) | `Test_Diagnostics::test_report_without_page_cache_keeps_generic_messages`, `test_report_flags_waf_block_and_missing_headers` | A |
 | Informe anterior sin hallazgo de caché de página | `Test_Diagnostics::test_tab_renders_report_from_previous_version_without_notices` | A |
-| Aviso con Cache Enabler activo (texto, cabeceras perdidas, `Accept`, no afectados, servidor web o CDN) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets` | A |
-| Fragmentos con la configuración por defecto (`.htaccess` y nginx, condicionados a HTML, URL real del sitio) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets` | A |
-| Fragmento para OpenLiteSpeed sin X-Robots-Tag | `Test_Diagnostics::test_openlitespeed_snippet_omits_x_robots_tag` | A |
-| Fragmentos con entrenamiento permitido y sin manifiesto | `Test_Diagnostics::test_snippets_follow_settings` | A |
+| Aviso con Cache Enabler activo (texto, cabeceras perdidas, `Accept`, no afectados, servidor web o CDN, sin afirmar que el plugin nunca escribe `.htaccess`) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets` | A |
+| Fragmentos con la configuración por defecto (`.htaccess` y nginx, condicionados a HTML, URL real del sitio, marcador `X-WPASL-Headers` en el bloque de `.htaccess`) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets` | A |
+| Fragmento para OpenLiteSpeed sin X-Robots-Tag (ni marcador) | `Test_Diagnostics::test_openlitespeed_snippet_omits_x_robots_tag` | A |
+| Fragmentos con entrenamiento permitido y sin manifiesto (marcador presente pese a ello) | `Test_Diagnostics::test_snippets_follow_settings` | A |
+| Marcador nunca enviado desde PHP (página HTML, `.md`, `robots.txt`, `llms.txt`) | `Test_Diagnostics::test_marker_header_is_never_sent_by_php` | A |
+| `fetch()` conserva la cabecera del marcador | `Test_Diagnostics::test_probe_fetch_keeps_the_marker_header` | A |
+| Solo fragmentos cuando la aplicación automática no está disponible | `Test_Diagnostics::test_tab_hides_htaccess_apply_control_when_unavailable` | A |
+| Entorno compatible y archivo escribible (detección Apache/LiteSpeed vía `SERVER_SOFTWARE`, filtro de sustitución) | `Test_Diagnostics::test_htaccess_environment_detection` | A |
+| Disponibilidad (`available()`: Cache Enabler, entorno, escribibilidad, multisitio) | `Test_Diagnostics::test_htaccess_availability` | A |
+| Estado del bloque (no aplicado, al día, con valores distintos) | `Test_Diagnostics::test_htaccess_status` | A |
+| Copia de seguridad y restauración byte a byte, solo la copia más reciente | `Test_Diagnostics::test_htaccess_backup_and_restore` | A |
+| Forma de la petición de verificación (host propio, `Accept: text/html`, sin redirección, parámetro `wpasl_verify`) | `Test_Diagnostics::test_htaccess_verify_request_shape` | A |
+| Resultados de la verificación (éxito, sin marcador, 500, error de conexión, redirección) | `Test_Diagnostics::test_htaccess_verify_outcomes` | A |
+| Aplicación correcta (copia, bloque entre marcadores, una sola petición, estado al día) | `Test_Diagnostics::test_htaccess_apply_success` | A |
+| Bloque ya presente con valores anteriores (reemplazo en su sitio, líneas ajenas intactas) | `Test_Diagnostics::test_htaccess_apply_replaces_existing_block_in_place` | A |
+| Verificación con error, tiempo agotado o código distinto de 200 (restauración automática) | `Test_Diagnostics::test_htaccess_apply_rolls_back_on_verification_failure` | A |
+| Archivo inexistente restaurado (se elimina si la verificación falla) | `Test_Diagnostics::test_htaccess_apply_removes_created_file_when_it_did_not_exist` | A |
+| Copia de seguridad imposible (aborta sin escribir ni verificar) | `Test_Diagnostics::test_htaccess_apply_aborts_when_backup_fails` | A |
+| Multisitio (sin botón, `apply()` aborta con `step => 'environment'`) | `Test_Diagnostics::test_htaccess_apply_aborts_on_multisite`, `test_htaccess_availability` | A |
+| Sin permisos o sin nonce | `Test_Diagnostics::test_htaccess_handler_requires_capability_and_nonce` | A |
+| Acción completa con redirección y transient de resultado | `Test_Diagnostics::test_htaccess_handler_applies_and_redirects` | A |
+| Servicio cableado (`Plugin::get('htaccess_headers')`, `admin_post_wpasl_apply_htaccess`) | `Test_Diagnostics::test_htaccess_headers_service_is_wired` | A |
+| Comprobación de capacidad y botón en la pestaña (un solo formulario, sin anidar) | `Test_Diagnostics::test_tab_shows_htaccess_apply_control_when_available` | A |
+| Avisos de resultado (éxito, fallo restaurado, fallo con restauración fallida) | `Test_Diagnostics::test_tab_shows_htaccess_result_notices` | A |
+| Ninguna escritura fuera de la acción (activación, ajustes, generación, simulación, renderizado de la pestaña) | `Test_Diagnostics::test_htaccess_is_never_written_outside_the_action` | A |
+| Ajustes cambiados tras aplicar (queda «con valores distintos» sin reescribir) | `Test_Diagnostics::test_htaccess_block_goes_stale_without_rewriting` | A |
+| Detección de entorno y ruta sustituidas por filtro (`wpasl_htaccess_environment`, `wpasl_htaccess_file`) | `Test_Diagnostics::test_htaccess_environment_detection`, `test_htaccess_status` (todos los tests de `HtaccessHeaders` usan `wpasl_htaccess_file`) | A |
 | Recordatorio de Cloudflare (con y sin informe Cloudflare) | `Test_Diagnostics::test_tab_shows_cache_enabler_notice_and_snippets`, `test_snippets_follow_settings` | A |
 | Sin Cache Enabler (sin aviso ni fragmentos) | `Test_Diagnostics::test_tab_hides_cache_notice_without_page_cache`, `test_report_detects_cache_enabler_from_x_cache_handler` (report without local notice) | A |
 | Detección local sustituida por filtro (`wpasl_diagnostics_page_cache`) | `Test_Diagnostics::test_page_cache_detection_is_null_here_and_replaceable_by_filter`, `test_report_uses_local_detection_without_x_cache_handler`, `test_tab_shows_cache_enabler_notice_and_snippets` | A |

@@ -37,6 +37,17 @@ final class PageCache {
 	const OLS_MARKER = 'END_extraHeaders';
 
 	/**
+	 * Name of the verification marker header added to the .htaccess block only. The plugin never sends it
+	 * from PHP, so its presence in a response proves the server, not PHP, is applying the block.
+	 */
+	const MARKER_HEADER = 'X-WPASL-Headers';
+
+	/**
+	 * Value of the verification marker header.
+	 */
+	const MARKER_VALUE = 'htaccess';
+
+	/**
 	 * Settings.
 	 *
 	 * @var Settings
@@ -154,15 +165,19 @@ final class PageCache {
 	}
 
 	/**
-	 * Block for .htaccess (Apache 2.4.7+ and LiteSpeed Enterprise, mod_headers), limited to HTML responses.
+	 * Lines of the block for .htaccess (Apache 2.4.7+ and LiteSpeed Enterprise, mod_headers), limited to
+	 * HTML responses. Reused as-is by the auto-apply feature so the copyable snippet and the block it writes
+	 * between markers are the same text.
 	 *
 	 * Content-Signal and Content-Usage are unset in the onsuccess table and set in the always table so the
 	 * response that regenerates the cache carries them exactly once with mod_php (onsuccess) and with
 	 * PHP-FPM (always). X-Robots-Tag and Link use setifempty so a value sent by PHP or another plugin is kept.
+	 * The X-WPASL-Headers marker is always set, regardless of the configured signals: its only purpose is to
+	 * prove, when the auto-apply feature verifies the block, that the server (not PHP) is sending headers.
 	 *
-	 * @return string
+	 * @return string[]
 	 */
-	public function htaccess_snippet() {
+	public function htaccess_lines() {
 		$condition = '"expr=%{CONTENT_TYPE} =~ m#^text/html#"';
 		$replace   = array( ContentSignals::HEADER, ContentSignals::USAGE_HEADER );
 		$lines     = array(
@@ -178,8 +193,18 @@ final class PageCache {
 				$lines[] = "\tHeader always setifempty {$name} " . self::apache_quote( $value ) . " {$condition}";
 			}
 		}
+		$lines[] = "\tHeader always set " . self::MARKER_HEADER . ' ' . self::apache_quote( self::MARKER_VALUE ) . " {$condition}";
 		$lines[] = '</IfModule>';
-		return implode( "\n", $lines ) . "\n";
+		return $lines;
+	}
+
+	/**
+	 * Block for .htaccess as ready-to-copy text.
+	 *
+	 * @return string
+	 */
+	public function htaccess_snippet() {
+		return implode( "\n", $this->htaccess_lines() ) . "\n";
 	}
 
 	/**
@@ -290,7 +315,7 @@ final class PageCache {
 				__( 'HTML served from the %s page cache does not carry the Content-Signal, Content-Usage, X-Robots-Tag, Link rel="api-catalog" and Link rel="alternate" type="text/markdown" headers this plugin sends: the cache stores the HTML body only and delivers it before WordPress loads. A request with Accept: text/markdown that also accepts text/html receives the cached HTML instead of Markdown, because the cache key ignores Accept. Only the request that regenerates the cache carries the headers, so they seem to appear once and then disappear. The .md URLs, llms.txt, robots.txt and the manifests are not affected, and the alternate <link> in the HTML head survives in the cached page.', 'wp-agent-support-layer' ),
 				$detected['name']
 			),
-			__( 'The fix belongs to the web server or CDN, which can add the headers to every HTML response; this plugin never writes .htaccess or server configuration. Paste the block for your server below; the values are the ones this site sends. The Link rel="alternate" header cannot be restored this way because its value depends on each URL.', 'wp-agent-support-layer' ),
+			__( 'The fix belongs to the web server or CDN, which can add the headers to every HTML response. On Apache and LiteSpeed Enterprise the plugin can apply the .htaccess block for you, after a backup and a verification request; for nginx, OpenLiteSpeed and CDN rules paste the block yourself. Paste the block for your server below; the values are the ones this site sends. The Link rel="alternate" header cannot be restored this way because its value depends on each URL.', 'wp-agent-support-layer' ),
 		);
 	}
 

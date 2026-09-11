@@ -71,20 +71,29 @@ final class DiagnosticsController {
 	private $runner;
 
 	/**
+	 * .htaccess auto-apply service.
+	 *
+	 * @var HtaccessHeaders|null
+	 */
+	private $htaccess;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param CrawlerProbe $probe      Probe.
-	 * @param Report       $report     Report builder.
-	 * @param Page         $page       Page.
-	 * @param PageCache    $page_cache Page cache detection and snippets.
-	 * @param Runner|null  $runner     Runner.
+	 * @param CrawlerProbe         $probe      Probe.
+	 * @param Report               $report     Report builder.
+	 * @param Page                 $page       Page.
+	 * @param PageCache            $page_cache Page cache detection and snippets.
+	 * @param Runner|null          $runner     Runner.
+	 * @param HtaccessHeaders|null $htaccess   .htaccess auto-apply service.
 	 */
-	public function __construct( CrawlerProbe $probe, Report $report, Page $page, PageCache $page_cache, ?Runner $runner = null ) {
+	public function __construct( CrawlerProbe $probe, Report $report, Page $page, PageCache $page_cache, ?Runner $runner = null, ?HtaccessHeaders $htaccess = null ) {
 		$this->probe      = $probe;
 		$this->report     = $report;
 		$this->page       = $page;
 		$this->page_cache = $page_cache;
 		$this->runner     = $runner;
+		$this->htaccess   = $htaccess;
 	}
 
 	/**
@@ -104,7 +113,7 @@ final class DiagnosticsController {
 	 * @return void
 	 */
 	public function register_tab( Page $page ) {
-		$page->add_tab( new DiagnosticsTab( $this->probe, $this->page, $this->page_cache, $this->runner ) );
+		$page->add_tab( new DiagnosticsTab( $this->probe, $this->page, $this->page_cache, $this->runner, $this->htaccess ) );
 	}
 
 	/**

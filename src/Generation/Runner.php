@@ -84,16 +84,21 @@ final class Runner {
 	private $deferred = false;
 
 	/**
-	 * Rendered-page failures tracked while run() is active, or null outside a run: "counts" by post id,
-	 * "last" error and "cleared" ids (successful loopbacks). Folded into the run's state on save.
+	 * Rendered-page failures tracked while run() is active, or null outside a run: "counts" by post id
+	 * (seeded from the loaded state so an increment knows the current count), "touched" ids this run
+	 * itself incremented (only these are passed for 'render_failed' when saving - see run()'s closing
+	 * comment, same reasoning as $run_marks for 'generated'), "last" error and "cleared" ids (successful
+	 * loopbacks). Folded into the run's state on save.
 	 *
-	 * @var array{counts:array<int,int>, last:array|null, cleared:array<int,bool>}|null
+	 * @var array{counts:array<int,int>, touched:array<int,bool>, last:array|null, cleared:array<int,bool>}|null
 	 */
 	private $run_render = null;
 
 	/**
-	 * Generation marks recorded by generate_item() while run() is active, or null outside a run. They are
-	 * folded into the run's state instead of rewriting the option once per lazy fill.
+	 * Generation marks recorded while run() is active, or null outside a run: both this run's own
+	 * batch-processed items and generate_item() calls made on demand during it (e.g. while building
+	 * llms-full.txt). Folded into the run's state instead of rewriting the option once per lazy fill, and
+	 * the only ids run() passes for 'generated' when it finally saves (see run()'s closing comment).
 	 *
 	 * @var array<int,int>|null
 	 */
@@ -185,6 +190,7 @@ final class Runner {
 		$this->run_marks  = array();
 		$this->run_render = array(
 			'counts'  => array_map( 'intval', (array) $state['render_failed'] ),
+			'touched' => array(),
 			'last'    => null,
 			'cleared' => array(),
 		);
@@ -220,6 +226,7 @@ final class Runner {
 			if ( $post && $this->eligibility->is_eligible( $post ) ) {
 				if ( $this->write_document( $post ) ) {
 					$state['generated'][ $post_id ] = time();
+					$this->run_marks[ $post_id ]    = $state['generated'][ $post_id ];
 					unset( $state['failed'][ $post_id ] );
 				} elseif ( 'deferred' === $this->last_error ) {
 					// Not enough time left for its rendered page: back to the front, neither processed nor failed.
@@ -240,9 +247,11 @@ final class Runner {
 		$cycle_completed = empty( $state['queue'] );
 		$render_pruned   = array();
 		if ( $cycle_completed ) {
-			$before                        = $state['generated'];
-			$state['generated']            = $this->prune( $before );
-			$state['_removed']             = array_keys( array_diff_key( $before, $state['generated'] ) );
+			// $state['generated'] itself is not updated here: it is overwritten below with this run's own
+			// marks regardless (save()'s merge reconstructs the rest from a fresh reload), so only the
+			// pruned ids are needed, via '_removed'.
+			$pruned                        = $this->prune( $state['generated'] );
+			$state['_removed']             = array_keys( array_diff_key( $state['generated'], $pruned ) );
 			$state['last_cycle_completed'] = time();
 			$eligible                      = null;
 			if ( ! empty( $state['failed'] ) ) {
@@ -261,14 +270,26 @@ final class Runner {
 			$state['last_artifacts_regenerated'] = time();
 		}
 
-		// Documents generated on demand during this run (e.g. while building llms-full.txt).
-		$state['generated'] = $this->run_marks + $state['generated'];
-		$state['failed']    = array_diff_key( (array) $state['failed'], $this->run_marks );
-		$state['queue']     = array_values( array_diff( array_map( 'intval', $state['queue'] ), array_keys( $this->run_marks ) ) );
+		$state['failed'] = array_diff_key( (array) $state['failed'], $this->run_marks );
+		$state['queue']  = array_values( array_diff( array_map( 'intval', $state['queue'] ), array_keys( $this->run_marks ) ) );
+
+		// Only this run's own marks (batch-processed items and on-demand ones, e.g. while building
+		// llms-full.txt) are passed for 'generated': save()'s own merge reconstructs every other id from
+		// a fresh, cache-busted reload, so a document invalidated by a concurrent save
+		// (on_transition_post_status()) while this run was still in progress is naturally never
+		// resurrected by this run's own stale carried-over copy of it, at no extra cost over the merge
+		// save() already does. This narrows, but cannot fully close, the race: for the remainder of this
+		// run's own duration after writing an item, a concurrent edit of that exact item is still
+		// indistinguishable from the normal not-yet-saved case and is not covered here — closing that
+		// fully would need per-item state instead of one aggregated option.
+		$state['generated'] = $this->run_marks;
 		$this->run_marks    = null;
 
-		// Rendered-page failures seen during this run (scheduled items and lazy fills alike).
-		$state['render_failed']   = $this->run_render['counts'];
+		// Rendered-page failures seen during this run (scheduled items and lazy fills alike). Only ids
+		// this run itself incremented are passed, same reasoning as $run_marks above for 'generated': a
+		// concurrently cleared failure for an id this run never touched must not be resurrected by this
+		// run's own carried-over copy of its old count.
+		$state['render_failed']   = array_intersect_key( $this->run_render['counts'], $this->run_render['touched'] );
 		$state['_render_cleared'] = array_merge( array_keys( $this->run_render['cleared'] ), $render_pruned );
 		if ( null !== $this->run_render['last'] ) {
 			$state['last_render_error'] = $this->run_render['last'];
@@ -304,7 +325,9 @@ final class Runner {
 	public function run_cycle( $post_types = null ) {
 		$state = $this->state->load();
 		if ( null !== $post_types ) {
-			$state['queue'] = $this->build_queue( $state['generated'], $post_types, $state['failed'] );
+			$queue          = $this->build_queue( $state['generated'], $post_types, $state['failed'] );
+			$state          = State::narrowed( $state );
+			$state['queue'] = $queue;
 			$this->state->save( $state );
 			if ( empty( $state['queue'] ) ) {
 				// Nothing of these types to do: never fall back to an unrestricted queue.
@@ -391,8 +414,12 @@ final class Runner {
 		}
 
 		if ( $persist ) {
-			$state['_removed']  = array_keys( array_diff_key( $state['generated'], $generated ) );
-			$state['generated'] = $generated;
+			$removed = array_keys( array_diff_key( $state['generated'], $generated ) );
+			// Only the pruned ids need to be passed (via '_removed' below): save()'s merge reconstructs
+			// every kept id from a fresh reload instead of writing back this potentially stale copy, so a
+			// concurrently invalidated id that this prune() call never even considered is not resurrected.
+			$state             = State::narrowed( $state );
+			$state['_removed'] = $removed;
 			$this->state->save( $state );
 		}
 
@@ -491,9 +518,10 @@ final class Runner {
 		if ( ! empty( $info['fallback'] ) ) {
 			$reason = isset( $info['error'] ) ? (string) $info['error'] : '';
 			if ( null !== $this->run_render ) {
-				$count                                   = ( isset( $this->run_render['counts'][ $post->ID ] ) ? (int) $this->run_render['counts'][ $post->ID ] : 0 ) + 1;
-				$this->run_render['counts'][ $post->ID ] = $count;
-				$this->run_render['last']                = State::render_error( $post->ID, $reason );
+				$count                                    = ( isset( $this->run_render['counts'][ $post->ID ] ) ? (int) $this->run_render['counts'][ $post->ID ] : 0 ) + 1;
+				$this->run_render['counts'][ $post->ID ]  = $count;
+				$this->run_render['touched'][ $post->ID ] = true;
+				$this->run_render['last']                 = State::render_error( $post->ID, $reason );
 				unset( $this->run_render['cleared'][ $post->ID ] );
 			} else {
 				$count = $this->state->record_render_failure( $post->ID, $reason );
@@ -515,11 +543,22 @@ final class Runner {
 
 	/**
 	 * Removes the stored document when a post stops being published, and invalidates it (without
-	 * regenerating synchronously) whenever a post is saved while published: a theme template, a builder
+	 * regenerating synchronously) whenever it is saved again while published: a theme template, a builder
 	 * layout or the editor content may have changed since the document was written, and the resolved
 	 * content source can only be re-evaluated by generating again. The next Markdown request lazily fills
 	 * it (Delivery::document()) and, failing that, the item is generated first in the next scheduled cycle
 	 * (remove_document() resets its generation mark).
+	 *
+	 * Only `$old_status === 'publish'` needs handling: Eligibility::reason() requires `post_status ===
+	 * 'publish'` unconditionally, so a post can only ever have a stored document or a generation-state
+	 * entry while it is published, and any transition landing on `publish` from a status this hook itself
+	 * last saw (a brand new post, or one coming back from draft/trash through this same hook) can never
+	 * have one to invalidate. This assumes `$old_status` reflects reality: a post_status changed directly
+	 * in the database, bypassing wp_update_post() (and so this hook), leaves a stale document/state entry
+	 * that this hook cannot know to remove. Republishing it normally afterwards no longer self-heals that
+	 * immediately either, unlike when this hook still invalidated on every transition landing on
+	 * `publish`: the next scheduled cycle is what corrects it now, same as any other post that stays
+	 * stale between visits to this hook.
 	 *
 	 * @param string   $new_status New status.
 	 * @param string   $old_status Old status.
@@ -527,7 +566,7 @@ final class Runner {
 	 * @return void
 	 */
 	public function on_transition_post_status( $new_status, $old_status, $post ) {
-		if ( $post instanceof \WP_Post && ( 'publish' === $old_status || 'publish' === $new_status ) ) {
+		if ( $post instanceof \WP_Post && 'publish' === $old_status ) {
 			$this->remove_document( $post );
 		}
 	}

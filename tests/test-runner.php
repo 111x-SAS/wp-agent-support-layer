@@ -221,6 +221,34 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertSame( 1, $writes, 'Only the generation mark is written.' );
 	}
 
+	public function test_concurrent_render_failure_clear_for_an_untouched_item_is_not_resurrected() {
+		// A real, eligible post: it must stay eligible throughout so prune()'s unrelated ineligibility
+		// cleanup can't be what removes it, isolating the concurrent-clear path under test.
+		$target = self::factory()->post->create();
+		$state  = new State();
+		$state->save( array( 'render_failed' => array( $target => 2 ) ) );
+
+		self::factory()->post->create();
+		$items = new class( $target ) implements \WPASL\Generation\ItemGeneratorInterface {
+			private $target;
+
+			public function __construct( $target ) {
+				$this->target = $target;
+			}
+
+			public function generate( WP_Post $post ) {
+				// A concurrent request's successful render clears an unrelated post's failure mid-run.
+				( new State() )->clear_render_failure( $this->target );
+				return "# {$post->post_title}\n";
+			}
+		};
+		$this->runner->set_item_generator( $items );
+
+		$this->runner->run();
+
+		$this->assertArrayNotHasKey( $target, $state->load()['render_failed'], 'Concurrently cleared during the run; must not be resurrected.' );
+	}
+
 	public function test_render_failed_items_go_first_after_fresh_ones() {
 		$ids = self::factory()->post->create_many( 5 );
 		$this->runner->run_cycle();
@@ -602,6 +630,44 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertFalse( $this->storage->exists( $path ) );
 	}
 
+	public function test_concurrent_edit_of_an_older_item_is_not_resurrected_when_the_run_saves() {
+		$stale      = self::factory()->post->create( array( 'post_title' => 'Stale' ) );
+		$stale_path = Runner::document_path( 'post', $stale );
+		$this->storage->write( $stale_path, "# Stale\n" );
+		$state_service                 = new State();
+		$seeded                        = $state_service->load();
+		$seeded['generated'][ $stale ] = time() - HOUR_IN_SECONDS;
+		$state_service->save( $seeded, false );
+
+		$other  = self::factory()->post->create( array( 'post_title' => 'Other' ) );
+		$runner = $this->runner;
+		$items  = new class( $runner, get_post( $stale ) ) implements \WPASL\Generation\ItemGeneratorInterface {
+			private $runner;
+			private $stale_post;
+
+			public function __construct( $runner, $stale_post ) {
+				$this->runner     = $runner;
+				$this->stale_post = $stale_post;
+			}
+
+			public function generate( WP_Post $post ) {
+				// A concurrent request edits and re-saves $stale_post while this batch is still
+				// running, deleting its document and forgetting it before this run's own final save.
+				$this->runner->on_transition_post_status( 'publish', 'publish', $this->stale_post );
+				return "# {$post->post_title}\n";
+			}
+		};
+		$this->runner->set_item_generator( $items );
+		$this->set_batch_size( 1 );
+
+		$result = $this->runner->run();
+
+		$this->assertSame( 1, $result['processed'], 'Only the never-generated item is due this batch; $stale is not touched.' );
+		$this->assertFalse( $this->storage->exists( $stale_path ), 'The concurrent edit already deleted the file.' );
+		$state = $state_service->load();
+		$this->assertArrayNotHasKey( $stale, $state['generated'], 'A concurrently invalidated item must not be resurrected by this run finishing.' );
+	}
+
 	public function test_generate_item_lazily_fills_and_records() {
 		$id       = self::factory()->post->create( array( 'post_title' => 'Lazy' ) );
 		$document = $this->runner->generate_item( $id );
@@ -630,6 +696,28 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->runner->run_cycle( array( 'page' ) );
 		$this->assertTrue( $this->storage->exists( Runner::document_path( 'page', $page ) ) );
 		$this->assertFalse( $this->storage->exists( Runner::document_path( 'post', $post ) ) );
+	}
+
+	public function test_run_cycle_with_post_types_does_not_resurrect_a_concurrently_forgotten_item() {
+		$stale = self::factory()->post->create();
+		$this->runner->run_cycle();
+		$this->assertTrue( $this->storage->exists( Runner::document_path( 'post', $stale ) ) );
+
+		$state  = new State();
+		$before = $state->load();
+		$state->forget( $stale ); // A concurrent request invalidates it...
+		// ...but this process's own cache still thinks it exists (e.g. cached by an earlier load() in
+		// this same request, before the concurrent forget()); load() alone does not bust the cache.
+		wp_cache_set( State::OPTION, $before, 'options' );
+
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		update_option( Settings::OPTION, array( 'post_types' => array( 'post', 'page' ) ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+
+		$this->runner->run_cycle( array( 'page' ) );
+
+		$this->assertTrue( $this->storage->exists( Runner::document_path( 'page', $page ) ) );
+		$this->assertArrayNotHasKey( $stale, $state->load()['generated'], 'The concurrently forgotten item is not resurrected.' );
 	}
 
 	/**
@@ -732,6 +820,15 @@ class Test_Runner extends WP_UnitTestCase {
 		return $writes;
 	}
 
+	public function test_publishing_a_brand_new_post_does_not_write_state() {
+		$writes = $this->count_state_writes(
+			static function () {
+				self::factory()->post->create( array( 'post_status' => 'publish' ) );
+			}
+		);
+		$this->assertSame( 0, $writes, 'A post can only ever be tracked while publish, so a first publish has nothing to invalidate.' );
+	}
+
 	public function test_trashing_non_enabled_post_type_does_not_write_state() {
 		update_option( Settings::OPTION, array( 'post_types' => array( 'post' ) ) );
 		Plugin::instance()->get( 'settings' )->flush_cache();
@@ -770,6 +867,25 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertCount( 100, array_intersect_key( $state['generated'], array_fill_keys( $ids, true ) ) );
 		$this->assertSame( 100, $this->items->calls );
 		$this->assertTrue( $this->storage->exists( 'llms-full.txt' ) );
+	}
+
+	public function test_prune_self_persist_does_not_resurrect_a_concurrently_forgotten_item() {
+		$kept  = self::factory()->post->create();
+		$stale = self::factory()->post->create();
+		$this->runner->run_cycle();
+		$this->assertTrue( $this->storage->exists( Runner::document_path( 'post', $stale ) ) );
+
+		$state  = new State();
+		$before = $state->load();
+		$state->forget( $stale ); // A concurrent request invalidates it, unrelated to what prune() below prunes.
+		// ...but this process's own cache still thinks it exists; load() alone does not bust the cache.
+		wp_cache_set( State::OPTION, $before, 'options' );
+
+		$this->runner->prune(); // Nothing is actually ineligible here; this call persists as-is.
+
+		$saved = $state->load();
+		$this->assertArrayHasKey( $kept, $saved['generated'] );
+		$this->assertArrayNotHasKey( $stale, $saved['generated'], 'The concurrently forgotten item is not resurrected.' );
 	}
 
 	public function test_prune_removes_stale_tmp_files() {

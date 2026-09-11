@@ -50,6 +50,105 @@ class Test_State extends WP_UnitTestCase {
 		$this->assertSame( 100, $saved['last_run'] );
 	}
 
+	public function test_mark_generated_does_not_resurrect_a_concurrently_forgotten_item() {
+		$this->state->save( array( 'generated' => array( 5 => 100 ) ) );
+		$this->state->forget( 5 ); // A concurrent request invalidates a different, unrelated post...
+
+		// ...but this process's own cache still thinks it exists (e.g. cached by an earlier load() in
+		// this same request, before the concurrent forget()); load() alone does not bust the cache.
+		wp_cache_set( State::OPTION, array( 'generated' => array( 5 => 100 ) ), 'options' );
+
+		$this->state->mark_generated( 12 ); // ...while this lazy fill marks its own, different post.
+
+		$this->assertArrayHasKey( 12, $this->state->load()['generated'] );
+		$this->assertArrayNotHasKey( 5, $this->state->load()['generated'], 'mark_generated() must not resurrect a concurrently forgotten, unrelated item.' );
+	}
+
+	public function test_forget_does_not_resurrect_a_different_concurrently_forgotten_item() {
+		$this->state->save(
+			array(
+				'generated' => array(
+					5 => 100,
+					6 => 200,
+				),
+			)
+		);
+		$this->state->forget( 5 ); // A concurrent request forgets a different post...
+		wp_cache_set(
+			State::OPTION,
+			array(
+				'generated' => array(
+					5 => 100,
+					6 => 200,
+				),
+			),
+			'options'
+		);
+
+		$this->state->forget( 6 ); // ...while this call forgets its own, unrelated post.
+
+		$saved = $this->state->load();
+		$this->assertArrayNotHasKey( 5, $saved['generated'], 'forget() must not resurrect a different, concurrently forgotten item.' );
+		$this->assertArrayNotHasKey( 6, $saved['generated'] );
+	}
+
+	public function test_record_render_failure_does_not_resurrect_concurrent_changes_to_other_items() {
+		$this->state->save(
+			array(
+				'generated'     => array( 5 => 100 ),
+				'render_failed' => array( 6 => 1 ),
+			)
+		);
+		$this->state->forget( 5 ); // A concurrent request forgets an unrelated generated post...
+		$this->state->clear_render_failure( 6 ); // ...and clears an unrelated render failure...
+		wp_cache_set(
+			State::OPTION,
+			array(
+				'generated'     => array( 5 => 100 ),
+				'render_failed' => array( 6 => 1 ),
+			),
+			'options'
+		);
+
+		$this->state->record_render_failure( 9, 'timeout' ); // ...while this call records its own.
+
+		$saved = $this->state->load();
+		$this->assertArrayNotHasKey( 5, $saved['generated'], 'An unrelated concurrently forgotten item is not resurrected.' );
+		$this->assertArrayNotHasKey( 6, $saved['render_failed'], 'An unrelated concurrently cleared failure is not resurrected.' );
+		$this->assertSame( 1, $saved['render_failed'][9] );
+	}
+
+	public function test_clear_render_failure_does_not_resurrect_concurrent_changes_to_other_items() {
+		$this->state->save(
+			array(
+				'generated'     => array( 5 => 100 ),
+				'render_failed' => array(
+					6 => 1,
+					9 => 1,
+				),
+			)
+		);
+		$this->state->forget( 5 ); // A concurrent request forgets an unrelated generated post...
+		wp_cache_set(
+			State::OPTION,
+			array(
+				'generated'     => array( 5 => 100 ),
+				'render_failed' => array(
+					6 => 1,
+					9 => 1,
+				),
+			),
+			'options'
+		);
+
+		$this->state->clear_render_failure( 9 ); // ...while this call clears its own.
+
+		$saved = $this->state->load();
+		$this->assertArrayNotHasKey( 5, $saved['generated'], 'An unrelated concurrently forgotten item is not resurrected.' );
+		$this->assertArrayNotHasKey( 9, $saved['render_failed'] );
+		$this->assertSame( 1, $saved['render_failed'][6], 'An untouched, still-current failure is reconstructed from the fresh reload.' );
+	}
+
 	public function test_newest_timestamp_wins_on_merge() {
 		$this->state->save( array( 'generated' => array( 5 => 200 ) ) );
 		$this->state->save( array( 'generated' => array( 5 => 150 ) ) );
@@ -99,6 +198,42 @@ class Test_State extends WP_UnitTestCase {
 		$this->assertSame( array(), $saved['generated'] );
 	}
 
+	public function test_a_caller_passing_only_its_own_touched_id_does_not_resurrect_a_concurrent_removal() {
+		$this->state->save(
+			array(
+				'generated' => array(
+					1 => 10,
+					2 => 20,
+				),
+			)
+		);
+		$this->state->forget( 1 ); // A concurrent process invalidates one of them.
+
+		// A well-behaved caller only passes the id it actually touched (see save()'s docblock), not a
+		// stale carried-over copy of 'generated' from its own earlier load().
+		$this->state->save( array( 'generated' => array( 3 => 30 ) ) );
+
+		$saved = $this->state->load();
+		$this->assertArrayNotHasKey( 1, $saved['generated'], 'The concurrently forgotten id is not resurrected.' );
+		$this->assertSame( 20, $saved['generated'][2], 'An untouched, still-current id is reconstructed from the fresh reload.' );
+		$this->assertSame( 30, $saved['generated'][3] );
+	}
+
+	public function test_save_merge_bypasses_a_stale_local_option_cache() {
+		$this->state->save( array( 'generated' => array( 1 => 10 ) ) );
+		$this->state->forget( 1 );
+
+		// Poison the local object cache with a snapshot from before the forget(), simulating a process
+		// that cached the option early (e.g. via load()) and never learned of a concurrent removal;
+		// load() alone does not bust the cache, only save() does.
+		wp_cache_set( State::OPTION, array( 'generated' => array( 1 => 10 ) ), 'options' );
+		$this->assertSame( 10, $this->state->load()['generated'][1], 'Confirms the cache is indeed poisoned.' );
+
+		$this->state->save( array( 'generated' => array( 2 => 20 ) ) );
+
+		$this->assertArrayNotHasKey( 1, $this->state->load()['generated'], 'save() must bust the cache itself, not trust a stale local read.' );
+	}
+
 	public function test_removed_key_is_never_persisted() {
 		$this->state->save(
 			array(
@@ -131,6 +266,7 @@ class Test_State extends WP_UnitTestCase {
 		$this->assertSame( 2, $this->state->record_render_failure( 7, 'timeout' ) );
 		$this->assertSame( 1, $this->state->record_render_failure( 8, 'no_content' ) );
 		$saved = $this->state->load();
+		ksort( $saved['render_failed'] ); // Key order is not meaningful; only the counts are.
 		$this->assertSame(
 			array(
 				7 => 2,

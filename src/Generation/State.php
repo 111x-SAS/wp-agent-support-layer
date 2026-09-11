@@ -42,7 +42,7 @@ final class State {
 	 * @return void
 	 */
 	public function clear_queue() {
-		$state                  = $this->load();
+		$state                  = self::narrowed( $this->load() );
 		$state['queue']         = array();
 		$state['cycle_started'] = 0;
 		$this->save( $state );
@@ -59,6 +59,23 @@ final class State {
 	}
 
 	/**
+	 * Clears "generated" and "render_failed" from a freshly loaded state before a caller sets just the
+	 * one entry it is about to change. save()'s merge reconstructs every other entry of both from a
+	 * fresh reload, so this is what makes passing only a touched id safe: without it, a caller's own
+	 * carried-over copy of an id a concurrent request removed (forget(), a cleared render failure) would
+	 * be written straight back. 'queue', 'failed' and the rest are untouched: save() never merges those,
+	 * they are always whatever the caller's own state says.
+	 *
+	 * @param array<string, mixed> $state Freshly loaded state.
+	 * @return array<string, mixed>
+	 */
+	public static function narrowed( array $state ) {
+		$state['generated']     = array();
+		$state['render_failed'] = array();
+		return $state;
+	}
+
+	/**
 	 * Saves the state, merging it with what other requests stored meanwhile.
 	 *
 	 * Generation marks recorded by a concurrent request (lazy fill during a cron run, or the reverse) are
@@ -67,6 +84,11 @@ final class State {
 	 * highest counter wins and the most recent last error wins, except items listed in the transient
 	 * "_render_cleared" key (a loopback that succeeded meanwhile, or a pruned item). The queue in memory is
 	 * authoritative.
+	 *
+	 * A caller that only touched some ids of "generated" or "render_failed" should pass just those, not
+	 * its whole loaded copy (see narrowed()): the merge below reconstructs every other id from a fresh,
+	 * cache-busted reload (load() alone does not bust the cache), so an id concurrently removed elsewhere
+	 * (e.g. forget()) is naturally never resurrected by a caller's stale carried-over copy of it.
 	 *
 	 * @param array<string, mixed> $state State.
 	 * @param bool                 $merge Whether to merge with the stored state (false replaces it).
@@ -127,9 +149,10 @@ final class State {
 	 */
 	public function record_render_failure( $post_id, $reason ) {
 		$post_id = (int) $post_id;
-		$state   = $this->load();
-		$count   = ( isset( $state['render_failed'][ $post_id ] ) ? (int) $state['render_failed'][ $post_id ] : 0 ) + 1;
+		$loaded  = $this->load();
+		$count   = ( isset( $loaded['render_failed'][ $post_id ] ) ? (int) $loaded['render_failed'][ $post_id ] : 0 ) + 1;
 
+		$state                              = self::narrowed( $loaded );
 		$state['render_failed'][ $post_id ] = $count;
 		$state['last_render_error']         = self::render_error( $post_id, $reason );
 		$this->save( $state );
@@ -144,11 +167,11 @@ final class State {
 	 */
 	public function clear_render_failure( $post_id ) {
 		$post_id = (int) $post_id;
-		$state   = $this->load();
-		if ( ! isset( $state['render_failed'][ $post_id ] ) ) {
+		$loaded  = $this->load();
+		if ( ! isset( $loaded['render_failed'][ $post_id ] ) ) {
 			return;
 		}
-		unset( $state['render_failed'][ $post_id ] );
+		$state                    = self::narrowed( $loaded );
 		$state['_render_cleared'] = array( $post_id );
 		$this->save( $state );
 	}
@@ -184,8 +207,8 @@ final class State {
 	 * @return void
 	 */
 	public function mark_generated( $post_id ) {
-		$state                                = $this->load();
-		$state['generated'][ (int) $post_id ] = time();
+		$state              = self::narrowed( $this->load() );
+		$state['generated'] = array( (int) $post_id => time() );
 		$this->save( $state );
 	}
 
@@ -196,7 +219,7 @@ final class State {
 	 * @return void
 	 */
 	public function forget( $post_id ) {
-		$state             = $this->load();
+		$state             = self::narrowed( $this->load() );
 		$state['_removed'] = array( (int) $post_id );
 		$this->save( $state );
 	}

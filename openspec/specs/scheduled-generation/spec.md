@@ -1,7 +1,7 @@
 # scheduled-generation Specification
 
 ## Purpose
-Genera y mantiene por programación, en lotes acotados y sin intervenir en el flujo de edición, los documentos Markdown y los archivos de descubrimiento que el resto de capacidades sirven.
+Genera y mantiene por programación, en lotes acotados y sin generar documentos en el flujo de edición, los documentos Markdown y los archivos de descubrimiento que el resto de capacidades sirven.
 
 ## Requirements
 
@@ -68,6 +68,17 @@ Cada ciclo SHALL eliminar del almacenamiento los documentos cuyo contenido ya no
 #### Scenario: Post type deshabilitado
 - **WHEN** un administrador deshabilita el post type `page` y se ejecuta el siguiente ciclo
 - **THEN** los documentos de páginas se eliminan del almacenamiento
+
+### Requirement: Invalidación al guardar una entrada publicada
+Cuando una entrada permanezca o pase a estado `publish` al guardarse (creación, edición o republicación, con o sin cambios aparentes en el contenido), el sistema SHALL eliminar de inmediato su documento almacenado, sin generar ningún documento nuevo en esa misma petición, y SHALL marcarla como no generada para que quede al frente de la siguiente ejecución programada. Esto cubre los casos en que el origen resuelto del contenido pudo cambiar sin que el editor tocara el cuerpo del editor (una plantilla de tema añadida o modificada, un constructor de páginas reconfigurado), ya que solo una nueva resolución puede detectarlo.
+
+#### Scenario: Edición de una entrada publicada
+- **WHEN** un editor guarda cambios en una entrada publicada que ya tiene un documento almacenado
+- **THEN** el documento almacenado se elimina en esa misma petición, sin generar uno nuevo, y la siguiente petición de Markdown o el siguiente ciclo programado lo regenera con el contenido actual
+
+#### Scenario: Guardado sin cambios de contenido
+- **WHEN** un editor pulsa "Actualizar" en una entrada publicada sin modificar el contenido
+- **THEN** el documento almacenado también se invalida, porque el sistema no puede saber si el origen resuelto (plantilla, constructor) cambió fuera del editor
 
 ### Requirement: Sin generación en el flujo de edición
 El sistema MUST NOT convertir ni generar documentos como reacción a la creación, actualización o publicación de una entrada. La entrada publicada SHALL quedar pendiente y procesarse en la siguiente ejecución programada aunque haya un ciclo en curso.

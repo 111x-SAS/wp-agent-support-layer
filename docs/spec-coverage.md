@@ -66,6 +66,7 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Origen: plantilla asignada (`page_template`; `default` no aplica) | `Test_Content_Source::test_assigned_page_template_triggers_rendered` | A+M |
 | Origen: meta de constructor (Elementor completo, sin `_elementor_data`, Divi, Beaver Builder, Bricks, Oxygen, Breakdance, clave por filtro) | `Test_Content_Source::test_builder_meta_triggers_rendered` | A+M |
 | Origen: archivo de plantilla con contenido fijo (`template_file:single-solucion.php`, lectura acotada, parte literal seguida un nivel, caché por mtime) | `Test_Content_Source::test_template_file_without_the_content_triggers_rendered`, `test_template_part_literal_is_followed_one_level`, `test_template_cache_keyed_by_mtime`, `test_block_theme_template_without_post_content_triggers_rendered` | A |
+| Origen: una clave de array `'include' => ...` (get_posts()/WP_Query) no se confunde con un include dinámico | `Test_Content_Source::test_include_as_array_key_does_not_look_like_a_dynamic_include` | A |
 | Origen: archivo de plantilla que imprime el editor o incluye partes dinámicas (inconcluyente) | `Test_Content_Source::test_template_file_with_the_content_or_dynamic_part_is_inconclusive`, `test_template_part_literal_is_followed_one_level`, `test_block_theme_template_without_post_content_triggers_rendered` | A |
 | Origen: contenido del editor vacío sin umbral (`editor`) y umbral activado por filtro (`empty_editor`) | `Test_Content_Source::test_empty_editor_rule_is_off_by_default_and_enabled_by_filter`, `Test_Document_Builder::test_empty_editor_is_rendered_and_its_body_is_reused_on_fallback` | A |
 | Origen: contenido normal (`editor` / `default`) | `Test_Content_Source::test_normal_content_defaults_to_editor`, `Test_Document_Builder::test_front_matter_has_source_editor_by_default` | A+M |
@@ -104,7 +105,9 @@ Legend: **A** automated (PHPUnit), **M** manual evidence (`docs/evidence/`; the 
 | Entrada enviada a papelera | `Test_Runner::test_trashing_a_post_deletes_its_document_immediately_without_generating`, `test_deleting_a_post_deletes_its_document` | A |
 | Post type deshabilitado | `Test_Runner::test_prune_removes_documents_of_disabled_post_type` | A |
 | Post type añadido (reinicio de la cola) | `Test_Runner::test_changing_post_types_resets_queue`, `Test_State::test_clear_queue_keeps_generated` | A |
-| Publicar una entrada nueva | `Test_Runner::test_publishing_or_updating_never_generates` | A |
+| Publicar una entrada nueva | `Test_Runner::test_publishing_or_updating_never_generates_synchronously` | A |
+| Edición de una entrada publicada (invalidación inmediata, regenerado en la siguiente petición o ciclo) | `Test_Runner::test_updating_a_published_post_invalidates_the_stored_document_immediately`, `Test_Delivery::test_editing_refreshes_the_served_document` | A |
+| Guardado sin cambios de contenido (también invalida) | `Test_Runner::test_resaving_a_published_post_without_changes_still_invalidates` | A |
 | Administrador pulsa Regenerar ahora | `Test_Generation_Status::test_handler_schedules_and_redirects_without_generating`, `Test_Scheduler::test_run_soon_schedules_single_event_and_keeps_recurring_timestamp`, `test_run_soon_does_not_duplicate_a_due_event` | A |
 | Botón de la pestaña General (formulario de primer nivel) | `Test_Settings::test_general_tab_renders_status_form_outside_settings_form` + Docker smoke test (authenticated POST to `admin-post.php`, 302 and one-off event) | A+M |
 | Horario recurrente intacto | `Test_Scheduler::test_run_soon_schedules_single_event_and_keeps_recurring_timestamp`, `test_deactivation_clears_manual_events`, `Test_Runner::test_manual_event_argument_does_not_limit_the_run` | A |

@@ -13,7 +13,8 @@ use WPASL\Storage;
 
 /**
  * Generates documents in bounded batches from WP-Cron, prunes stale files and refreshes site-wide artifacts.
- * It never reacts to post saves; the only content hook it uses removes files when a post stops being public.
+ * It invalidates (never regenerates synchronously) the stored document of a post saved while published, or
+ * removed when a post stops being public; a scheduled cycle or the next Markdown request fills it back in.
  */
 final class Runner {
 
@@ -513,7 +514,12 @@ final class Runner {
 	}
 
 	/**
-	 * Removes the document when a post stops being published.
+	 * Removes the stored document when a post stops being published, and invalidates it (without
+	 * regenerating synchronously) whenever a post is saved while published: a theme template, a builder
+	 * layout or the editor content may have changed since the document was written, and the resolved
+	 * content source can only be re-evaluated by generating again. The next Markdown request lazily fills
+	 * it (Delivery::document()) and, failing that, the item is generated first in the next scheduled cycle
+	 * (remove_document() resets its generation mark).
 	 *
 	 * @param string   $new_status New status.
 	 * @param string   $old_status Old status.
@@ -521,7 +527,7 @@ final class Runner {
 	 * @return void
 	 */
 	public function on_transition_post_status( $new_status, $old_status, $post ) {
-		if ( 'publish' === $old_status && 'publish' !== $new_status && $post instanceof \WP_Post ) {
+		if ( $post instanceof \WP_Post && ( 'publish' === $old_status || 'publish' === $new_status ) ) {
 			$this->remove_document( $post );
 		}
 	}

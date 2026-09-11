@@ -42,7 +42,7 @@ final class CrawlerProbe {
 	 *
 	 * @var string[]
 	 */
-	const HEADERS = array( 'content-type', 'content-signal', 'content-usage', 'x-robots-tag', 'link', 'vary', 'x-markdown-tokens', 'cache-control', 'location', 'cf-ray', 'cf-cache-status', 'server', 'x-cache', 'via', 'x-served-by', 'x-cache-handler' );
+	const HEADERS = array( 'content-type', 'content-signal', 'content-usage', 'x-robots-tag', 'link', 'vary', 'x-markdown-tokens', 'cache-control', 'location', 'cf-ray', 'cf-cache-status', 'server', 'x-cache', 'via', 'x-served-by', 'x-cache-handler', 'x-wpasl-headers' );
 
 	/**
 	 * Site targets whose body is kept for the report.

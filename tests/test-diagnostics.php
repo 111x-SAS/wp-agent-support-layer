@@ -8,10 +8,13 @@
 use WPASL\Admin\Tabs\DiagnosticsTab;
 use WPASL\Diagnostics\CrawlerProbe;
 use WPASL\Diagnostics\DiagnosticsController;
+use WPASL\Diagnostics\HtaccessHeaders;
 use WPASL\Diagnostics\PageCache;
 use WPASL\Diagnostics\Report;
+use WPASL\Http;
 use WPASL\Plugin;
 use WPASL\Settings;
+use WPASL\Storage;
 
 /**
  * Covers WPASL\Diagnostics\*.
@@ -49,34 +52,109 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	 */
 	private $controller;
 
+	/**
+	 * @var HtaccessHeaders
+	 */
+	private $htaccess;
+
+	/**
+	 * Path of the temporary .htaccess file used by the htaccess tests, substituted through wpasl_htaccess_file.
+	 *
+	 * @var string
+	 */
+	private $htaccess_file;
+
+	/**
+	 * Path used by fake_readonly_htaccess_file() in test_htaccess_availability().
+	 *
+	 * @var string
+	 */
+	private $readonly_htaccess_file = '';
+
+	/**
+	 * Response queued for the .htaccess verification request (matched by the "wpasl_verify" query arg), or
+	 * null to let the regular fake_http() default response through.
+	 *
+	 * @var array<string, mixed>|\WP_Error|null
+	 */
+	private $verify_response = null;
+
 	public function set_up() {
 		parent::set_up();
 		$this->set_permalink_structure( '/%postname%/' );
-		$this->probe      = Plugin::instance()->get( 'probe' );
-		$this->controller = Plugin::instance()->get( 'diagnostics' );
-		$this->responses  = array();
-		$this->requests   = array();
-		$this->delay_us   = 0;
+		$this->probe           = Plugin::instance()->get( 'probe' );
+		$this->controller      = Plugin::instance()->get( 'diagnostics' );
+		$this->htaccess        = Plugin::instance()->get( 'htaccess_headers' );
+		$this->responses       = array();
+		$this->requests        = array();
+		$this->delay_us        = 0;
+		$this->htaccess_file   = trailingslashit( get_temp_dir() ) . 'wpasl-test-htaccess-' . wp_generate_password( 8, false ) . '.htaccess';
+		$this->verify_response = null;
 		add_filter( 'pre_http_request', array( $this, 'fake_http' ), 10, 3 );
+		add_filter( 'pre_http_request', array( $this, 'fake_htaccess_verify_response' ), 20, 3 );
 		add_filter( 'wp_redirect', array( $this, 'capture_redirect' ) );
 		add_filter( 'wpasl_diagnostics_crawlers', array( $this, 'two_crawlers' ) );
+		add_filter( 'wpasl_htaccess_file', array( $this, 'fake_htaccess_file' ) );
 		delete_transient( Report::TRANSIENT );
 		Plugin::instance()->get( 'runner' )->clear();
 	}
 
 	public function tear_down() {
 		remove_filter( 'pre_http_request', array( $this, 'fake_http' ), 10 );
+		remove_filter( 'pre_http_request', array( $this, 'fake_htaccess_verify_response' ), 20 );
 		remove_filter( 'wp_redirect', array( $this, 'capture_redirect' ) );
 		remove_filter( 'wpasl_diagnostics_crawlers', array( $this, 'two_crawlers' ) );
-		unset( $_REQUEST[ DiagnosticsController::NONCE ] );
+		remove_filter( 'wpasl_htaccess_file', array( $this, 'fake_htaccess_file' ) );
+		remove_all_filters( 'wpasl_htaccess_environment' );
+		unset( $_REQUEST[ DiagnosticsController::NONCE ], $_REQUEST[ HtaccessHeaders::NONCE ], $_SERVER['SERVER_SOFTWARE'], $_SERVER['LSWS_EDITION'] );
 		delete_transient( Report::TRANSIENT );
 		delete_transient( DiagnosticsController::run_key() );
+		delete_transient( HtaccessHeaders::RESULT_TRANSIENT . get_current_user_id() );
 		remove_all_filters( 'wpasl_diagnostics_time_budget' );
 		remove_all_filters( 'wpasl_diagnostics_page_cache' );
 		delete_option( Settings::OPTION );
+		delete_option( HtaccessHeaders::BACKUP_OPTION );
+		Plugin::instance()->get( 'storage' )->delete( HtaccessHeaders::BACKUP_FILE );
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		Plugin::instance()->get( 'runner' )->clear();
+		if ( file_exists( $this->htaccess_file ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Test fixture cleanup.
+			unlink( $this->htaccess_file );
+		}
 		parent::tear_down();
+	}
+
+	/**
+	 * Points the .htaccess auto-apply feature at a temporary file instead of the real .htaccess.
+	 */
+	public function fake_htaccess_file() {
+		return $this->htaccess_file;
+	}
+
+	/**
+	 * Simulates a compatible Apache environment through the detection filter.
+	 */
+	public function fake_htaccess_environment() {
+		return array(
+			'compatible'  => true,
+			'server'      => 'Apache 2.4.58',
+			'version'     => '2.4.58',
+			'mod_headers' => null,
+			'reason'      => '',
+		);
+	}
+
+	/**
+	 * Simulates an incompatible environment through the detection filter.
+	 */
+	public function fake_incompatible_environment() {
+		return array(
+			'compatible'  => false,
+			'server'      => 'nginx',
+			'version'     => '',
+			'mod_headers' => null,
+			'reason'      => 'server not recognized as Apache or LiteSpeed Enterprise',
+		);
 	}
 
 	public function two_crawlers( $crawlers ) {
@@ -140,6 +218,30 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$accept = $args['headers']['Accept'];
 		$key    = $url . '|' . ( 0 === strpos( $accept, 'text/markdown' ) ? 'md' : 'html' );
 		$spec   = isset( $this->responses[ $key ] ) ? $this->responses[ $key ] : ( isset( $this->responses[ $url ] ) ? $this->responses[ $url ] : $this->default_response( $url, $accept ) );
+		if ( is_wp_error( $spec ) ) {
+			return $spec;
+		}
+		return array(
+			'response' => array(
+				'code'    => $spec['code'],
+				'message' => 'x',
+			),
+			'headers'  => new WpOrg\Requests\Utility\CaseInsensitiveDictionary( $spec['headers'] ),
+			'body'     => isset( $spec['body'] ) ? $spec['body'] : '',
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	}
+
+	/**
+	 * Overrides, at a higher priority than fake_http(), the response of the .htaccess verification request
+	 * (identified by its "wpasl_verify" query arg) when a test has queued one in $this->verify_response.
+	 */
+	public function fake_htaccess_verify_response( $pre, $args, $url ) {
+		if ( null === $this->verify_response || false === strpos( $url, 'wpasl_verify=' ) ) {
+			return $pre;
+		}
+		$spec = $this->verify_response;
 		if ( is_wp_error( $spec ) ) {
 			return $spec;
 		}
@@ -825,9 +927,10 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$text = html_entity_decode( $html, ENT_QUOTES, 'UTF-8' );
 		$this->assertStringContainsString( 'Cache Enabler 1.8.16 is active on this site', $text );
 		$this->assertStringContainsString( 'notice notice-warning inline', $html );
-		foreach ( array( 'Content-Signal', 'Content-Usage', 'X-Robots-Tag', 'Accept: text/markdown', '.md', 'llms.txt', 'robots.txt', 'manifests', 'web server or CDN', 'never writes .htaccess' ) as $needle ) {
+		foreach ( array( 'Content-Signal', 'Content-Usage', 'X-Robots-Tag', 'Accept: text/markdown', '.md', 'llms.txt', 'robots.txt', 'manifests', 'web server or CDN', 'the plugin can apply the .htaccess block for you' ) as $needle ) {
 			$this->assertStringContainsString( $needle, $text );
 		}
+		$this->assertStringNotContainsString( 'never writes .htaccess', $text );
 		$this->assertLessThan( strpos( $html, 'Run crawler simulation' ), strpos( $html, 'wpasl-page-cache' ), 'The notice comes before the form.' );
 
 		$catalog = home_url( '/.well-known/api-catalog' );
@@ -838,6 +941,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'Header always set Content-Usage "train-ai=n, search=y" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
 		$this->assertStringContainsString( 'Header always setifempty X-Robots-Tag "noai, noimageai" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
 		$this->assertStringContainsString( 'Header always setifempty Link "<' . $catalog . '>; rel=\"api-catalog\"" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
+		$this->assertStringContainsString( 'Header always set X-WPASL-Headers "htaccess" "expr=%{CONTENT_TYPE} =~ m#^text/html#"', $text );
 		// nginx block.
 		$this->assertStringContainsString( 'map $sent_http_content_type $wpasl_content_signal {', $text );
 		$this->assertStringContainsString( '"~^text/html" "search=yes, ai-input=yes, ai-train=no";', $text );
@@ -850,6 +954,11 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'X-Robots-Tag is not included', $text );
 		$this->assertStringNotContainsString( 'example.com', $text );
 		$this->assertStringNotContainsString( 'cognosonline', $text );
+		// The nginx and OpenLiteSpeed blocks never carry the verification marker.
+		$nginx_block = substr( $text, strpos( $text, 'map $sent_http_content_type' ), strpos( $text, 'context / {' ) - strpos( $text, 'map $sent_http_content_type' ) );
+		$this->assertStringNotContainsString( 'X-WPASL-Headers', $nginx_block );
+		$ols_block = substr( $text, strpos( $text, 'context / {' ) );
+		$this->assertStringNotContainsString( 'X-WPASL-Headers', $ols_block );
 		$notice = substr( $html, strpos( $html, 'wpasl-page-cache' ), strpos( $html, 'Run crawler simulation' ) - strpos( $html, 'wpasl-page-cache' ) );
 		$this->assertSame( 3, preg_match_all( '/<textarea readonly class="large-text code"[^>]*>#/', $notice ), 'Three snippets, each starting with its first comment.' );
 		$this->assertStringNotContainsString( 'Cloudflare', $notice, 'No reminder without a report (the static checklist mentions Cloudflare on its own).' );
@@ -897,6 +1006,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		);
 		$this->assertStringContainsString( 'X-Robots-Tag "noai, noimageai"', $page_cache->htaccess_snippet() );
 		$this->assertStringContainsString( 'X-Robots-Tag', $page_cache->nginx_snippet() );
+		$this->assertStringNotContainsString( 'X-WPASL-Headers', $snippet, 'The OpenLiteSpeed block never carries the verification marker.' );
 	}
 
 	public function test_snippets_follow_settings() {
@@ -925,8 +1035,659 @@ class Test_Diagnostics extends WP_UnitTestCase {
 			$this->assertStringNotContainsString( 'Link:', $snippet );
 			$this->assertStringNotContainsString( 'api-catalog', $snippet );
 		}
+		$this->assertStringContainsString( 'X-WPASL-Headers', $page_cache->htaccess_snippet(), 'The marker is written regardless of which signal headers are enabled.' );
+		$this->assertStringNotContainsString( 'X-WPASL-Headers', $page_cache->nginx_snippet() );
+		$this->assertStringNotContainsString( 'X-WPASL-Headers', $page_cache->openlitespeed_snippet() );
 		$this->assertSame( '', $page_cache->cloudflare_note( '' ) );
 		$this->assertSame( '', $page_cache->cloudflare_note( 'Fastly' ) );
+	}
+
+	public function test_marker_header_is_never_sent_by_php() {
+		$post = self::factory()->post->create_and_get( array( 'post_name' => 'muestra-marcador' ) );
+
+		add_filter( 'wpasl_terminate_after_serve', '__return_false' );
+
+		Http::reset();
+		ob_start();
+		$this->go_to( get_permalink( $post ) );
+		ob_get_clean();
+		$this->assertArrayNotHasKey( 'x-wpasl-headers', Http::effective_headers(), 'HTML page.' );
+
+		Http::reset();
+		ob_start();
+		$this->go_to( home_url( '/muestra-marcador.md' ) );
+		ob_get_clean();
+		$this->assertArrayNotHasKey( 'x-wpasl-headers', Http::effective_headers(), '.md URL.' );
+
+		Http::reset();
+		ob_start();
+		$this->go_to( home_url( '/robots.txt' ) );
+		ob_get_clean();
+		$this->assertArrayNotHasKey( 'x-wpasl-headers', Http::effective_headers(), 'robots.txt.' );
+
+		Http::reset();
+		ob_start();
+		$this->go_to( home_url( '/llms.txt' ) );
+		ob_get_clean();
+		$this->assertArrayNotHasKey( 'x-wpasl-headers', Http::effective_headers(), 'llms.txt.' );
+
+		remove_filter( 'wpasl_terminate_after_serve', '__return_false' );
+	}
+
+	public function test_probe_fetch_keeps_the_marker_header() {
+		$this->responses[ home_url( '/' ) ] = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'    => 'text/html; charset=utf-8',
+				'x-wpasl-headers' => 'htaccess',
+				'content-signal'  => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+		$result                             = $this->probe->fetch( home_url( '/' ), 'ua', 'text/html' );
+		$this->assertSame( 'htaccess', $result['headers']['x-wpasl-headers'] );
+	}
+
+	public function test_htaccess_environment_detection() {
+		$cases = array(
+			'Apache/2.4.58' => true,
+			'Apache/2.2.34' => false,
+			'Apache'        => true,
+			'nginx/1.24.0'  => false,
+			''              => false,
+		);
+		foreach ( $cases as $software => $expected_compatible ) {
+			$_SERVER['SERVER_SOFTWARE'] = $software;
+			$result                     = $this->htaccess->environment();
+			$this->assertSame( $expected_compatible, $result['compatible'], "SERVER_SOFTWARE={$software}" );
+		}
+
+		$_SERVER['SERVER_SOFTWARE'] = 'LiteSpeed';
+		unset( $_SERVER['LSWS_EDITION'] );
+		$this->assertTrue( $this->htaccess->environment()['compatible'], 'LiteSpeed without LSWS_EDITION is assumed Enterprise.' );
+
+		$_SERVER['LSWS_EDITION'] = 'Openlitespeed 1.7.19';
+		$this->assertFalse( $this->htaccess->environment()['compatible'], 'OpenLiteSpeed is never compatible.' );
+
+		unset( $_SERVER['SERVER_SOFTWARE'], $_SERVER['LSWS_EDITION'] );
+		add_filter( 'wpasl_htaccess_environment', '__return_null' );
+		$this->assertNull( $this->htaccess->environment(), 'The result can be replaced with a filter.' );
+		remove_filter( 'wpasl_htaccess_environment', '__return_null' );
+	}
+
+	public function test_htaccess_availability() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# existing\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		if ( is_multisite() ) {
+			$this->assertFalse( $this->htaccess->available(), 'Never available on multisite, even with Cache Enabler, a compatible environment and a writable file.' );
+			return;
+		}
+
+		$this->assertTrue( $this->htaccess->available() );
+
+		remove_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		$this->assertFalse( $this->htaccess->available(), 'Without Cache Enabler.' );
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+
+		remove_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_incompatible_environment' ) );
+		$this->assertFalse( $this->htaccess->available(), 'Incompatible environment.' );
+		remove_filter( 'wpasl_htaccess_environment', array( $this, 'fake_incompatible_environment' ) );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+
+		$dir = trailingslashit( get_temp_dir() ) . 'wpasl-test-readonly-' . wp_generate_password( 8, false );
+		wp_mkdir_p( $dir );
+		chmod( $dir, 0555 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Test fixture: read-only directory.
+		$readonly_file = $dir . '/.htaccess';
+		add_filter( 'wpasl_htaccess_file', array( $this, 'fake_readonly_htaccess_file' ) );
+		$this->readonly_htaccess_file = $readonly_file;
+		$this->assertFalse( $this->htaccess->available(), 'Unwritable directory.' );
+		remove_filter( 'wpasl_htaccess_file', array( $this, 'fake_readonly_htaccess_file' ) );
+		chmod( $dir, 0755 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Restoring so rmdir succeeds.
+		rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Test fixture cleanup.
+
+		$this->assertTrue( $this->htaccess->available(), 'Available again once the fixtures are back to compatible.' );
+	}
+
+	/**
+	 * Points wpasl_htaccess_file at the read-only fixture directory used by test_htaccess_availability().
+	 */
+	public function fake_readonly_htaccess_file() {
+		return $this->readonly_htaccess_file;
+	}
+
+	public function test_htaccess_status() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+
+		$this->assertSame( 'not_applied', $this->htaccess->status() );
+
+		if ( ! function_exists( 'insert_with_markers' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/misc.php';
+		}
+		insert_with_markers( $this->htaccess_file, HtaccessHeaders::MARKER, Plugin::instance()->get( 'page_cache' )->htaccess_lines() );
+		$this->assertSame( 'current', $this->htaccess->status() );
+
+		update_option( Settings::OPTION, array( 'signal_ai_train' => 'yes' ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+		$this->assertSame( 'stale', $this->htaccess->status() );
+	}
+
+	public function test_htaccess_backup_and_restore() {
+		$storage = Plugin::instance()->get( 'storage' );
+		file_put_contents( $this->htaccess_file, "# original content\nSomeDirective 1\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		$this->assertTrue( $this->htaccess->backup() );
+		$this->assertSame( "# original content\nSomeDirective 1\n", $storage->read( HtaccessHeaders::BACKUP_FILE ) );
+		$meta = get_option( HtaccessHeaders::BACKUP_OPTION );
+		$this->assertTrue( $meta['existed'] );
+
+		file_put_contents( $this->htaccess_file, "# changed\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->assertTrue( $this->htaccess->backup() );
+		$this->assertSame( "# changed\n", $storage->read( HtaccessHeaders::BACKUP_FILE ), 'Only the most recent backup is kept: the content just before this second call.' );
+
+		$this->assertTrue( $this->htaccess->restore() );
+		$this->assertSame( "# changed\n", file_get_contents( $this->htaccess_file ), 'restore() writes back the most recent backup.' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+
+		// existed => false: restore() removes the file.
+		unlink( $this->htaccess_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Test fixture.
+		$this->assertTrue( $this->htaccess->backup() );
+		$meta = get_option( HtaccessHeaders::BACKUP_OPTION );
+		$this->assertFalse( $meta['existed'] );
+		file_put_contents( $this->htaccess_file, 'created by the write step' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->assertTrue( $this->htaccess->restore() );
+		$this->assertFileDoesNotExist( $this->htaccess_file );
+	}
+
+	public function test_htaccess_verify_request_shape() {
+		self::factory()->post->create( array( 'post_name' => 'muestra-verify' ) );
+		$this->htaccess->verify();
+
+		$this->assertCount( 1, $this->requests, 'Exactly one verification request.' );
+		$request = $this->requests[0];
+		$this->assertSame( wp_parse_url( home_url(), PHP_URL_HOST ), wp_parse_url( $request['url'], PHP_URL_HOST ) );
+		$this->assertSame( 'text/html', $request['accept'] );
+		$this->assertSame( 0, $request['args']['redirection'] );
+		$this->assertArrayHasKey( 'wpasl_verify', wp_parse_args( wp_parse_url( $request['url'], PHP_URL_QUERY ) ) );
+	}
+
+	public function test_htaccess_verify_outcomes() {
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-verify' ) );
+
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'    => 'text/html; charset=utf-8',
+				'x-wpasl-headers' => 'htaccess',
+				'content-signal'  => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+		$result                = $this->htaccess->verify();
+		$this->assertTrue( $result['ok'] );
+
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'   => 'text/html; charset=utf-8',
+				'content-signal' => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+		$result                = $this->htaccess->verify();
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'header_missing:X-WPASL-Headers', $result['reason'] );
+
+		$this->verify_response = array(
+			'code'    => 500,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+			'body'    => 'error',
+		);
+		$result                = $this->htaccess->verify();
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'http_500', $result['reason'] );
+
+		$this->verify_response = new WP_Error( 'http_request_failed', 'Connection timed out' );
+		$result                = $this->htaccess->verify();
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'request_error:Connection timed out', $result['reason'] );
+
+		$this->verify_response = array(
+			'code'    => 301,
+			'headers' => array(
+				'content-type' => 'text/html; charset=utf-8',
+				'location'     => 'https://www.example.org/',
+			),
+			'body'    => '',
+		);
+		$result                = $this->htaccess->verify();
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'redirect_301', $result['reason'] );
+	}
+
+	public function test_htaccess_apply_success() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
+		file_put_contents( $this->htaccess_file, "# unrelated line\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'    => 'text/html; charset=utf-8',
+				'x-wpasl-headers' => 'htaccess',
+				'content-signal'  => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+
+		$result = $this->htaccess->apply();
+
+		if ( is_multisite() ) {
+			$this->assertFalse( $result['ok'] );
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			return;
+		}
+
+		$this->assertTrue( $result['ok'] );
+		$storage = Plugin::instance()->get( 'storage' );
+		$this->assertSame( "# unrelated line\n", $storage->read( HtaccessHeaders::BACKUP_FILE ) );
+		$contents = file_get_contents( $this->htaccess_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+		$this->assertStringContainsString( '# unrelated line', $contents );
+		$this->assertStringContainsString( 'BEGIN WP Agent Support Layer', $contents );
+		$this->assertStringContainsString( 'END WP Agent Support Layer', $contents );
+		foreach ( Plugin::instance()->get( 'page_cache' )->htaccess_lines() as $line ) {
+			$this->assertStringContainsString( $line, $contents );
+		}
+		$this->assertCount( 1, $this->requests, 'Exactly one verification request.' );
+		$this->assertSame( 'current', $this->htaccess->status() );
+	}
+
+	public function test_htaccess_apply_replaces_existing_block_in_place() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
+		if ( ! function_exists( 'insert_with_markers' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/misc.php';
+		}
+		file_put_contents( $this->htaccess_file, "# before\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		insert_with_markers( $this->htaccess_file, HtaccessHeaders::MARKER, array( 'Header set Content-Signal "old-value"' ) );
+		file_put_contents( $this->htaccess_file, rtrim( file_get_contents( $this->htaccess_file ), "\n" ) . "\n# after\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test fixture.
+
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'    => 'text/html; charset=utf-8',
+				'x-wpasl-headers' => 'htaccess',
+				'content-signal'  => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+
+		$result = $this->htaccess->apply();
+
+		if ( is_multisite() ) {
+			$this->assertFalse( $result['ok'] );
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			return;
+		}
+
+		$this->assertTrue( $result['ok'] );
+		$contents = file_get_contents( $this->htaccess_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+		$this->assertStringContainsString( "# before\n", $contents );
+		$this->assertStringContainsString( "# after\n", $contents );
+		$this->assertStringNotContainsString( 'old-value', $contents );
+		$this->assertSame( 1, substr_count( $contents, '# BEGIN WP Agent Support Layer' ), 'Only one pair of markers.' );
+		$this->assertSame( 1, substr_count( $contents, '# END WP Agent Support Layer' ) );
+		$this->assertSame( 'current', $this->htaccess->status() );
+	}
+
+	public function test_htaccess_apply_rolls_back_on_verification_failure() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
+		$original = "# original content\n";
+		file_put_contents( $this->htaccess_file, $original ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'   => 'text/html; charset=utf-8',
+				'content-signal' => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+
+		$result = $this->htaccess->apply();
+
+		if ( is_multisite() ) {
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			return;
+		}
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'verify', $result['step'] );
+		$this->assertTrue( $result['restored'] );
+		$this->assertSame( $original, file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+		$this->assertSame( 'not_applied', $this->htaccess->status() );
+	}
+
+	public function test_htaccess_apply_removes_created_file_when_it_did_not_exist() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
+		$this->assertFileDoesNotExist( $this->htaccess_file );
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array( 'content-type' => 'text/html; charset=utf-8' ),
+			'body'    => '<html></html>',
+		);
+
+		$result = $this->htaccess->apply();
+
+		if ( is_multisite() ) {
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			$this->assertFileDoesNotExist( $this->htaccess_file );
+			return;
+		}
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertTrue( $result['restored'] );
+		$this->assertFileDoesNotExist( $this->htaccess_file );
+	}
+
+	public function test_htaccess_apply_aborts_when_backup_fails() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$storage    = Plugin::instance()->get( 'storage' );
+		$system_dir = dirname( $storage->path( HtaccessHeaders::BACKUP_FILE ) );
+		wp_mkdir_p( $system_dir );
+		chmod( $system_dir, 0555 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Test fixture: make the backup directory unwritable.
+
+		$result = $this->htaccess->apply();
+
+		chmod( $system_dir, 0755 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Restore so other tests/cleanup can use the directory.
+
+		if ( is_multisite() ) {
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			return;
+		}
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'backup', $result['step'] );
+		$this->assertSame( array(), $this->requests, 'No verification request when the backup fails.' );
+		$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+	}
+
+	public function test_htaccess_apply_aborts_on_multisite() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		$result = $this->htaccess->apply();
+
+		if ( is_multisite() ) {
+			$this->assertFalse( $result['ok'] );
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+			$this->assertSame( array(), $this->requests, 'No verification request on multisite.' );
+		} else {
+			$this->assertNotSame( 'multisite', $result['reason'], 'Single site never aborts for the multisite reason.' );
+		}
+	}
+
+	public function test_htaccess_handler_requires_capability_and_nonce() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'editor' ) ) );
+		try {
+			$this->htaccess->handle();
+			$this->fail( 'Expected a WPDieException.' );
+		} catch ( WPDieException $e ) {
+			$this->assertSame( array(), $this->requests );
+		}
+		$this->assertSame( array(), $this->requests, 'No request without capability.' );
+		$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		try {
+			$this->htaccess->handle();
+			$this->fail( 'Expected a WPDieException.' );
+		} catch ( WPDieException $e ) {
+			$this->assertSame( array(), $this->requests );
+		}
+		$this->assertSame( array(), $this->requests, 'No request without a valid nonce.' );
+		$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+	}
+
+	public function test_htaccess_handler_applies_and_redirects() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-handler' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'    => 'text/html; charset=utf-8',
+				'x-wpasl-headers' => 'htaccess',
+				'content-signal'  => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$_REQUEST[ HtaccessHeaders::NONCE ] = wp_create_nonce( HtaccessHeaders::ACTION );
+
+		if ( is_multisite() ) {
+			// available() hides the button, but a submitted request still goes through handle() -> apply(),
+			// which aborts without writing regardless of the nonce being valid.
+			try {
+				$this->htaccess->handle();
+				$this->fail( 'Expected a redirect.' );
+			} catch ( Exception $e ) {
+				$this->assertStringContainsString( 'wpasl_notice=htaccess', $e->getMessage() );
+			}
+			$result = $this->htaccess->last_result();
+			$this->assertFalse( $result['ok'] );
+			$this->assertSame( 'environment', $result['step'] );
+			return;
+		}
+
+		try {
+			$this->htaccess->handle();
+			$this->fail( 'Expected a redirect.' );
+		} catch ( Exception $e ) {
+			$this->assertStringContainsString( 'redirect:', $e->getMessage() );
+			$this->assertStringContainsString( 'wpasl_notice=htaccess', $e->getMessage() );
+		}
+
+		$result = get_transient( HtaccessHeaders::RESULT_TRANSIENT . get_current_user_id() );
+		$this->assertIsArray( $result );
+		$this->assertTrue( $result['ok'] );
+		$this->assertStringContainsString( 'BEGIN WP Agent Support Layer', file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+	}
+
+	public function test_htaccess_headers_service_is_wired() {
+		$this->assertInstanceOf( HtaccessHeaders::class, Plugin::instance()->get( 'htaccess_headers' ) );
+		$this->assertNotFalse( has_action( 'admin_post_' . HtaccessHeaders::ACTION ) );
+	}
+
+	public function test_tab_shows_htaccess_apply_control_when_available() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# existing\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+
+		$html = $this->render_diagnostics_tab();
+
+		if ( is_multisite() ) {
+			$this->assertStringNotContainsString( 'wpasl-htaccess-apply', $html );
+			$this->assertStringNotContainsString( HtaccessHeaders::ACTION, $html );
+			return;
+		}
+
+		$text = html_entity_decode( $html, ENT_QUOTES, 'UTF-8' );
+		$this->assertStringContainsString( 'wpasl-htaccess-apply', $html );
+		$this->assertStringContainsString( 'Apache 2.4.58', $text );
+		$this->assertStringContainsString( $this->htaccess_file, $text );
+		$this->assertStringContainsString( 'Not applied', $text );
+		$this->assertStringContainsString( 'Apply automatically', $text );
+		$this->assertStringContainsString( 'name="' . HtaccessHeaders::NONCE . '"', $html );
+
+		// Exactly one <form within the page cache notice (the apply form); no form nested inside another.
+		$this->assertSame( substr_count( $html, '<form' ), substr_count( $html, '</form>' ), 'Every opened form is closed.' );
+		$open = 0;
+		foreach ( preg_split( '/(<form\b|<\/form>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY ) as $token ) {
+			if ( '<form' === substr( $token, 0, 5 ) ) {
+				$this->assertSame( 0, $open, 'A <form is never opened while another is still open.' );
+				++$open;
+			} elseif ( '</form>' === $token ) {
+				--$open;
+			}
+		}
+	}
+
+	public function test_tab_hides_htaccess_apply_control_when_unavailable() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+
+		// No wpasl_htaccess_environment filter: the CLI test environment is never detected as compatible.
+		$html   = $this->render_diagnostics_tab();
+		$notice = substr( $html, strpos( $html, 'wpasl-page-cache' ), strpos( $html, 'Run crawler simulation' ) - strpos( $html, 'wpasl-page-cache' ) );
+		$this->assertStringNotContainsString( 'wpasl-htaccess-apply', $html );
+		$this->assertStringNotContainsString( HtaccessHeaders::ACTION, $html );
+		$this->assertSame( 3, preg_match_all( '/<textarea readonly class="large-text code"[^>]*>#/', $notice ), 'The three snippets are still shown.' );
+
+		// Incompatible environment explicitly.
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_incompatible_environment' ) );
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringNotContainsString( 'wpasl-htaccess-apply', $html );
+		remove_filter( 'wpasl_htaccess_environment', array( $this, 'fake_incompatible_environment' ) );
+
+		// Compatible environment but unwritable file.
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		$dir = trailingslashit( get_temp_dir() ) . 'wpasl-test-readonly-' . wp_generate_password( 8, false );
+		wp_mkdir_p( $dir );
+		chmod( $dir, 0555 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Test fixture: read-only directory.
+		$this->readonly_htaccess_file = $dir . '/.htaccess';
+		add_filter( 'wpasl_htaccess_file', array( $this, 'fake_readonly_htaccess_file' ) );
+		$html = $this->render_diagnostics_tab();
+		remove_filter( 'wpasl_htaccess_file', array( $this, 'fake_readonly_htaccess_file' ) );
+		chmod( $dir, 0755 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Restoring so rmdir succeeds.
+		rmdir( $dir ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_rmdir -- Test fixture cleanup.
+		$this->assertStringNotContainsString( 'wpasl-htaccess-apply', $html );
+	}
+
+	public function test_tab_shows_htaccess_result_notices() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$_GET['wpasl_notice'] = 'htaccess';
+
+		set_transient(
+			HtaccessHeaders::RESULT_TRANSIENT . get_current_user_id(),
+			array(
+				'ok'       => true,
+				'step'     => '',
+				'reason'   => '',
+				'restored' => null,
+			),
+			MINUTE_IN_SECONDS
+		);
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'notice-success', $html );
+		$this->assertStringContainsString( 'X-WPASL-Headers marker', $html );
+		$this->assertFalse( get_transient( HtaccessHeaders::RESULT_TRANSIENT . get_current_user_id() ), 'The transient is consumed.' );
+
+		set_transient(
+			HtaccessHeaders::RESULT_TRANSIENT . get_current_user_id(),
+			array(
+				'ok'       => false,
+				'step'     => 'verify',
+				'reason'   => 'header_missing:X-WPASL-Headers',
+				'restored' => true,
+			),
+			MINUTE_IN_SECONDS
+		);
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( 'header_missing:X-WPASL-Headers', $html );
+		$this->assertStringContainsString( 'restored', $html );
+
+		set_transient(
+			HtaccessHeaders::RESULT_TRANSIENT . get_current_user_id(),
+			array(
+				'ok'       => false,
+				'step'     => 'verify',
+				'reason'   => 'http_500',
+				'restored' => false,
+			),
+			MINUTE_IN_SECONDS
+		);
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'notice-error', $html );
+		$this->assertStringContainsString( Plugin::instance()->get( 'storage' )->path( HtaccessHeaders::BACKUP_FILE ), $html );
+
+		unset( $_GET['wpasl_notice'] );
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringNotContainsString( 'wpasl-htaccess-result', $html );
+	}
+
+	public function test_htaccess_is_never_written_outside_the_action() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create( array( 'post_name' => 'muestra-no-write' ) );
+		file_put_contents( $this->htaccess_file, "# untouched\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$contents = file_get_contents( $this->htaccess_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test fixture.
+		$mtime    = filemtime( $this->htaccess_file );
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+
+		\WPASL\Lifecycle::activate();
+		Plugin::instance()->get( 'settings' )->sanitize( array( '_tab' => 'general' ) );
+		Plugin::instance()->get( 'settings' )->sanitize( array( '_tab' => 'signals' ) );
+		Plugin::instance()->get( 'runner' )->run();
+		$this->controller->run();
+		$this->render_diagnostics_tab();
+
+		clearstatcache( true, $this->htaccess_file );
+		$this->assertSame( $contents, file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+		$this->assertSame( $mtime, filemtime( $this->htaccess_file ) );
+		$this->assertFalse( Plugin::instance()->get( 'storage' )->exists( HtaccessHeaders::BACKUP_FILE ) );
+		foreach ( $this->requests as $request ) {
+			$this->assertStringNotContainsString( 'wpasl_verify', $request['url'] );
+		}
+	}
+
+	public function test_htaccess_block_goes_stale_without_rewriting() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-stale' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		$this->verify_response = array(
+			'code'    => 200,
+			'headers' => array(
+				'content-type'    => 'text/html; charset=utf-8',
+				'x-wpasl-headers' => 'htaccess',
+				'content-signal'  => 'search=yes, ai-input=yes, ai-train=no',
+			),
+			'body'    => '<html></html>',
+		);
+		$result                = $this->htaccess->apply();
+		if ( is_multisite() ) {
+			$this->assertSame( 'environment', $result['step'] );
+			return;
+		}
+		$this->assertTrue( $result['ok'] );
+		$contents = file_get_contents( $this->htaccess_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test fixture.
+
+		update_option( Settings::OPTION, array( 'signal_ai_train' => 'yes' ) );
+		Plugin::instance()->get( 'settings' )->flush_cache();
+
+		$this->assertSame( $contents, file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+		$this->assertSame( 'stale', $this->htaccess->status() );
+
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		$html = $this->render_diagnostics_tab();
+		$this->assertStringContainsString( 'Applied with different values than the current settings', $html );
+		$this->assertStringContainsString( 'Update the block', $html );
 	}
 
 	public function test_tab_hides_cache_notice_without_page_cache() {

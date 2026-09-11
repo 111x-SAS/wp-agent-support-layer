@@ -12,6 +12,7 @@ use WPASL\Admin\Page;
 use WPASL\Admin\Tab;
 use WPASL\Diagnostics\CrawlerProbe;
 use WPASL\Diagnostics\DiagnosticsController;
+use WPASL\Diagnostics\HtaccessHeaders;
 use WPASL\Diagnostics\PageCache;
 use WPASL\Diagnostics\Report;
 use WPASL\Generation\Runner;
@@ -52,18 +53,27 @@ final class DiagnosticsTab implements Tab {
 	private $runner;
 
 	/**
+	 * .htaccess auto-apply service.
+	 *
+	 * @var HtaccessHeaders|null
+	 */
+	private $htaccess;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param CrawlerProbe $probe      Probe.
-	 * @param Page         $page       Page.
-	 * @param PageCache    $page_cache Page cache detection and snippets.
-	 * @param Runner|null  $runner     Runner.
+	 * @param CrawlerProbe         $probe      Probe.
+	 * @param Page                 $page       Page.
+	 * @param PageCache            $page_cache Page cache detection and snippets.
+	 * @param Runner|null          $runner     Runner.
+	 * @param HtaccessHeaders|null $htaccess   .htaccess auto-apply service.
 	 */
-	public function __construct( CrawlerProbe $probe, Page $page, PageCache $page_cache, ?Runner $runner = null ) {
+	public function __construct( CrawlerProbe $probe, Page $page, PageCache $page_cache, ?Runner $runner = null, ?HtaccessHeaders $htaccess = null ) {
 		$this->probe      = $probe;
 		$this->page       = $page;
 		$this->page_cache = $page_cache;
 		$this->runner     = $runner;
+		$this->htaccess   = $htaccess;
 	}
 
 	/**
@@ -124,6 +134,7 @@ final class DiagnosticsTab implements Tab {
 			?>
 			</p></div>
 		<?php endif; ?>
+		<?php $this->render_htaccess_result_notice( $notice ); ?>
 		<?php $this->render_page_cache_notice( $report ); ?>
 		<?php $this->render_render_failures_notice(); ?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
@@ -161,16 +172,126 @@ final class DiagnosticsTab implements Tab {
 			<?php foreach ( $this->page_cache->notice_paragraphs( $detected ) as $paragraph ) : ?>
 				<p><?php echo esc_html( $paragraph ); ?></p>
 			<?php endforeach; ?>
-			<?php foreach ( $this->page_cache->snippets() as $snippet ) : ?>
+			<?php foreach ( $this->page_cache->snippets() as $index => $snippet ) : ?>
 				<h4><?php echo esc_html( $snippet['title'] ); ?></h4>
 				<?php if ( '' !== $snippet['note'] ) : ?>
 					<p class="description"><?php echo esc_html( $snippet['note'] ); ?></p>
 				<?php endif; ?>
 				<textarea readonly class="large-text code" rows="<?php echo esc_attr( (string) min( 24, substr_count( $snippet['text'], "\n" ) + 1 ) ); ?>"><?php echo esc_textarea( $snippet['text'] ); ?></textarea>
+				<?php if ( 0 === $index && null !== $this->htaccess && $this->htaccess->available() ) : ?>
+					<?php $this->render_htaccess_apply_control(); ?>
+				<?php endif; ?>
 			<?php endforeach; ?>
 			<?php if ( '' !== $cloudflare ) : ?>
 				<p><?php echo nl2br( esc_html( $cloudflare ) ); ?></p>
 			<?php endif; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Prints the environment check, the block status and the "Apply automatically" / "Update the block" form,
+	 * right after the .htaccess snippet. Only called when the auto-apply service is available.
+	 *
+	 * @return void
+	 */
+	private function render_htaccess_apply_control() {
+		$environment = $this->htaccess->environment();
+		$status      = $this->htaccess->status();
+		if ( null === $environment['mod_headers'] ) {
+			$mod_headers = __( 'not checkable', 'wp-agent-support-layer' );
+		} else {
+			$mod_headers = $environment['mod_headers'] ? __( 'yes', 'wp-agent-support-layer' ) : __( 'no', 'wp-agent-support-layer' );
+		}
+		$status_labels = array(
+			'not_applied' => __( 'Not applied', 'wp-agent-support-layer' ),
+			'current'     => __( 'Applied and up to date', 'wp-agent-support-layer' ),
+			'stale'       => __( 'Applied with different values than the current settings', 'wp-agent-support-layer' ),
+		);
+		$button_label  = 'not_applied' === $status ? __( 'Apply automatically', 'wp-agent-support-layer' ) : __( 'Update the block', 'wp-agent-support-layer' );
+		?>
+		<div class="wpasl-htaccess-apply">
+			<p>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: detected server, 2: mod_headers availability, 3: .htaccess file path. */
+						__( 'Detected: %1$s; mod_headers: %2$s; file: %3$s', 'wp-agent-support-layer' ),
+						$environment['server'],
+						$mod_headers,
+						$this->htaccess->file()
+					)
+				);
+				?>
+			</p>
+			<p><strong><?php echo esc_html( isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status ); ?></strong></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( HtaccessHeaders::ACTION ); ?>" />
+				<?php wp_nonce_field( HtaccessHeaders::ACTION, HtaccessHeaders::NONCE ); ?>
+				<?php submit_button( $button_label, 'secondary', 'submit', false ); ?>
+				<p class="description"><?php esc_html_e( 'Backs up .htaccess, writes the block between WordPress markers, verifies it with a request to this site and restores the backup if the verification fails.', 'wp-agent-support-layer' ); ?></p>
+			</form>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Prints the result notice of the last .htaccess auto-apply, when the redirect carries wpasl_notice=htaccess.
+	 *
+	 * @param string $notice Value of the "wpasl_notice" query arg.
+	 * @return void
+	 */
+	private function render_htaccess_result_notice( $notice ) {
+		if ( 'htaccess' !== $notice || null === $this->htaccess ) {
+			return;
+		}
+		$result = $this->htaccess->last_result();
+		if ( ! is_array( $result ) ) {
+			return;
+		}
+		if ( ! empty( $result['ok'] ) ) {
+			?>
+			<div class="notice notice-success inline wpasl-htaccess-result"><p><?php esc_html_e( 'The .htaccess block was applied and verified: the sample page answered with the X-WPASL-Headers marker.', 'wp-agent-support-layer' ); ?></p></div>
+			<?php
+			return;
+		}
+		$phase_labels = array(
+			'environment' => __( 'environment check', 'wp-agent-support-layer' ),
+			'backup'      => __( 'backup', 'wp-agent-support-layer' ),
+			'write'       => __( 'write', 'wp-agent-support-layer' ),
+			'verify'      => __( 'verification', 'wp-agent-support-layer' ),
+		);
+		$step         = isset( $result['step'] ) ? (string) $result['step'] : '';
+		$phase        = isset( $phase_labels[ $step ] ) ? $phase_labels[ $step ] : $step;
+		?>
+		<div class="notice notice-error inline wpasl-htaccess-result">
+			<p>
+				<?php
+				echo esc_html(
+					sprintf(
+						/* translators: 1: phase name, 2: failure reason. */
+						__( 'The .htaccess block could not be applied (%1$s: %2$s).', 'wp-agent-support-layer' ),
+						$phase,
+						isset( $result['reason'] ) ? (string) $result['reason'] : ''
+					)
+				);
+				?>
+				<?php if ( array_key_exists( 'restored', $result ) && null !== $result['restored'] ) : ?>
+					<?php if ( $result['restored'] ) : ?>
+						<?php esc_html_e( 'No change was kept: the previous .htaccess was restored.', 'wp-agent-support-layer' ); ?>
+					<?php else : ?>
+						<?php
+						echo esc_html(
+							sprintf(
+								/* translators: %s: backup file path. */
+								__( 'The previous .htaccess could not be restored automatically; the backup is at %s.', 'wp-agent-support-layer' ),
+								$this->htaccess->backup_path()
+							)
+						);
+						?>
+					<?php endif; ?>
+				<?php endif; ?>
+			</p>
 		</div>
 		<?php
 	}

@@ -321,15 +321,11 @@ class Test_Settings extends WP_UnitTestCase {
 		$this->assertSame( array(), $clean['content_source'] );
 	}
 
-	public function test_general_tab_renders_content_source_and_selector() {
+	public function test_general_tab_renders_content_selector() {
 		$html          = $this->render_page( 'general' );
 		$settings_form = $this->form_html( $html, 'options.php' );
-		foreach ( array( 'post', 'page' ) as $type ) {
-			$this->assertMatchesRegularExpression( '/<select name="wpasl_settings\[content_source\]\[' . $type . '\]">\s*<option value="auto"\s+selected=\'selected\'>Auto</', $settings_form, $type );
-		}
-		$this->assertSame( 2, substr_count( $settings_form, 'wpasl_settings[content_source][' ), 'One select per enabled post type.' );
-		$this->assertStringContainsString( 'Content source', $settings_form );
-		$this->assertStringContainsString( 'Auto: use the rendered page when the item has an assigned template, was built with a page builder or uses a fixed theme template; otherwise the editor content.', $settings_form );
+		$this->assertStringNotContainsString( 'Content source', $settings_form );
+		$this->assertStringNotContainsString( 'wpasl_settings[content_source]', $settings_form );
 		$this->assertStringContainsString( 'Content selector (CSS)', $settings_form );
 		$this->assertMatchesRegularExpression( '/<input type="text" id="wpasl-content-selector" name="wpasl_settings\[content_selector\]" value=""/', $settings_form );
 		$this->assertStringContainsString( 'Leave empty for automatic detection', $settings_form );
@@ -345,9 +341,34 @@ class Test_Settings extends WP_UnitTestCase {
 		Plugin::instance()->get( 'settings' )->flush_cache();
 		$html          = $this->render_page( 'general' );
 		$settings_form = $this->form_html( $html, 'options.php' );
-		$this->assertMatchesRegularExpression( '/name="wpasl_settings\[content_source\]\[page\]">\s*<option value="auto"\s*>Auto<\/option>\s*<option value="editor"\s*>Editor content<\/option>\s*<option value="rendered"\s+selected=\'selected\'>Rendered page</', $settings_form );
-		$this->assertSame( 1, substr_count( $settings_form, 'wpasl_settings[content_source][' ), 'Disabled post types have no select.' );
+		$this->assertStringNotContainsString( 'wpasl_settings[content_source]', $settings_form );
 		$this->assertStringContainsString( 'value="div.entry-content &gt; .inner"', $settings_form );
+	}
+
+	public function test_saving_general_tab_clears_a_forced_content_source() {
+		update_option(
+			Settings::OPTION,
+			array(
+				'post_types'     => array( 'page' ),
+				'content_source' => array( 'page' => 'rendered' ),
+			)
+		);
+		$settings = new Settings();
+		$this->assertSame( 'rendered', $settings->content_source( 'page' ) );
+
+		$clean = $settings->sanitize(
+			array(
+				'_tab'       => 'general',
+				'post_types' => array( 'page' ),
+				'schedule'   => 'daily',
+				'batch_size' => 50,
+			)
+		);
+		$this->assertSame( array(), $clean['content_source'] );
+
+		update_option( Settings::OPTION, $clean );
+		$settings->flush_cache();
+		$this->assertSame( 'auto', $settings->content_source( 'page' ) );
 	}
 
 	/**

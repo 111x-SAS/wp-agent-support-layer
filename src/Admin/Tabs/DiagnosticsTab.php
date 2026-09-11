@@ -165,7 +165,9 @@ final class DiagnosticsTab implements Tab {
 		if ( null === $detected ) {
 			return;
 		}
-		$cloudflare = $this->page_cache->cloudflare_note( is_array( $report ) && isset( $report['infrastructure']['cdn'] ) ? $report['infrastructure']['cdn'] : '' );
+		$cloudflare  = $this->page_cache->cloudflare_note( is_array( $report ) && isset( $report['infrastructure']['cdn'] ) ? $report['infrastructure']['cdn'] : '' );
+		$environment = null !== $this->htaccess ? $this->htaccess->environment() : null;
+		$show_apply  = null !== $environment && $this->htaccess->available( $environment );
 		?>
 		<div class="notice notice-warning inline wpasl-page-cache">
 			<h3><?php echo esc_html( $this->page_cache->notice_title( $detected ) ); ?></h3>
@@ -178,8 +180,8 @@ final class DiagnosticsTab implements Tab {
 					<p class="description"><?php echo esc_html( $snippet['note'] ); ?></p>
 				<?php endif; ?>
 				<textarea readonly class="large-text code" rows="<?php echo esc_attr( (string) min( 24, substr_count( $snippet['text'], "\n" ) + 1 ) ); ?>"><?php echo esc_textarea( $snippet['text'] ); ?></textarea>
-				<?php if ( 0 === $index && null !== $this->htaccess && $this->htaccess->available() ) : ?>
-					<?php $this->render_htaccess_apply_control(); ?>
+				<?php if ( 0 === $index && $show_apply ) : ?>
+					<?php $this->render_htaccess_apply_control( $environment ); ?>
 				<?php endif; ?>
 			<?php endforeach; ?>
 			<?php if ( '' !== $cloudflare ) : ?>
@@ -193,11 +195,11 @@ final class DiagnosticsTab implements Tab {
 	 * Prints the environment check, the block status and the "Apply automatically" / "Update the block" form,
 	 * right after the .htaccess snippet. Only called when the auto-apply service is available.
 	 *
+	 * @param array{compatible:bool, server:string, version:string, mod_headers:bool|null, reason:string} $environment Result of HtaccessHeaders::environment(), already computed by the caller.
 	 * @return void
 	 */
-	private function render_htaccess_apply_control() {
-		$environment = $this->htaccess->environment();
-		$status      = $this->htaccess->status();
+	private function render_htaccess_apply_control( array $environment ) {
+		$status = $this->htaccess->status();
 		if ( null === $environment['mod_headers'] ) {
 			$mod_headers = __( 'not checkable', 'wp-agent-support-layer' );
 		} else {
@@ -224,7 +226,7 @@ final class DiagnosticsTab implements Tab {
 				);
 				?>
 			</p>
-			<p><strong><?php echo esc_html( isset( $status_labels[ $status ] ) ? $status_labels[ $status ] : $status ); ?></strong></p>
+			<p><strong><?php echo esc_html( $status_labels[ $status ] ); ?></strong></p>
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 				<input type="hidden" name="action" value="<?php echo esc_attr( HtaccessHeaders::ACTION ); ?>" />
 				<?php wp_nonce_field( HtaccessHeaders::ACTION, HtaccessHeaders::NONCE ); ?>

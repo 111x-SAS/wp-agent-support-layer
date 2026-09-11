@@ -1092,6 +1092,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$cases = array(
 			'Apache/2.4.58' => true,
 			'Apache/2.2.34' => false,
+			'Apache/2.4'    => true,
 			'Apache'        => true,
 			'nginx/1.24.0'  => false,
 			''              => false,
@@ -1110,9 +1111,16 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertFalse( $this->htaccess->environment()['compatible'], 'OpenLiteSpeed is never compatible.' );
 
 		unset( $_SERVER['SERVER_SOFTWARE'], $_SERVER['LSWS_EDITION'] );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		$this->assertSame( 'Apache 2.4.58', $this->htaccess->environment()['server'], 'A well-formed filter result replaces the detection.' );
+		remove_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+
+		// A malformed filter result (wrong shape) is discarded; the real detection stands.
+		$_SERVER['SERVER_SOFTWARE'] = 'nginx/1.24.0';
 		add_filter( 'wpasl_htaccess_environment', '__return_null' );
-		$this->assertNull( $this->htaccess->environment(), 'The result can be replaced with a filter.' );
+		$this->assertFalse( $this->htaccess->environment()['compatible'], 'A null filter result is ignored.' );
 		remove_filter( 'wpasl_htaccess_environment', '__return_null' );
+		unset( $_SERVER['SERVER_SOFTWARE'] );
 	}
 
 	public function test_htaccess_availability() {
@@ -1267,6 +1275,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_apply_success() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
 		file_put_contents( $this->htaccess_file, "# unrelated line\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
@@ -1304,6 +1313,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_apply_replaces_existing_block_in_place() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
 		if ( ! function_exists( 'insert_with_markers' ) ) {
@@ -1343,6 +1353,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_apply_rolls_back_on_verification_failure() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
 		$original = "# original content\n";
@@ -1373,6 +1384,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_apply_removes_created_file_when_it_did_not_exist() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-apply' ) );
 		$this->assertFileDoesNotExist( $this->htaccess_file );
@@ -1397,6 +1409,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_apply_aborts_when_backup_fails() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
 		$storage    = Plugin::instance()->get( 'storage' );
@@ -1420,7 +1433,54 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
 	}
 
+	public function test_htaccess_apply_aborts_when_existing_file_cannot_be_read() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		// Write-only for the owner: wp_is_writable() still passes (so apply() reaches backup()), but
+		// file_get_contents() cannot read it, simulating a permissions race or an unreadable file.
+		chmod( $this->htaccess_file, 0200 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Test fixture: unreadable but writable file.
+
+		$result = $this->htaccess->apply();
+
+		chmod( $this->htaccess_file, 0644 ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_chmod -- Restore so tear_down() can read/delete the fixture.
+
+		if ( is_multisite() ) {
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			return;
+		}
+
+		$this->assertFalse( $result['ok'], 'A failed read of an existing .htaccess must never be treated as an empty-but-valid backup.' );
+		$this->assertSame( 'backup', $result['step'] );
+		$this->assertSame( array(), $this->requests, 'No verification request when the existing file cannot be read.' );
+		$this->assertFalse( Plugin::instance()->get( 'storage' )->exists( HtaccessHeaders::BACKUP_FILE ), 'No backup is kept from a failed read.' );
+		$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+	}
+
+	public function test_htaccess_apply_aborts_when_cache_enabler_is_not_active() {
+		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
+		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
+		// No wpasl_diagnostics_page_cache filter: Cache Enabler is not active, e.g. because it was deactivated
+		// after the tab was loaded. A still-valid nonce (good for ~24h) must not be enough to write the block.
+
+		$result = $this->htaccess->apply();
+
+		if ( is_multisite() ) {
+			$this->assertSame( 'environment', $result['step'] );
+			$this->assertSame( 'multisite', $result['reason'] );
+			return;
+		}
+
+		$this->assertFalse( $result['ok'] );
+		$this->assertSame( 'environment', $result['step'] );
+		$this->assertStringContainsString( 'Cache Enabler', $result['reason'] );
+		$this->assertSame( array(), $this->requests, 'No verification request without Cache Enabler active.' );
+		$this->assertSame( "# original\n", file_get_contents( $this->htaccess_file ) ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Test assertion.
+	}
+
 	public function test_htaccess_apply_aborts_on_multisite() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
 
@@ -1463,6 +1523,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_handler_applies_and_redirects() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-handler' ) );
 		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
@@ -1657,6 +1718,7 @@ class Test_Diagnostics extends WP_UnitTestCase {
 	}
 
 	public function test_htaccess_block_goes_stale_without_rewriting() {
+		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		add_filter( 'wpasl_htaccess_environment', array( $this, 'fake_htaccess_environment' ) );
 		self::factory()->post->create_and_get( array( 'post_name' => 'muestra-stale' ) );
 		file_put_contents( $this->htaccess_file, "# original\n" ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Test fixture.
@@ -1684,7 +1746,6 @@ class Test_Diagnostics extends WP_UnitTestCase {
 		$this->assertSame( 'stale', $this->htaccess->status() );
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
-		add_filter( 'wpasl_diagnostics_page_cache', array( $this, 'fake_cache_enabler' ) );
 		$html = $this->render_diagnostics_tab();
 		$this->assertStringContainsString( 'Applied with different values than the current settings', $html );
 		$this->assertStringContainsString( 'Update the block', $html );

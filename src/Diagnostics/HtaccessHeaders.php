@@ -142,7 +142,7 @@ final class HtaccessHeaders {
 			$software = isset( $_SERVER['SERVER_SOFTWARE'] ) ? (string) $_SERVER['SERVER_SOFTWARE'] : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only server identification, never output.
 			if ( preg_match( '#^Apache(?:/(\d+\.\d+(?:\.\d+)?))?#i', $software, $m ) ) {
 				$version    = isset( $m[1] ) ? $m[1] : '';
-				$compatible = '' === $version || version_compare( $version, '2.4.7', '>=' );
+				$compatible = '' === $version || self::version_at_least( $version, '2.4.7' );
 				$result     = array(
 					'compatible'  => $compatible,
 					'server'      => '' !== $version ? 'Apache ' . $version : 'Apache',
@@ -176,7 +176,34 @@ final class HtaccessHeaders {
 		 *
 		 * @param array{compatible:bool, server:string, version:string, mod_headers:bool|null, reason:string} $result Result.
 		 */
-		return apply_filters( 'wpasl_htaccess_environment', $result );
+		$filtered = apply_filters( 'wpasl_htaccess_environment', $result );
+		if ( ! is_array( $filtered ) || ! array_key_exists( 'compatible', $filtered ) ) {
+			// A malformed filter result (wrong shape, or a third party returning null/false) is discarded in
+			// favor of the actual detection, the same guard PageCache::detect() applies to its own filter.
+			return $result;
+		}
+		return array(
+			'compatible'  => (bool) $filtered['compatible'],
+			'server'      => isset( $filtered['server'] ) ? (string) $filtered['server'] : $result['server'],
+			'version'     => isset( $filtered['version'] ) ? (string) $filtered['version'] : $result['version'],
+			'mod_headers' => array_key_exists( 'mod_headers', $filtered ) ? $filtered['mod_headers'] : $result['mod_headers'],
+			'reason'      => isset( $filtered['reason'] ) ? (string) $filtered['reason'] : '',
+		);
+	}
+
+	/**
+	 * Whether a (possibly partial) version string is at least $minimum. SERVER_SOFTWARE can report a
+	 * truncated version ("Apache/2.4" under "ServerTokens Minor"), which version_compare() would otherwise
+	 * treat as older than "2.4.7". A missing component is padded with "999" so a partial version is treated
+	 * as "at least as new as" any version sharing its known prefix.
+	 *
+	 * @param string $version Version string (e.g. "2.4" or "2.4.58").
+	 * @param string $minimum Minimum required version (e.g. "2.4.7").
+	 * @return bool
+	 */
+	private static function version_at_least( $version, $minimum ) {
+		$parts = array_pad( explode( '.', $version ), 3, '999' );
+		return version_compare( implode( '.', $parts ), $minimum, '>=' );
 	}
 
 	/**
@@ -215,10 +242,12 @@ final class HtaccessHeaders {
 	 * Whether the tab should show the capability check and the apply button: single site, Cache Enabler
 	 * active, compatible environment and a writable .htaccess.
 	 *
+	 * @param array{compatible:bool, server:string, version:string, mod_headers:bool|null, reason:string}|null $environment Precomputed environment() result, to avoid detecting it twice when the caller already has it (e.g. the tab, which also prints the server/mod_headers detail); detected here when omitted.
 	 * @return bool
 	 */
-	public function available() {
-		return ! is_multisite() && null !== PageCache::detect() && $this->environment()['compatible'] && $this->writable();
+	public function available( ?array $environment = null ) {
+		$environment = $environment ?? $this->environment();
+		return ! is_multisite() && null !== PageCache::detect() && $environment['compatible'] && $this->writable();
 	}
 
 	/**
@@ -253,9 +282,19 @@ final class HtaccessHeaders {
 	 * @return bool
 	 */
 	public function backup() {
-		$file     = $this->file();
-		$existed  = file_exists( $file );
-		$contents = $existed ? (string) file_get_contents( $file ) : ''; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Backup of the site's own .htaccess before writing it.
+		$file    = $this->file();
+		$existed = file_exists( $file );
+		if ( $existed ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents, WordPress.PHP.NoSilencedErrors.Discouraged -- Backup of the site's own .htaccess; a failed read is reported below via its return value, not the warning.
+			$contents = @file_get_contents( $file );
+			if ( false === $contents ) {
+				// A failed read of an existing file must never be treated as "empty file, backed up
+				// successfully": that would let restore() overwrite a real .htaccess with an empty one.
+				return false;
+			}
+		} else {
+			$contents = '';
+		}
 		if ( ! $this->storage->write( self::BACKUP_FILE, $contents ) ) {
 			return false;
 		}
@@ -366,6 +405,16 @@ final class HtaccessHeaders {
 				'ok'       => false,
 				'step'     => 'environment',
 				'reason'   => 'multisite',
+				'restored' => null,
+			);
+		}
+		if ( null === PageCache::detect() ) {
+			// available() hides the button once Cache Enabler is deactivated, but a nonce stays valid for
+			// about 24 hours: re-check here so a stale form submission cannot still write the block.
+			return array(
+				'ok'       => false,
+				'step'     => 'environment',
+				'reason'   => 'Cache Enabler is not active',
 				'restored' => null,
 			);
 		}

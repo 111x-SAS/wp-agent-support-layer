@@ -463,12 +463,19 @@ final class Runner {
 		if ( null === $post_types ) {
 			$state['generated'] = array();
 			$state['failed']    = array();
-		} else {
-			$ids                = array_fill_keys( $this->eligibility->eligible_ids( $post_types ), true );
-			$state['generated'] = array_diff_key( $state['generated'], $ids );
-			$state['failed']    = array_diff_key( (array) $state['failed'], $ids );
+			$this->state->save( $state, false );
+			return;
 		}
-		$this->state->save( $state, false );
+
+		$ids             = $this->eligibility->eligible_ids( $post_types );
+		$state['failed'] = array_diff_key( (array) $state['failed'], array_fill_keys( $ids, true ) );
+		// Only the reset ids need to be passed (via '_removed' below): save()'s merge reconstructs every
+		// other id of 'generated' from a fresh reload instead of writing back this potentially stale copy,
+		// so a generation mark registered concurrently for an item of another post type is not discarded,
+		// same pattern as prune() and the end of run().
+		$state             = State::narrowed( $state );
+		$state['_removed'] = $ids;
+		$this->state->save( $state );
 	}
 
 	/**

@@ -923,6 +923,25 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertSame( array(), $state['queue'] );
 	}
 
+	public function test_reset_cycle_with_types_preserves_a_concurrently_marked_item_of_another_type() {
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->runner->run_cycle();
+		$this->assertArrayHasKey( $page, ( new State() )->load()['generated'] );
+
+		$before = ( new State() )->load();
+		$post   = self::factory()->post->create();
+		( new State() )->mark_generated( $post ); // A concurrent request generates and marks an unrelated post type.
+		// ...but this process's own cache still thinks it's the state before that; load() alone does not bust the cache.
+		wp_cache_set( State::OPTION, $before, 'options' );
+
+		$this->runner->reset_cycle( array( 'page' ) );
+
+		$state = ( new State() )->load();
+		$this->assertArrayNotHasKey( $page, $state['generated'], 'The reset post type is forgotten.' );
+		$this->assertArrayHasKey( $post, $state['generated'], 'The concurrently marked item of another type is not discarded.' );
+		$this->assertSame( array(), $state['queue'] );
+	}
+
 	public function test_without_item_generator_runs_only_artifacts() {
 		self::factory()->post->create();
 		$this->runner->set_item_generator( null );

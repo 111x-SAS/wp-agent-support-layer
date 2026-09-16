@@ -306,6 +306,32 @@ class Test_Content_Source extends WP_UnitTestCase {
 		$this->assertSame( array( 'source' => 'editor', 'reason' => 'default' ), $this->source->resolve( $post ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
 	}
 
+	public function test_identifier_starting_with_include_or_require_does_not_look_like_a_dynamic_include() {
+		$post = $this->normal_post();
+		// A variable that merely starts with "include" is not the PHP include language construct.
+		$this->use_template(
+			'single-post.php',
+			"<?php get_header(); ?>\n<main><p>Fixed marketing copy.</p></main>\n<?php \$include_path = get_stylesheet_directory(); get_footer();"
+		);
+		$this->assertSame( array( 'source' => 'rendered', 'reason' => 'template_file:single-post.php' ), $this->source->resolve( $post ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+
+		// Same for a method name that merely starts with "require_once".
+		ContentSource::flush_template_cache();
+		$this->use_template(
+			'single-post.php',
+			"<?php get_header(); ?>\n<main><p>Fixed marketing copy.</p></main>\n<?php \$this->require_once_something( \$file ); get_footer();"
+		);
+		$this->assertSame( array( 'source' => 'rendered', 'reason' => 'template_file:single-post.php' ), $this->source->resolve( $post ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+
+		// A real dynamic include right next to such an identifier is still caught.
+		ContentSource::flush_template_cache();
+		$this->use_template(
+			'single-post.php',
+			'<?php get_header(); $include_path = get_stylesheet_directory(); include $file; get_footer();'
+		);
+		$this->assertSame( array( 'source' => 'editor', 'reason' => 'default' ), $this->source->resolve( $post ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+	}
+
 	public function test_template_file_with_the_content_or_dynamic_part_is_inconclusive() {
 		$post  = $this->normal_post();
 		$cases = array(

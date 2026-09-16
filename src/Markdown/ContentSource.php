@@ -460,8 +460,10 @@ final class ContentSource {
 		// preceded by a quote, or an array key like 'include' => array(...) (get_posts(), WP_Query...) would
 		// be mistaken for a dynamic include; a real include/require is never preceded by a quote this way,
 		// so this alone rules out the array-key case without missing a quote-adjacent argument such as
-		// include'./file.php'; (valid PHP with no space).
-		if ( preg_match_all( '/(?<!["\'])\b(?:include|require)(?:_once)?\s*\(?\s*([^;]+);/i', $code, $includes ) ) {
+		// include'./file.php'; (valid PHP with no space). The keyword, with or without _once, must also not
+		// be immediately followed by another word character, or a longer identifier that merely starts with
+		// it ($include_path, a require_once_something() method) would be mistaken for the same construct.
+		if ( preg_match_all( '/(?<!["\'])\b(?:include|require)(?:_once)?(?!\w)\s*\(?\s*([^;]+);/i', $code, $includes ) ) {
 			foreach ( $includes[1] as $argument ) {
 				$argument = trim( rtrim( trim( $argument ), ')' ) );
 				if ( ! preg_match( '/^(["\'])([^"\']+)\1$/', $argument, $m ) ) {

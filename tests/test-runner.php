@@ -942,6 +942,19 @@ class Test_Runner extends WP_UnitTestCase {
 		$this->assertSame( array(), $state['queue'] );
 	}
 
+	public function test_reset_cycle_with_types_does_not_wipe_render_failed_for_the_reset_ids() {
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->runner->run_cycle();
+		( new State() )->record_render_failure( $page, 'timeout' );
+		$this->assertArrayHasKey( $page, ( new State() )->load()['render_failed'] );
+
+		$this->runner->reset_cycle( array( 'page' ) );
+
+		$state = ( new State() )->load();
+		$this->assertArrayNotHasKey( $page, $state['generated'], 'The reset post type is forgotten from generated.' );
+		$this->assertArrayHasKey( $page, $state['render_failed'], 'render_failed is left untouched: reset_cycle() asks to regenerate the item, it does not invalidate it.' );
+	}
+
 	public function test_without_item_generator_runs_only_artifacts() {
 		self::factory()->post->create();
 		$this->runner->set_item_generator( null );

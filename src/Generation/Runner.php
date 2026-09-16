@@ -458,24 +458,30 @@ final class Runner {
 	 * @return void
 	 */
 	public function reset_cycle( $post_types = null ) {
-		$state          = $this->state->load();
-		$state['queue'] = array();
 		if ( null === $post_types ) {
+			$state              = $this->state->load();
+			$state['queue']     = array();
 			$state['generated'] = array();
 			$state['failed']    = array();
 			$this->state->save( $state, false );
 			return;
 		}
 
-		$ids             = $this->eligibility->eligible_ids( $post_types );
-		$state['failed'] = array_diff_key( (array) $state['failed'], array_fill_keys( $ids, true ) );
-		// Only the reset ids need to be passed (via '_removed' below): save()'s merge reconstructs every
-		// other id of 'generated' from a fresh reload instead of writing back this potentially stale copy,
-		// so a generation mark registered concurrently for an item of another post type is not discarded,
-		// same pattern as prune() and the end of run().
-		$state             = State::narrowed( $state );
-		$state['_removed'] = $ids;
-		$this->state->save( $state );
+		$ids = $this->eligibility->eligible_ids( $post_types );
+		// eligible_ids() above can take a while (a DB query); bust the cache and reload right before
+		// diffing so this reads the freshest possible state, then save() with merge=false writes that
+		// (minus the reset ids) straight back. Unlike prune()/run(), this is not invalidating these ids
+		// (their render-failure count and last error must survive so a retry after reset does not start
+		// from scratch), so 'render_failed' and 'last_render_error' are carried through completely
+		// untouched from this fresh reload instead of going through narrowed()/'_removed', which would
+		// also (correctly, for those other callers, but not for this one) wipe 'render_failed' for every
+		// reset id.
+		wp_cache_delete( State::OPTION, 'options' );
+		$state              = $this->state->load();
+		$state['queue']     = array();
+		$state['generated'] = array_diff_key( $state['generated'], array_fill_keys( $ids, true ) );
+		$state['failed']    = array_diff_key( (array) $state['failed'], array_fill_keys( $ids, true ) );
+		$this->state->save( $state, false );
 	}
 
 	/**
